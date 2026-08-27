@@ -233,6 +233,20 @@ class CustomOLSPlatformTests(unittest.TestCase):
                     source.index('checkGlibcCompat'),
                 )
 
+    def test_modsecurity_is_abi_checked_before_install(self):
+        for path, class_name in (
+            (self.install_path, 'InstallCyberPanel'),
+            (self.upgrade_path, 'Upgrade'),
+        ):
+            with self.subTest(path=path.name):
+                source = method_source(
+                    path, class_name, 'installCustomOLSBinaries'
+                )
+                # Every required download (ModSecurity included) is ABI-checked
+                # before any live bundle file is replaced.
+                self.assertRegex(source, r"\('modsec', config\.get\('modsec_url'\)")
+                check = source.index('checkGlibcCompat(candidate)')
+                self.assertLess(check, source.index('os.replace('))
 
 
 if __name__ == '__main__':
