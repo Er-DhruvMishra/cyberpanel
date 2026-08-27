@@ -665,8 +665,6 @@ app.controller('phpMyAdmin', function ($scope, $http, $window) {
             if (result && result.status === 1 &&
                     typeof result.username === 'string' && result.username &&
                     typeof result.token === 'string' && result.token) {
-                //var rUrl = '/phpmyadmin/phpmyadminsignin.php?username=' + response.data.username + '&token=' + response.data.token;
-                //$window.location.href = rUrl;
 
                 var form = document.createElement('form');
                 form.method = 'post';
