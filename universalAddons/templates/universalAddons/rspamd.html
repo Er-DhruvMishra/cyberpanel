@@ -1,0 +1,77 @@
+{% extends "universalAddons/base.html" %}
+{% load i18n static %}
+{% block title %}{% trans "Rspamd Manager" %} - CyberPanel{% endblock %}
+{% block addon_scripts %}<script src="{% static 'universalAddons/rspamd.js' %}?v={{ CP_VERSION }}"></script>{% endblock %}
+{% block content %}
+<div class="ua-wrap" id="ua-rspamd" data-base="{% url 'ua-rspamd' %}">
+  <div class="ua-header">
+    <h1><i class="fas fa-shield-virus"></i> {% trans "Rspamd Manager" %}</h1>
+    <p>{% trans "Spam filtering with Rspamd. If Rspamd ever stops, Postfix keeps delivering mail (milter_default_action = accept). Every change is validated and backed up first." %}</p>
+  </div>
+
+  <div class="ua-card">
+    <h2>{% trans "Status" %}</h2>
+    <div id="rs-status"><p class="ua-muted">{% trans "Checking…" %}</p></div>
+    <div class="ua-row" id="rs-install-row" style="display:none">
+      <button class="ua-btn" id="rs-install">{% trans "Install Rspamd and Redis" %}</button>
+      <span class="ua-muted">{% trans "Installs packages and writes configuration. Mail filtering stays off until you enable it." %}</span>
+    </div>
+    <div id="rs-job"></div>
+  </div>
+
+  <div class="ua-card" id="rs-filter-card" style="display:none">
+    <h2>{% trans "Mail filtering" %}</h2>
+    <div class="ua-row">
+      <label><input type="checkbox" id="rs-replace-sa"> {% trans "Replace SpamAssassin (remove its Postfix content filter)" %}</label>
+    </div>
+    <div class="ua-row">
+      <button class="ua-btn ua-btn-secondary" id="rs-preview">{% trans "Preview Postfix changes" %}</button>
+      <button class="ua-btn" id="rs-enable">{% trans "Enable filtering" %}</button>
+      <button class="ua-btn ua-btn-secondary" id="rs-disable">{% trans "Disable filtering" %}</button>
+    </div>
+    <div id="rs-filter-out"></div>
+  </div>
+
+  <div class="ua-card" id="rs-settings-card" style="display:none">
+    <h2>{% trans "Settings" %}</h2>
+    <div class="ua-row">
+      <label>{% trans "Greylist at" %} <input type="number" step="0.5" id="rs-greylist" style="min-width:80px"></label>
+      <label>{% trans "Add spam header at" %} <input type="number" step="0.5" id="rs-add_header" style="min-width:80px"></label>
+      <label>{% trans "Reject at" %} <input type="number" step="0.5" id="rs-reject" style="min-width:80px"></label>
+    </div>
+    <div class="ua-row">
+      <label><input type="checkbox" id="rs-greylisting"> {% trans "Greylisting" %}</label>
+      <label><input type="checkbox" id="rs-bayes_autolearn"> {% trans "Bayes autolearn" %}</label>
+      <label><input type="checkbox" id="rs-dkim_signing"> {% trans "DKIM signing by Rspamd" %}</label>
+      <label><input type="checkbox" id="rs-arc_signing"> {% trans "ARC signing" %}</label>
+    </div>
+    <p class="ua-muted">{% trans "Before turning on Rspamd DKIM signing, copy the existing OpenDKIM keys so signatures keep matching DNS:" %}
+      <button class="ua-btn ua-btn-secondary" id="rs-migrate">{% trans "Copy OpenDKIM keys" %}</button></p>
+    <div class="ua-grid">
+      <div><strong>{% trans "Allow list" %}</strong><p class="ua-muted">{% trans "Addresses or domains, one per line (-20 score)." %}</p>
+        <textarea id="rs-allow_list" style="min-height:120px"></textarea></div>
+      <div><strong>{% trans "Deny list" %}</strong><p class="ua-muted">{% trans "Addresses or domains, one per line (+20 score)." %}</p>
+        <textarea id="rs-deny_list" style="min-height:120px"></textarea></div>
+    </div>
+    <div class="ua-row" style="margin-top:10px"><button class="ua-btn" id="rs-save">{% trans "Validate and apply" %}</button></div>
+    <div id="rs-settings-out"></div>
+  </div>
+
+  <div class="ua-card" id="rs-learn-card" style="display:none">
+    <h2>{% trans "Train the Bayes filter" %}</h2>
+    <div class="ua-row">
+      <input id="rs-mailbox" placeholder="mailbox@example.com">
+      <select id="rs-folder"><option>Junk</option><option>Spam</option><option>INBOX</option><option>Archive</option></select>
+      <select id="rs-kind"><option value="spam">{% trans "learn as spam" %}</option><option value="ham">{% trans "learn as ham" %}</option></select>
+      <button class="ua-btn" id="rs-learn">{% trans "Learn" %}</button>
+    </div>
+    <div id="rs-learn-out"></div>
+  </div>
+
+  <div class="ua-card" id="rs-stats-card" style="display:none">
+    <h2>{% trans "Statistics" %} <button class="ua-btn ua-btn-secondary" id="rs-stats">{% trans "Refresh" %}</button>
+      <button class="ua-btn ua-btn-secondary" id="rs-log">{% trans "Show log" %}</button></h2>
+    <div id="rs-stats-out"></div>
+  </div>
+</div>
+{% endblock %}

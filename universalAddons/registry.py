@@ -16,7 +16,7 @@ MODULES = (
            'ua-rootfm', 'ready'),
     Module('rspamd', 'Rspamd Manager', 'fa-shield-virus',
            'Rspamd spam filtering: Bayes learning, DKIM signing, greylisting and statistics.',
-           None, 'building'),
+           'ua-rspamd', 'ready'),
     Module('sslv2', 'SSL V2', 'fa-lock',
            'Wildcard and DNS-01 certificates, inventory, renewal monitoring.',
            None, 'building'),

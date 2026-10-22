@@ -19,6 +19,7 @@ from universalAddons.privileged import MARKER, decode_args, read_spool_args  # n
 MODULES = {
     'emaildebug': 'universalAddons.emaildebug.actions',
     'rootfm': 'universalAddons.rootfm.actions',
+    'rspamd': 'universalAddons.rspamd.actions',
 }
 
 

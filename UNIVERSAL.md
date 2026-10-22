@@ -142,7 +142,7 @@ licence checks and never contact cyberpanel.net.
 |---|---|
 | Email Debugger | ready |
 | Root File Manager | ready |
-| Rspamd Manager | in development |
+| Rspamd Manager | ready |
 | SSL V2 | in development |
 | Backup V2 | in development |
 | WordPress Manager Pro | in development |
