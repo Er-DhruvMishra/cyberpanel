@@ -51,6 +51,10 @@ def get_Ubuntu_release(use_print=False, exit_on_error=True):
     Returns: float release number or -1 if not found
     """
     release = -1
+    profile = _os_profile()
+    if profile is not None and profile.os == 'Ubuntu' and not profile.native:
+        # Debian and Ubuntu derivatives: use the Ubuntu LTS profile they were mapped to.
+        return float('%d.04' % profile.version)
     if exists("/etc/lsb-release"):
         distro_file = "/etc/lsb-release"
         with open(distro_file) as f:
@@ -105,6 +109,28 @@ def get_Ubuntu_code_name(release=None):
         return "bionic"
     else:
         return "xenial"
+
+
+def get_apt_repo_distro():
+    """Return (distro, codename) for third-party apt repositories on this host.
+
+    Ubuntu profiles map Debian onto an Ubuntu baseline, but vendor repositories
+    (MariaDB, etc.) must still be addressed with the real Debian codename.
+    """
+    release = {}
+    try:
+        with open('/etc/os-release') as handle:
+            for line in handle:
+                if '=' in line:
+                    key, value = line.rstrip('\n').split('=', 1)
+                    release[key] = value.strip('"')
+    except (IOError, OSError):
+        pass
+    if release.get('ID') == 'debian' and release.get('VERSION_CODENAME'):
+        return 'debian', release['VERSION_CODENAME']
+    if release.get('UBUNTU_CODENAME'):
+        return 'ubuntu', release['UBUNTU_CODENAME']
+    return 'ubuntu', get_Ubuntu_code_name()
 
 
 # ANSI color codes
@@ -212,6 +238,24 @@ cent8 = 2
 openeuler = 3
 
 
+def _os_profile():
+    try:
+        sys.path.insert(1, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        from cyberpanel_os_profile import detect
+        return detect()
+    except BaseException:
+        return None
+
+
+def _profile_constant(profile):
+    from cyberpanel_os_profile import RHEL, OPENEULER
+    if profile.family == OPENEULER:
+        return openeuler
+    if profile.family == RHEL:
+        return centos if profile.version <= 7 else cent8
+    return ubuntu
+
+
 def get_distro():
     """
     Detect Linux distribution
@@ -240,8 +284,14 @@ def get_distro():
             return cent8
         if data.find('Rocky Linux release 8') > -1 or data.find('Rocky Linux 8') > -1 or data.find('rocky:8') > -1:
             return cent8
-        if data.find('CloudLinux 8') or data.find('cloudlinux 8'):
+        if data.find('CloudLinux 8') > -1 or data.find('cloudlinux 8') > -1:
             return cent8
+        # Any other EL-like release (RHEL, Rocky 9/10, Oracle, Stream, Fedora...):
+        # EL8 and newer share the cent8 code paths, EL7 keeps the legacy ones.
+        profile = _os_profile()
+        if profile is not None and profile.version <= 7:
+            return centos
+        return cent8
 
     else:
         if exists("/etc/openEuler-release"):
@@ -249,12 +299,18 @@ def get_distro():
             distro = openeuler
 
         else:
+            profile = _os_profile()
+            if profile is not None:
+                return _profile_constant(profile)
             if hasattr(logging, 'InstallLog'):
                 logging.InstallLog.writeToFile("Can't find linux release file - fatal error")
             print("Can't find linux release file - fatal error")
             os._exit(os.EX_UNAVAILABLE)
 
     if distro == -1:
+        profile = _os_profile()
+        if profile is not None:
+            return _profile_constant(profile)
         error_msg = "Can't find distro name in " + distro_file + " - fatal error"
         if hasattr(logging, 'InstallLog'):
             logging.InstallLog.writeToFile(error_msg)

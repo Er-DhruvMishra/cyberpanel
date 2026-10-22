@@ -127,6 +127,294 @@ log_info "Debug log file: $DEBUG_LOG_FILE"
 Sudo_Test=$(set)
 #for SUDO check
 
+# >>> universal-compat >>>
+# CyberPanel Universal compatibility layer.
+#
+# Canonical copy: universal/compat.sh. It is embedded verbatim in cyberpanel.sh and
+# cyberpanel_upgrade.sh (they are downloaded and run standalone); after editing it run
+# tools/sync-compat.sh. The mapping table must match cyberpanel_os_profile.py.
+#
+# What it does:
+#   * maps any distro onto the nearest OS profile upstream supports (Server_OS /
+#     Server_OS_Version), so the rest of the scripts keep using their existing branches;
+#   * picks a Python 3.9-3.12 interpreter for the panel virtualenvs, installing one from
+#     the distro when the system python3 is too old (CentOS 8: 3.6) or too new;
+#   * wires lscpd/lswsgi to that interpreter and records features disabled on this host.
+
+Universal_Log_File="/var/log/cyberpanel_universal.log"
+Universal_Profile_File="/etc/cyberpanel/os_profile"
+Universal_Features_File="/etc/cyberpanel/disabled_features"
+Universal_Min_Python="3.9"
+Universal_Max_Python="3.12"
+Universal_Python_Changed="No"
+
+Universal_Log() {
+  echo -e "[universal] $*"
+  echo "[$(date '+%F %T')] $*" >> "$Universal_Log_File" 2>/dev/null || true
+}
+
+# Print "<Server_OS> <Server_OS_Version> <family> <native 0|1>" for an os-release file.
+Universal_Map_Profile() {
+  local release_file="$1"
+  local os_id like version codename major
+  os_id=$( . "$release_file" 2>/dev/null; echo "${ID:-}" | tr '[:upper:]' '[:lower:]')
+  like=$( . "$release_file" 2>/dev/null; echo " ${ID_LIKE:-} " | tr '[:upper:]' '[:lower:]')
+  version=$( . "$release_file" 2>/dev/null; echo "${VERSION_ID:-}")
+  codename=$( . "$release_file" 2>/dev/null; echo "${UBUNTU_CODENAME:-}" | tr '[:upper:]' '[:lower:]')
+  major="${version%%.*}"
+  [[ "$major" =~ ^[0-9]+$ ]] || major=""
+
+  case "$os_id" in
+    openeuler)
+      if [[ "$major" = "20" ]]; then echo "openEuler 20 openeuler 1"
+      elif [[ "$major" = "22" ]]; then echo "openEuler 22 openeuler 1"
+      else echo "openEuler 22 openeuler 0"; fi
+      return 0 ;;
+    centos|rhel|almalinux|rocky|cloudlinux|ol|eurolinux|navy|miraclelinux|circle|virtuozzo|scientific)
+      Universal_Map_EL "$os_id" "$major"; return $? ;;
+    fedora)
+      Universal_Map_Fedora "$major"; return $? ;;
+    amzn)
+      if [[ -n "$major" && "$major" -ge 2022 ]]; then echo "CentOS 9 rhel 0"; else echo "CentOS 7 rhel 0"; fi
+      return 0 ;;
+    ubuntu)
+      [[ -n "$major" ]] || return 1
+      local lts=$(( major % 2 == 0 ? major : major - 1 ))
+      (( lts < 18 )) && lts=18
+      (( lts > 26 )) && lts=26
+      local native=0
+      case "$major" in 18|20|22|24|26) native=1 ;; esac
+      echo "Ubuntu $lts debian $native"
+      return 0 ;;
+  esac
+
+  if [[ "$like" = *" rhel "* || "$like" = *" centos "* ]]; then
+    Universal_Map_EL "$os_id" "$major"; return $?
+  fi
+  if [[ "$like" = *" fedora "* ]]; then
+    Universal_Map_Fedora "$major"; return $?
+  fi
+  if [[ "$like" = *" ubuntu "* ]]; then
+    case "$codename" in
+      bionic) echo "Ubuntu 18 debian 0" ;;
+      focal) echo "Ubuntu 20 debian 0" ;;
+      noble) echo "Ubuntu 24 debian 0" ;;
+      resolute) echo "Ubuntu 26 debian 0" ;;
+      *) echo "Ubuntu 22 debian 0" ;;
+    esac
+    return 0
+  fi
+  if [[ "$os_id" = "debian" || "$like" = *" debian "* ]]; then
+    # Debian 11 ~ Ubuntu 20.04, 12 ~ 22.04, 13+ ~ 24.04 (closest library baselines).
+    if [[ -z "$major" ]]; then echo "Ubuntu 22 debian 0"
+    elif (( major <= 11 )); then echo "Ubuntu 20 debian 0"
+    elif (( major == 12 )); then echo "Ubuntu 22 debian 0"
+    else echo "Ubuntu 24 debian 0"; fi
+    return 0
+  fi
+  return 1
+}
+
+Universal_Map_EL() {
+  local os_id="$1" major="$2" profile native=0
+  [[ -n "$major" ]] && (( major >= 7 )) || return 1
+  profile="$major"
+  (( profile > 10 )) && profile=10
+  case "$os_id:$major" in
+    centos:7|centos:8|cloudlinux:7|cloudlinux:8|almalinux:8|almalinux:9|almalinux:10|rocky:8|rhel:8|rhel:9) native=1 ;;
+  esac
+  echo "CentOS $profile rhel $native"
+}
+
+Universal_Map_Fedora() {
+  local major="$1"
+  [[ -n "$major" ]] || return 1
+  # Fedora feeds the next RHEL major: 28 -> EL8, 34 -> EL9, 40 -> EL10.
+  if (( major >= 40 )); then echo "CentOS 10 rhel 0"
+  elif (( major >= 34 )); then echo "CentOS 9 rhel 0"
+  else echo "CentOS 8 rhel 0"; fi
+}
+
+# Sets Server_OS, Server_OS_Version, Universal_Family, Universal_Native and the Real_OS_*
+# variables, and records the profile for the Python side. CYBERPANEL_OS_PROFILE="CentOS 8"
+# forces a profile.
+Universal_Detect_OS() {
+  local release_file="${UNIVERSAL_OS_RELEASE:-/etc/os-release}"
+  local mapped
+  if [[ ! -f "$release_file" ]]; then
+    echo -e "Unable to detect the operating system: $release_file not found\n"
+    return 1
+  fi
+  Real_OS_ID=$( . "$release_file"; echo "${ID:-unknown}")
+  Real_OS_Name=$( . "$release_file"; echo "${PRETTY_NAME:-${NAME:-unknown}}")
+  Real_OS_Version=$( . "$release_file"; echo "${VERSION_ID:-}")
+
+  if [[ -n "${CYBERPANEL_OS_PROFILE:-}" ]]; then
+    read -r Server_OS Server_OS_Version <<< "$CYBERPANEL_OS_PROFILE"
+    case "$Server_OS" in
+      CentOS) Universal_Family="rhel" ;;
+      Ubuntu) Universal_Family="debian" ;;
+      openEuler) Universal_Family="openeuler" ;;
+      *) echo "Invalid CYBERPANEL_OS_PROFILE: $CYBERPANEL_OS_PROFILE"; return 1 ;;
+    esac
+    Universal_Native=0
+  elif mapped=$(Universal_Map_Profile "$release_file"); then
+    read -r Server_OS Server_OS_Version Universal_Family Universal_Native <<< "$mapped"
+  elif command -v apt-get >/dev/null 2>&1; then
+    Server_OS="Ubuntu"; Server_OS_Version="22"; Universal_Family="debian"; Universal_Native=0
+  elif command -v dnf >/dev/null 2>&1; then
+    Server_OS="CentOS"; Server_OS_Version="9"; Universal_Family="rhel"; Universal_Native=0
+  elif command -v yum >/dev/null 2>&1; then
+    Server_OS="CentOS"; Server_OS_Version="7"; Universal_Family="rhel"; Universal_Native=0
+  else
+    echo -e "Unsupported system: $Real_OS_Name has neither apt nor dnf/yum.\n"
+    return 1
+  fi
+
+  if [[ "$Universal_Native" = "1" ]]; then
+    Universal_Log "Detected $Real_OS_Name (natively supported profile $Server_OS $Server_OS_Version)"
+  else
+    Universal_Log "Detected $Real_OS_Name - using compatibility profile $Server_OS $Server_OS_Version"
+  fi
+  if [[ -z "${UNIVERSAL_DRY_RUN:-}" ]]; then
+    mkdir -p "$(dirname "$Universal_Profile_File")" 2>/dev/null
+    cat > "$Universal_Profile_File" 2>/dev/null <<EOF
+FAMILY=$Universal_Family
+PROFILE_OS=$Server_OS
+PROFILE_VERSION=$Server_OS_Version
+REAL_ID=$Real_OS_ID
+REAL_VERSION=$Real_OS_Version
+NATIVE=$Universal_Native
+EOF
+  fi
+  return 0
+}
+
+# True when $1 is a Python interpreter in [Universal_Min_Python, Universal_Max_Python]
+# with a working venv module.
+Universal_Python_Usable() {
+  local candidate="$1"
+  [[ -x "$candidate" ]] || return 1
+  env -u PYTHONHOME -u PYTHONPATH "$candidate" - "$Universal_Min_Python" "$Universal_Max_Python" <<'PY' >/dev/null 2>&1
+import sys
+low = tuple(int(x) for x in sys.argv[1].split('.'))
+high = tuple(int(x) for x in sys.argv[2].split('.'))
+if not (low <= sys.version_info[:2] <= high):
+    sys.exit(1)
+import venv, ensurepip  # noqa: F401  (Debian splits these into python3-venv)
+PY
+}
+
+Universal_Find_Python() {
+  local candidate
+  for candidate in "${CyberPanel_Python:-}" /usr/bin/python3 /usr/bin/python3.12 /usr/bin/python3.11 \
+      /usr/bin/python3.10 /usr/bin/python3.9 /usr/local/bin/python3.12 /usr/local/bin/python3.11; do
+    [[ -n "$candidate" ]] || continue
+    if Universal_Python_Usable "$candidate"; then
+      echo "$candidate"
+      return 0
+    fi
+  done
+  return 1
+}
+
+# Choose CyberPanel_Python. Keeps upstream's choice when it is usable; otherwise installs
+# the newest supported interpreter the distro offers (CentOS 8 -> python39).
+Universal_Select_Python() {
+  local found pkg minor
+  if [[ -n "${CyberPanel_Python:-}" ]] && Universal_Python_Usable "$CyberPanel_Python"; then
+    Universal_Log "Using Python $CyberPanel_Python for the panel virtualenvs"
+    return 0
+  fi
+
+  Universal_Log "System Python is outside $Universal_Min_Python-$Universal_Max_Python; looking for a compatible interpreter"
+  if ! found=$(Universal_Find_Python); then
+    if [[ "$Universal_Family" = "debian" ]]; then
+      DEBIAN_FRONTEND=noninteractive apt-get update -y >/dev/null 2>&1
+      for minor in 12 11 10 9; do
+        if apt-cache show "python3.$minor" >/dev/null 2>&1; then
+          DEBIAN_FRONTEND=noninteractive apt-get install -y "python3.$minor" "python3.$minor-venv" "python3.$minor-dev" \
+            && break
+        fi
+      done
+      if ! Universal_Find_Python >/dev/null && grep -qi '^ID=ubuntu' /etc/os-release; then
+        DEBIAN_FRONTEND=noninteractive apt-get install -y software-properties-common
+        add-apt-repository -y ppa:deadsnakes/ppa && DEBIAN_FRONTEND=noninteractive apt-get update -y
+        DEBIAN_FRONTEND=noninteractive apt-get install -y python3.12 python3.12-venv python3.12-dev
+      fi
+    else
+      local manager=yum
+      command -v dnf >/dev/null 2>&1 && manager=dnf
+      # EL8 ships python3.11/python3.12 from 8.8 and python39 everywhere; EL9+ python3.11/3.12.
+      for pkg in python3.12 python3.11 python39; do
+        if "$manager" -y install "$pkg" "$pkg-devel" "$pkg-pip" >/dev/null 2>&1 \
+            || "$manager" -y install "$pkg" "$pkg-devel" >/dev/null 2>&1; then
+          Universal_Find_Python >/dev/null && break
+        fi
+      done
+    fi
+    found=$(Universal_Find_Python) || found=""
+  fi
+
+  if [[ -z "$found" ]]; then
+    echo -e "\nERROR: CyberPanel needs Python $Universal_Min_Python-$Universal_Max_Python and none could be installed."
+    echo -e "Install one (for example python3.11 with its venv and dev packages) and re-run.\n"
+    Universal_Log "No usable Python found or installable"
+    return 1
+  fi
+  CyberPanel_Python="$found"
+  Universal_Python_Changed="Yes"
+  Universal_Log "Using Python $CyberPanel_Python for the panel virtualenvs"
+  return 0
+}
+
+# Create a virtualenv at $1 on CyberPanel_Python.
+Universal_Create_Venv() {
+  local target="$1"
+  mkdir -p "$target"
+  if env -u PYTHONHOME -u PYTHONPATH "$CyberPanel_Python" -m venv "$target"; then
+    return 0
+  fi
+  env -u PYTHONHOME -u PYTHONPATH "$CyberPanel_Python" -m pip install --upgrade virtualenv >/dev/null 2>&1
+  env -u PYTHONHOME -u PYTHONPATH "$CyberPanel_Python" -m virtualenv -p "$CyberPanel_Python" "$target"
+}
+
+# True when the venv at $1 runs a Python inside the supported range.
+Universal_Venv_Usable() {
+  Universal_Python_Usable "$1/bin/python"
+}
+
+# Point lscpd's embedded Python (lswsgi) at the panel virtualenv. Used whenever the panel
+# runs on an interpreter other than the system python3, where upstream's
+# "PYTHONHOME=/usr + mirror requirements into system Python" approach cannot work.
+Universal_Configure_LSCPD_Env() {
+  local runtime_root="${1:-/usr/local/CyberCP}"
+  local environment_file="${LSCPD_PYTHON_ENV_FILE:-/usr/local/lscp/conf/pythonenv.conf}"
+  local home sites
+  home=$(env -u PYTHONHOME -u PYTHONPATH "$runtime_root/bin/python" -c 'import sys; print(sys.base_prefix)' 2>/dev/null) || return 1
+  sites=$(env -u PYTHONHOME -u PYTHONPATH "$runtime_root/bin/python" -c 'import site; print(":".join(dict.fromkeys(site.getsitepackages())))' 2>/dev/null) || return 1
+  mkdir -p "$(dirname "$environment_file")"
+  printf 'PYTHONHOME=%s\nPYTHONPATH=.:%s:%s\n' "$home" "$runtime_root" "$sites" > "$environment_file"
+  Universal_Log "lscpd Python environment: PYTHONHOME=$home PYTHONPATH=.:$runtime_root:$sites"
+}
+
+# Record (for the admin and for support) which upstream features are switched off on this
+# host because they conflict with it. The code paths themselves enforce this:
+#   custom_ols         - prebuilt OpenLiteSpeed/ModSecurity overlays exist only for upstream's
+#                        distro list; other hosts keep stock OLS (installCyberPanel/upgrade
+#                        detectPlatform -> 'skip').
+#   high_availability  - highAvailability/haManager.py only implements Ubuntu.
+Universal_Record_Disabled_Features() {
+  local -a disabled=()
+  [[ "$Universal_Native" != "1" ]] && disabled+=("custom_ols")
+  [[ "$Real_OS_ID" != "ubuntu" ]] && disabled+=("high_availability")
+  [[ -n "${UNIVERSAL_DRY_RUN:-}" ]] && { printf '%s\n' "${disabled[@]}"; return 0; }
+  mkdir -p "$(dirname "$Universal_Features_File")" 2>/dev/null
+  printf '%s\n' "${disabled[@]}" | sed '/^$/d' > "$Universal_Features_File" 2>/dev/null
+  Universal_Log "Features disabled on this host: ${disabled[*]:-none}"
+}
+# <<< universal-compat <<<
+
 Set_Default_Variables() {
 log_function_start "Set_Default_Variables"
 
@@ -164,7 +452,7 @@ parse_panel_version() {
   [[ "$Panel_Version" =~ ^[0-9]+\.[0-9]+$ && "$Panel_Build" =~ ^[0-9]+$ ]]
 }
 
-Temp_Value=$(curl --silent --max-time 30 -4 https://cyberpanel.net/version.txt)
+Temp_Value=$(curl --silent --max-time 30 -4 https://raw.githubusercontent.com/YOUR_GITHUB_USER/cyberpanel/stable/version.txt)
 if parse_panel_version "$Temp_Value"; then
   Branch_Name="v${Panel_Version}.${Panel_Build}"
   echo -e  "\nBranch name fetched...$Branch_Name"
@@ -614,42 +902,16 @@ if ! uname -m | grep -qE 'x86_64|aarch64' ; then
   exit
 fi
 
-if grep -q -E "CentOS Linux 7|CentOS Linux 8|CentOS Stream" /etc/os-release ; then
-  Server_OS="CentOS"
-elif grep -q "Red Hat Enterprise Linux" /etc/os-release ; then
-  Server_OS="RedHat"
-elif grep -q "AlmaLinux-8" /etc/os-release ; then
-  Server_OS="AlmaLinux"
-elif grep -q "AlmaLinux-9" /etc/os-release ; then
-  Server_OS="AlmaLinux"
-elif grep -q "AlmaLinux-10" /etc/os-release ; then
-  Server_OS="AlmaLinux"
-elif grep -q -E "CloudLinux 7|CloudLinux 8" /etc/os-release ; then
-  Server_OS="CloudLinux"
-elif grep -q -E "Rocky Linux" /etc/os-release ; then
-  Server_OS="RockyLinux"
-elif grep -q -E "Ubuntu 18.04|Ubuntu 20.04|Ubuntu 20.10|Ubuntu 22.04|Ubuntu 24.04|Ubuntu 26.04" /etc/os-release ; then
-  Server_OS="Ubuntu"
-elif grep -q -E "openEuler 20.03|openEuler 22.03" /etc/os-release ; then
-  Server_OS="openEuler"
-else
-  echo -e "Unable to detect your system..."
-  echo -e "\nCyberPanel is supported on x86_64 based Ubuntu 18.04, Ubuntu 20.04, Ubuntu 20.10, Ubuntu 22.04, Ubuntu 24.04, Ubuntu 24.04.3, Ubuntu 26.04, CentOS 7, CentOS 8, CentOS 9, RHEL 8, RHEL 9, AlmaLinux 8, AlmaLinux 9, AlmaLinux 10, RockyLinux 8, CloudLinux 7, CloudLinux 8, openEuler 20.03, openEuler 22.03...\n"
-  Debug_Log2 "CyberPanel is supported on x86_64 based Ubuntu 18.04, Ubuntu 20.04, Ubuntu 20.10, Ubuntu 22.04, Ubuntu 24.04, Ubuntu 24.04.3, Ubuntu 26.04, CentOS 7, CentOS 8, CentOS 9, RHEL 8, RHEL 9, AlmaLinux 8, AlmaLinux 9, AlmaLinux 10, RockyLinux 8, CloudLinux 7, CloudLinux 8, openEuler 20.03, openEuler 22.03... [404]"
+# Universal: map any distro onto the nearest profile upstream supports (universal/compat.sh)
+if ! Universal_Detect_OS ; then
+  Debug_Log2 "Unable to detect a supported OS profile for this system [404]"
+  log_function_end "Check_OS" 1
   exit
 fi
 
-Server_OS_Version=$(grep VERSION_ID /etc/os-release | awk -F[=,] '{print $2}' | tr -d \" | head -c2 | tr -d . )
-#to make 20.04 display as 20, etc.
-
-echo -e "System: $Server_OS $Server_OS_Version detected...\n"
-log_info "Operating system detected: $Server_OS $Server_OS_Version"
-
-if [[ $Server_OS = "CloudLinux" ]] || [[ "$Server_OS" = "AlmaLinux" ]] || [[ "$Server_OS" = "RockyLinux" ]] || [[ "$Server_OS" = "RedHat" ]] ; then
-  Server_OS="CentOS"
-  #CloudLinux gives version id like 7.8, 7.9, so cut it to show first number only
-  #treat CloudLinux, Rocky and Alma as CentOS
-fi
+echo -e "System: $Real_OS_Name detected, using profile $Server_OS $Server_OS_Version...\n"
+Universal_Record_Disabled_Features
+log_info "Operating system detected: $Real_OS_Name (profile $Server_OS $Server_OS_Version)"
 
 if [[ "$Debug" = "On" ]] ; then
   Debug_Log "Server_OS" "$Server_OS $Server_OS_Version"
@@ -1386,7 +1648,8 @@ Debug_Log2 "Setting up repositories for CN server...,1"
 Download_Requirement() {
 for i in {1..50} ;
   do
-  if [[ "$Server_OS_Version" = "22" ]] || [[ "$Server_OS_Version" = "24" ]] || [[ "$Server_OS_Version" = "26" ]] || [[ "$Server_OS_Version" = "9" ]] || [[ "$Server_OS_Version" = "10" ]]; then
+  # Universal: requirments-old.txt pins Django 3.1, which the current code no longer runs on.
+  if Universal_Python_Usable "$CyberPanel_Python" || [[ "$Server_OS_Version" = "22" ]] || [[ "$Server_OS_Version" = "24" ]] || [[ "$Server_OS_Version" = "26" ]] || [[ "$Server_OS_Version" = "9" ]] || [[ "$Server_OS_Version" = "10" ]]; then
    wget -O /usr/local/requirments.txt "${Git_Content_URL}/${Branch_Name}/requirments.txt"
   else
    wget -O /usr/local/requirments.txt "${Git_Content_URL}/${Branch_Name}/requirments-old.txt"
@@ -1428,6 +1691,12 @@ Setup_Python_Runtime() {
       Debug_Log2 "Python 3.12 install failed on Ubuntu 26.04 [404]"
       exit 1
     fi
+  fi
+
+  # Universal: CentOS/EL 8 ships python3.6, too old for Django 4.2; pick or install 3.9-3.12.
+  if ! Universal_Select_Python ; then
+    Debug_Log2 "No compatible Python 3.9-3.12 interpreter [404]"
+    exit 1
   fi
 }
 
@@ -1525,7 +1794,10 @@ echo -e "Creating CyberPanel virtual environment..."
 # First ensure the directory exists
 mkdir -p /usr/local/CyberPanel
 
-if [[ "$Server_OS" = "Ubuntu" ]] && ([[ "$Server_OS_Version" = "22" ]] || [[ "$Server_OS_Version" = "24" ]] || [[ "$Server_OS_Version" = "26" ]]) ; then
+if [[ "$Universal_Python_Changed" = "Yes" ]] ; then
+  echo -e "Creating virtual environment with $CyberPanel_Python..."
+  Universal_Create_Venv /usr/local/CyberPanel
+elif [[ "$Server_OS" = "Ubuntu" ]] && ([[ "$Server_OS_Version" = "22" ]] || [[ "$Server_OS_Version" = "24" ]] || [[ "$Server_OS_Version" = "26" ]]) ; then
   echo -e "Ubuntu 22.04/24.04/26.04 detected, using $CyberPanel_Python -m venv..."
   if "$CyberPanel_Python" -m venv /usr/local/CyberPanel 2>&1; then
     echo -e "Virtual environment created successfully"
@@ -1934,7 +2206,7 @@ if [[ $Server_Edition = "Enterprise" ]] ; then
   Enterprise_Flag="--ent ent --serial "
 fi
 
-sed -i 's|git clone https://github.com/usmannasir/cyberpanel|echo downloaded|g' install.py
+sed -i 's|git clone https://github.com/YOUR_GITHUB_USER/cyberpanel|echo downloaded|g' install.py
 sed -i 's|mirror.cyberpanel.net|cyberpanel.sh|g' install.py
 
 
@@ -2349,7 +2621,7 @@ Install_CyberCP_Runtime_Python_Requirements() {
       wget -q -O "$td/r.txt" "${Git_Content_URL}/${Branch_Name}/requirments.txt" 2>/dev/null && grep -q "Django==" "$td/r.txt" 2>/dev/null && req_file="$td/r.txt"
       [[ -z "$req_file" ]] && wget -q -O "$td/r.txt" "${Git_Content_URL}/${Branch_Name}/requirments-old.txt" 2>/dev/null && grep -q "Django==" "$td/r.txt" 2>/dev/null && req_file="$td/r.txt"
     fi
-    [[ -z "$req_file" ]] && wget -q -O "$td/s.txt" "https://raw.githubusercontent.com/usmannasir/cyberpanel/stable/requirments.txt" 2>/dev/null \
+    [[ -z "$req_file" ]] && wget -q -O "$td/s.txt" "https://raw.githubusercontent.com/YOUR_GITHUB_USER/cyberpanel/stable/requirments.txt" 2>/dev/null \
       && grep -q "Django==" "$td/s.txt" 2>/dev/null && req_file="$td/s.txt"
   fi
   if [[ -z "$req_file" || ! -f "$req_file" ]]; then
@@ -2393,7 +2665,10 @@ echo -e "Creating CyberCP virtual environment..."
 # First ensure the directory exists
 mkdir -p /usr/local/CyberCP
 
-if [[ "$Server_OS" = "Ubuntu" ]] && ([[ "$Server_OS_Version" = "22" ]] || [[ "$Server_OS_Version" = "24" ]] || [[ "$Server_OS_Version" = "26" ]]) ; then
+if [[ "$Universal_Python_Changed" = "Yes" ]] ; then
+  echo -e "Creating CyberCP virtual environment with $CyberPanel_Python..."
+  Universal_Create_Venv /usr/local/CyberCP
+elif [[ "$Server_OS" = "Ubuntu" ]] && ([[ "$Server_OS_Version" = "22" ]] || [[ "$Server_OS_Version" = "24" ]] || [[ "$Server_OS_Version" = "26" ]]) ; then
   echo -e "Ubuntu 22.04/24.04/26.04 detected, using $CyberPanel_Python -m venv..."
   if "$CyberPanel_Python" -m venv /usr/local/CyberCP 2>&1; then
     echo -e "Virtual environment created successfully"
@@ -2454,7 +2729,16 @@ if [[ -f /usr/local/requirments.txt ]]; then
   cp -f /usr/local/requirments.txt /etc/cyberpanel/cyberpanel-requirments-runtime.txt
 fi
 
-if [[ "$Server_OS" = "Ubuntu" ]] && [[ "$Server_OS_Version" = "26" ]] ; then
+if [[ "$Universal_Python_Changed" = "Yes" ]] ; then
+  # Universal: lswsgi was built against $CyberPanel_Python; load Django from the CyberCP venv
+  # instead of mirroring requirements into a system Python that cannot run them.
+  if ! Universal_Configure_LSCPD_Env /usr/local/CyberCP ; then
+    echo -e "\nERROR: Unable to configure the lscpd Python environment.\n"
+    exit 1
+  fi
+  chmod 0644 /usr/local/CyberCP/pyvenv.cfg
+  chmod -R a+rX /usr/local/CyberCP/lib /usr/local/CyberCP/lib64 2>/dev/null || true
+elif [[ "$Server_OS" = "Ubuntu" ]] && [[ "$Server_OS_Version" = "26" ]] ; then
   # 26.04's system Python is 3.14, which Django 4.2 does not support. The venv was
   # built on the deadsnakes 3.12 (see Setup_Python_Runtime). lswsgi embeds Python
   # with PYTHONHOME set to this venv, so it needs both the 3.12 interpreter and
@@ -2486,7 +2770,7 @@ else
   fi
 fi
 
-if [[ -f /usr/local/lscp/conf/pythonenv.conf ]] && grep -q '^PYTHONHOME=/usr' /usr/local/lscp/conf/pythonenv.conf 2>/dev/null; then
+if [[ "$Universal_Python_Changed" != "Yes" ]] && [[ -f /usr/local/lscp/conf/pythonenv.conf ]] && grep -q '^PYTHONHOME=/usr' /usr/local/lscp/conf/pythonenv.conf 2>/dev/null; then
   if ! env PYTHONHOME=/usr PYTHONPATH= "$(command -v python3 2>/dev/null || echo /usr/bin/python3)" -c "import django" 2>/dev/null; then
     Install_CyberCP_Runtime_Python_Requirements "/etc/cyberpanel/cyberpanel-requirments-runtime.txt"
   fi
@@ -2498,15 +2782,10 @@ chown -R cyberpanel:cyberpanel /usr/local/CyberCP/lib64 || true
 }
 
 Pre_Install_Setup_Git_URL() {
-if [[ $Server_Country != "CN" ]] ; then
-  Git_User="usmannasir"
-  Git_Content_URL="https://raw.githubusercontent.com/${Git_User}/cyberpanel"
-  Git_Clone_URL="https://github.com/${Git_User}/cyberpanel.git"
-else
-  Git_User="qtwrk"
-  Git_Content_URL="https://gitee.com/${Git_User}/cyberpanel/raw"
-  Git_Clone_URL="https://gitee.com/${Git_User}/cyberpanel.git"
-fi
+# Universal: releases come from this fork on GitHub (no upstream gitee mirror).
+Git_User="${CYBERPANEL_GIT_USER:-YOUR_GITHUB_USER}"
+Git_Content_URL="https://raw.githubusercontent.com/${Git_User}/cyberpanel"
+Git_Clone_URL="https://github.com/${Git_User}/cyberpanel.git"
 
 if [[ "$Debug" = "On" ]] ; then
   Debug_Log "Git_URL" "$Git_Content_URL"

@@ -545,25 +545,22 @@ class DeveloperInstallerPythonTests(unittest.TestCase):
         self.assertIn('Ping_Package="iputils-ping"', installer)
         self.assertIn('cron "$Ping_Package"', installer)
 
-    def test_ubuntu_26_bootstrap_uses_requested_release_branch(self):
+    def test_bootstrap_uses_requested_release_branch(self):
+        # Universal fork: install.sh no longer whitelists distributions and always
+        # fetches cyberpanel.sh for the requested branch from the fork on GitHub.
         root = pathlib.Path(__file__).parents[1]
         bootstrap = (root / 'install.sh').read_text(encoding='utf-8')
-        self.assertIn('if echo "$OUTPUT" | grep -q "Ubuntu 26.04"', bootstrap)
         self.assertIn('elif [ "$argument" = "-b" ]', bootstrap)
         self.assertIn(
             '[0-9]*) INSTALL_BRANCH="v$INSTALL_BRANCH"',
             bootstrap,
         )
         self.assertIn(
-            'raw.githubusercontent.com/usmannasir/cyberpanel/'
+            'raw.githubusercontent.com/$GIT_USER/cyberpanel/'
             '$INSTALL_BRANCH/cyberpanel.sh',
             bootstrap,
         )
-        self.assertIn(
-            'else\n        curl --silent -o cyberpanel.sh '
-            '"https://cyberpanel.sh/?dl&$SERVER_OS"',
-            bootstrap,
-        )
+        self.assertNotIn('cyberpanel.sh/?dl', bootstrap)
 
     def test_ubuntu_26_opendkim_config_is_complete_and_unambiguous(self):
         root = pathlib.Path(__file__).parents[1]

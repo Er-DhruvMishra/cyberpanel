@@ -195,7 +195,7 @@ class ProcessUtilities(multi.Thread):
                         return ProcessUtilities.ubuntu20
                     elif '20.04' in content:
                         return ProcessUtilities.ubuntu20
-                    return ProcessUtilities.ubuntu
+                    return ProcessUtilities.profileDistro(ProcessUtilities.ubuntu)
 
         # Check for RedHat-based distributions
         if os.path.exists(distroPathAlma):
@@ -208,8 +208,35 @@ class ProcessUtilities(multi.Thread):
                         ProcessUtilities.alma9check = 1
                     return ProcessUtilities.cent8
 
-        # Default to Ubuntu if no other distribution is detected
-        return ProcessUtilities.ubuntu
+        # Not a natively recognised release: map it onto the nearest supported profile.
+        return ProcessUtilities.profileDistro(ProcessUtilities.ubuntu)
+
+    @staticmethod
+    def profileDistro(default):
+        """Map an unrecognised distro onto a known constant (see cyberpanel_os_profile)."""
+        try:
+            from cyberpanel_os_profile import detect, RHEL, DEBIAN, OPENEULER
+            profile = detect()
+        except BaseException:
+            return default
+        if profile is None:
+            return default
+        if profile.family in (RHEL, OPENEULER):
+            if profile.version <= 7:
+                return ProcessUtilities.centos
+            if profile.version >= 9:
+                ProcessUtilities.alma9check = 1
+            return ProcessUtilities.cent8
+        if profile.family == DEBIAN:
+            if profile.version >= 22:
+                ProcessUtilities.ubuntu22Check = 1
+            if profile.version >= 24:
+                ProcessUtilities.ubuntu24Check = 1
+                ProcessUtilities.alma9check = 1
+            if profile.version >= 26:
+                ProcessUtilities.ubuntu26Check = 1
+            return ProcessUtilities.ubuntu20 if profile.version >= 20 else ProcessUtilities.ubuntu
+        return default
 
     @staticmethod
     def containerCheck():

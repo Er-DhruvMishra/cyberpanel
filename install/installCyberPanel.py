@@ -219,6 +219,17 @@ class InstallCyberPanel:
     def detectPlatform(self):
         """Detect OS platform for binary selection."""
         try:
+            # Universal: the custom OLS build only exists for upstream's distro list.
+            try:
+                profile = install_utils._os_profile()
+            except BaseException:
+                profile = None
+            if profile is not None and not profile.native:
+                InstallCyberPanel.stdOut("Compatibility profile %s %s: custom OLS binary is built "
+                                         "for other distributions; keeping stock OLS"
+                                         % (profile.os, profile.version), 1)
+                return 'skip'
+
             # Check for Ubuntu
             if os.path.exists('/etc/lsb-release'):
                 with open('/etc/lsb-release', 'r') as f:
@@ -1034,14 +1045,14 @@ Signed-By: /etc/apt/keyrings/mariadb-keyring.pgp
                     
                     # Use multiple mirror options for better reliability
                     RepoPath = '/etc/apt/sources.list.d/mariadb.list'
-                    codename = get_Ubuntu_code_name()
+                    repoDistro, codename = install_utils.get_apt_repo_distro()
                     RepoContent = f"""# MariaDB {mariadb_version} repository list - manual fallback
 # Primary mirror
-deb [arch=amd64,arm64,ppc64el,s390x signed-by=/usr/share/keyrings/mariadb-keyring.pgp] https://mirror.mariadb.org/repo/{mariadb_version}/ubuntu {codename} main
+deb [arch=amd64,arm64,ppc64el,s390x signed-by=/usr/share/keyrings/mariadb-keyring.pgp] https://mirror.mariadb.org/repo/{mariadb_version}/{repoDistro} {codename} main
 
 # Alternative mirrors (uncomment if primary fails)
-# deb [arch=amd64,arm64,ppc64el,s390x signed-by=/usr/share/keyrings/mariadb-keyring.pgp] https://mirrors.gigenet.com/mariadb/repo/{mariadb_version}/ubuntu {codename} main
-# deb [arch=amd64,arm64,ppc64el,s390x signed-by=/usr/share/keyrings/mariadb-keyring.pgp] https://ftp.osuosl.org/pub/mariadb/repo/{mariadb_version}/ubuntu {codename} main
+# deb [arch=amd64,arm64,ppc64el,s390x signed-by=/usr/share/keyrings/mariadb-keyring.pgp] https://mirrors.gigenet.com/mariadb/repo/{mariadb_version}/{repoDistro} {codename} main
+# deb [arch=amd64,arm64,ppc64el,s390x signed-by=/usr/share/keyrings/mariadb-keyring.pgp] https://ftp.osuosl.org/pub/mariadb/repo/{mariadb_version}/{repoDistro} {codename} main
 """
                     
                     WriteToFile = open(RepoPath, 'w')

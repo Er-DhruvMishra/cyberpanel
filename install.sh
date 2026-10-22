@@ -1,99 +1,57 @@
 #!/bin/sh
+# CyberPanel Universal bootstrap installer.
+#
+#   sh <(curl -fsSL https://raw.githubusercontent.com/YOUR_GITHUB_USER/cyberpanel/stable/install.sh)
+#
+# Unlike upstream, this does not whitelist distributions: cyberpanel.sh maps any
+# apt- or dnf/yum-based system onto the nearest supported profile (universal/compat.sh).
+# Pass -b <branch|version> to install a specific release.
 
-OUTPUT=$(cat /etc/*release)
-if  echo $OUTPUT | grep -q "CentOS Linux 7" ; then
-        echo "Checking and installing curl and wget"
-yum install curl wget -y 1> /dev/null
-yum update curl wget ca-certificates -y 1> /dev/null
-                SERVER_OS="CentOS"
-elif echo $OUTPUT | grep -q "CentOS Linux 8" ; then
-        echo -e "\nDetecting Centos 8...\n"
-        SERVER_OS="CentOS8"
-yum install curl wget -y 1> /dev/null
-yum update curl wget ca-certificates -y 1> /dev/null
-elif echo $OUTPUT | grep -q "AlmaLinux 8" ; then
-        echo -e "\nDetecting AlmaLinux 8...\n"
-        SERVER_OS="CentOS8"
-yum install curl wget -y 1> /dev/null
-yum update curl wget ca-certificates -y 1> /dev/null
-elif echo $OUTPUT | grep -q "AlmaLinux 9" ; then
-        echo -e "\nDetecting AlmaLinux 9...\n"
-        SERVER_OS="CentOS8"
-yum install curl wget -y 1> /dev/null
-yum update curl wget ca-certificates -y 1> /dev/null
-elif echo $OUTPUT | grep -q "AlmaLinux 10" ; then
-        echo -e "\nDetecting AlmaLinux 10...\n"
-        SERVER_OS="CentOS8"
-yum install curl wget -y 1> /dev/null
-yum update curl wget ca-certificates -y 1> /dev/null
-elif echo $OUTPUT | grep -q "CloudLinux 7" ; then
-        echo "Checking and installing curl and wget"
-yum install curl wget -y 1> /dev/null
-yum update curl wget ca-certificates -y 1> /dev/null
-                SERVER_OS="CloudLinux"
-elif echo $OUTPUT | grep -q "CloudLinux 8" ; then
-        echo "Checking and installing curl and wget"
-yum install curl wget -y 1> /dev/null
-yum update curl wget ca-certificates -y 1> /dev/null
-                SERVER_OS="CloudLinux"
-elif echo $OUTPUT | grep -q "Ubuntu 18.04" ; then
-apt install -y -qq wget curl
-                SERVER_OS="Ubuntu"
-elif echo $OUTPUT | grep -q "Ubuntu 20.04" ; then
-apt install -y -qq wget curl
-                SERVER_OS="Ubuntu"
-elif echo $OUTPUT | grep -q "Ubuntu 22.04" ; then
-apt install -y -qq wget curl
-                SERVER_OS="Ubuntu"
-elif echo $OUTPUT | grep -q "Ubuntu 24.04" ; then
-apt install -y -qq wget curl
-                SERVER_OS="Ubuntu"
-elif echo $OUTPUT | grep -q "Ubuntu 26.04" ; then
-apt install -y -qq wget curl
-                SERVER_OS="Ubuntu"
-elif echo $OUTPUT | grep -q "openEuler 20.03" ; then
-        echo -e "\nDetecting openEuler 20.03...\n"
-        SERVER_OS="openEuler"
-yum install curl wget -y 1> /dev/null
-yum update curl wget ca-certificates -y 1> /dev/null
-elif echo $OUTPUT | grep -q "openEuler 22.03" ; then
-        echo -e "\nDetecting openEuler 22.03...\n"
-        SERVER_OS="openEuler"
-yum install curl wget -y 1> /dev/null
-yum update curl wget ca-certificates -y 1> /dev/null
-else
+GIT_USER="${CYBERPANEL_GIT_USER:-YOUR_GITHUB_USER}"
 
-                echo -e "\nUnable to detect your OS...\n"
-                echo -e "\nCyberPanel is supported on Ubuntu 18.04, Ubuntu 20.04, Ubuntu 22.04, Ubuntu 24.04, Ubuntu 26.04, AlmaLinux 8, AlmaLinux 9, AlmaLinux 10 and CloudLinux 7.x...\n"
-                exit 1
+if [ "$(id -u)" != "0" ]; then
+        echo "Please run this installer as root."
+        exit 1
 fi
 
-rm -f cyberpanel.sh
-rm -f install.tar.gz
-
-if echo "$OUTPUT" | grep -q "Ubuntu 26.04" ; then
-        INSTALL_BRANCH="stable"
-        EXPECT_BRANCH=0
-        for argument do
-                if [ "$EXPECT_BRANCH" -eq 1 ]; then
-                        INSTALL_BRANCH="$argument"
-                        EXPECT_BRANCH=0
-                elif [ "$argument" = "-b" ]; then
-                        EXPECT_BRANCH=1
-                fi
-        done
-
-        case "$INSTALL_BRANCH" in
-                ""|*[!A-Za-z0-9._/-]*) INSTALL_BRANCH="stable" ;;
-                [0-9]*) INSTALL_BRANCH="v$INSTALL_BRANCH" ;;
-        esac
-
-        INSTALLER_URL="https://raw.githubusercontent.com/usmannasir/cyberpanel/$INSTALL_BRANCH/cyberpanel.sh"
-        if ! curl --fail --location --silent --show-error -o cyberpanel.sh "$INSTALLER_URL" ; then
-                curl --fail --location --silent --show-error -o cyberpanel.sh "https://cyberpanel.sh/?dl&$SERVER_OS"
-        fi
+if command -v apt-get >/dev/null 2>&1 ; then
+        DEBIAN_FRONTEND=noninteractive apt-get update -qq >/dev/null 2>&1
+        DEBIAN_FRONTEND=noninteractive apt-get install -y -qq wget curl ca-certificates >/dev/null
+elif command -v dnf >/dev/null 2>&1 ; then
+        dnf install -y curl wget ca-certificates >/dev/null 2>&1
+elif command -v yum >/dev/null 2>&1 ; then
+        yum install -y curl wget ca-certificates >/dev/null 2>&1
 else
-        curl --silent -o cyberpanel.sh "https://cyberpanel.sh/?dl&$SERVER_OS" 2>/dev/null
+        echo "Unsupported system: neither apt nor dnf/yum was found."
+        exit 1
+fi
+
+if [ -r /etc/os-release ]; then
+        . /etc/os-release
+        echo "Detected ${PRETTY_NAME:-$ID $VERSION_ID}"
+fi
+
+INSTALL_BRANCH="stable"
+EXPECT_BRANCH=0
+for argument do
+        if [ "$EXPECT_BRANCH" -eq 1 ]; then
+                INSTALL_BRANCH="$argument"
+                EXPECT_BRANCH=0
+        elif [ "$argument" = "-b" ]; then
+                EXPECT_BRANCH=1
+        fi
+done
+
+case "$INSTALL_BRANCH" in
+        ""|*[!A-Za-z0-9._/-]*) INSTALL_BRANCH="stable" ;;
+        [0-9]*) INSTALL_BRANCH="v$INSTALL_BRANCH" ;;
+esac
+
+rm -f cyberpanel.sh install.tar.gz
+INSTALLER_URL="https://raw.githubusercontent.com/$GIT_USER/cyberpanel/$INSTALL_BRANCH/cyberpanel.sh"
+if ! curl --fail --location --silent --show-error -o cyberpanel.sh "$INSTALLER_URL" ; then
+        echo "Unable to download $INSTALLER_URL"
+        exit 1
 fi
 chmod +x cyberpanel.sh
-./cyberpanel.sh $@
+CYBERPANEL_GIT_USER="$GIT_USER" ./cyberpanel.sh "$@"

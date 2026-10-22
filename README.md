@@ -1,4 +1,12 @@
-# 🛠️ CyberPanel
+# 🛠️ CyberPanel Universal
+
+> **Fork of [usmannasir/cyberpanel](https://github.com/usmannasir/cyberpanel)** that installs on
+> any apt- or dnf/yum-based Linux, including CentOS 8. See **[UNIVERSAL.md](UNIVERSAL.md)** for
+> install commands, what differs from upstream, and how releases and upstream merges work.
+>
+> ```bash
+> sh <(curl -fsSL https://raw.githubusercontent.com/YOUR_GITHUB_USER/cyberpanel/stable/install.sh)
+> ```
 
 Web Hosting Control Panel powered by OpenLiteSpeed, designed to simplify hosting management.
 

@@ -476,6 +476,13 @@ Ubuntu24 = 9
 Ubuntu26 = 10
 
 
+def result_is_not_ubuntu(path):
+    try:
+        return 'DISTRIB_ID=Ubuntu' not in open(path).read()
+    except (IOError, OSError):
+        return True
+
+
 class Upgrade:
     logPath = "/usr/local/lscp/logs/upgradeLog"
     cdn = 'cdn.cyberpanel.sh'
@@ -548,6 +555,19 @@ class Upgrade:
             return CENTOS7
 
     @staticmethod
+    def profileOperatingSystem():
+        from cyberpanel_os_profile import detect, RHEL, OPENEULER
+        profile = detect()
+        if profile is None:
+            return Ubuntu22
+        if profile.family == OPENEULER:
+            return openEuler20 if profile.version == 20 else openEuler22
+        if profile.family == RHEL:
+            return CENTOS7 if profile.version <= 7 else CENTOS8
+        return {18: Ubuntu18, 20: Ubuntu20, 22: Ubuntu22, 24: Ubuntu24, 26: Ubuntu26}.get(
+            profile.version, Ubuntu22)
+
+    @staticmethod
     def FindOperatingSytem():
 
         if os.path.exists(Upgrade.CentOSPath):
@@ -565,8 +585,13 @@ class Upgrade:
                 return openEuler20
             elif result.find('22.03') > -1:
                 return openEuler22
+            return openEuler22
 
         else:
+            if not os.path.exists(Upgrade.UbuntuPath) or result_is_not_ubuntu(Upgrade.UbuntuPath):
+                # Debian and other non-Ubuntu apt systems: use the Ubuntu profile they map to.
+                return Upgrade.profileOperatingSystem()
+
             result = open(Upgrade.UbuntuPath, 'r').read()
 
             if result.find('20.04') > -1:
@@ -816,6 +841,16 @@ class Upgrade:
     def detectPlatform():
         """Detect OS platform for binary selection."""
         try:
+            # Universal: the custom OLS build only exists for upstream's distro list.
+            try:
+                from cyberpanel_os_profile import detect
+                profile = detect()
+            except BaseException:
+                profile = None
+            if profile is not None and not profile.native:
+                Upgrade.stdOut("Compatibility profile %s %s: keeping stock OLS" % (profile.os, profile.version), 0)
+                return 'skip'
+
             # Check for Ubuntu
             if os.path.exists('/etc/lsb-release'):
                 with open('/etc/lsb-release', 'r') as f:
@@ -1296,7 +1331,7 @@ module cyberpanel_ols {
 
             Upgrade.stdOut("Installing phpMyAdmin...", 0)
             
-            command = 'wget -q -O /usr/local/CyberCP/public/phpmyadmin.zip https://github.com/usmannasir/cyberpanel/raw/stable/phpmyadmin.zip'
+            command = 'wget -q -O /usr/local/CyberCP/public/phpmyadmin.zip https://github.com/YOUR_GITHUB_USER/cyberpanel/raw/stable/phpmyadmin.zip'
             Upgrade.executioner_silent(command, 'Download phpMyAdmin')
 
             command = 'unzip -q /usr/local/CyberCP/public/phpmyadmin.zip -d /usr/local/CyberCP/public/'
@@ -3956,7 +3991,7 @@ passdb {
                                              dir='/usr/local') as staging_dir:
                 staged = os.path.join(staging_dir, 'CyberCP')
                 Upgrade.stdOut("Cloning fresh CyberPanel repository into staging...")
-                command = 'git clone -- https://github.com/usmannasir/cyberpanel %s' % shlex.quote(staged)
+                command = 'git clone -- https://github.com/YOUR_GITHUB_USER/cyberpanel %s' % shlex.quote(staged)
                 if not Upgrade.executioner(command, 'Clone CyberPanel source', 0):
                     return 0, 'Failed to clone CyberPanel repository'
 
@@ -5276,7 +5311,7 @@ pm.max_spare_servers = 3
             if os.path.exists('httpd_config.xml'):
                 os.remove('httpd_config.xml')
 
-            command = 'wget https://raw.githubusercontent.com/usmannasir/cyberpanel/stable/install/litespeed/httpd_config.xml'
+            command = 'wget https://raw.githubusercontent.com/YOUR_GITHUB_USER/cyberpanel/stable/install/litespeed/httpd_config.xml'
             Upgrade.executioner(command, command, 0)
             # os.remove('/usr/local/lsws/conf/httpd_config.xml')
             # shutil.copy('httpd_config.xml', '/usr/local/lsws/conf/httpd_config.xml')
