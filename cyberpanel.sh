@@ -147,6 +147,9 @@ Universal_Features_File="/etc/cyberpanel/disabled_features"
 Universal_Min_Python="3.9"
 Universal_Max_Python="3.12"
 Universal_Python_Changed="No"
+# Installs and upgrades track this branch of the fork (the other branches mirror upstream).
+# CYBERPANEL_BRANCH overrides it; -b <version> still selects a specific vX.Y.Z branch.
+Universal_Release_Branch="${CYBERPANEL_BRANCH:-main}"
 
 Universal_Log() {
   echo -e "[universal] $*"
@@ -452,10 +455,11 @@ parse_panel_version() {
   [[ "$Panel_Version" =~ ^[0-9]+\.[0-9]+$ && "$Panel_Build" =~ ^[0-9]+$ ]]
 }
 
-Temp_Value=$(curl --silent --max-time 30 -4 https://raw.githubusercontent.com/Er-DhruvMishra/cyberpanel/stable/version.txt)
+Temp_Value=$(curl --silent --max-time 30 -4 https://raw.githubusercontent.com/Er-DhruvMishra/cyberpanel/main/version.txt)
 if parse_panel_version "$Temp_Value"; then
-  Branch_Name="v${Panel_Version}.${Panel_Build}"
-  echo -e  "\nBranch name fetched...$Branch_Name"
+  # Universal: install the fork's release branch; version.txt only supplies the version shown.
+  Branch_Name="$Universal_Release_Branch"
+  echo -e  "\nCyberPanel ${Panel_Version}.${Panel_Build} from branch $Branch_Name..."
   log_info "Branch name fetched: $Branch_Name"
 else
   echo -e "\nUnable to fetch Branch name..."
@@ -2621,7 +2625,7 @@ Install_CyberCP_Runtime_Python_Requirements() {
       wget -q -O "$td/r.txt" "${Git_Content_URL}/${Branch_Name}/requirments.txt" 2>/dev/null && grep -q "Django==" "$td/r.txt" 2>/dev/null && req_file="$td/r.txt"
       [[ -z "$req_file" ]] && wget -q -O "$td/r.txt" "${Git_Content_URL}/${Branch_Name}/requirments-old.txt" 2>/dev/null && grep -q "Django==" "$td/r.txt" 2>/dev/null && req_file="$td/r.txt"
     fi
-    [[ -z "$req_file" ]] && wget -q -O "$td/s.txt" "https://raw.githubusercontent.com/Er-DhruvMishra/cyberpanel/stable/requirments.txt" 2>/dev/null \
+    [[ -z "$req_file" ]] && wget -q -O "$td/s.txt" "https://raw.githubusercontent.com/Er-DhruvMishra/cyberpanel/main/requirments.txt" 2>/dev/null \
       && grep -q "Django==" "$td/s.txt" 2>/dev/null && req_file="$td/s.txt"
   fi
   if [[ -z "$req_file" || ! -f "$req_file" ]]; then

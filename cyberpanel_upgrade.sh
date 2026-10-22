@@ -38,6 +38,9 @@ Universal_Features_File="/etc/cyberpanel/disabled_features"
 Universal_Min_Python="3.9"
 Universal_Max_Python="3.12"
 Universal_Python_Changed="No"
+# Installs and upgrades track this branch of the fork (the other branches mirror upstream).
+# CYBERPANEL_BRANCH overrides it; -b <version> still selects a specific vX.Y.Z branch.
+Universal_Release_Branch="${CYBERPANEL_BRANCH:-main}"
 
 Universal_Log() {
   echo -e "[universal] $*"
@@ -347,14 +350,15 @@ parse_panel_version() {
   [[ "$Panel_Version" =~ ^[0-9]+\.[0-9]+$ && "$Panel_Build" =~ ^[0-9]+$ ]]
 }
 
-Temp_Value=$(curl --silent --max-time 30 -4 https://raw.githubusercontent.com/Er-DhruvMishra/cyberpanel/stable/version.txt)
+Temp_Value=$(curl --silent --max-time 30 -4 https://raw.githubusercontent.com/Er-DhruvMishra/cyberpanel/main/version.txt)
 if ! parse_panel_version "$Temp_Value"; then
   echo -e "\nUnable to fetch a valid CyberPanel version."
   echo -e "\nPlease try again in a few moments."
   exit 1
 fi
 
-Branch_Name="v${Panel_Version}.${Panel_Build}"
+# Universal: upgrade to the fork's release branch; version.txt only supplies the version shown.
+Branch_Name="$Universal_Release_Branch"
 Base_Number="1.9.3"
 
 Git_User=""
@@ -1176,7 +1180,7 @@ if [ $CYBERCP_MISSING -eq 1 ]; then
         
         # Checkout the appropriate branch
         cd CyberCP_recovery_tmp
-        git checkout "$Branch_Name" 2>/dev/null || git checkout stable
+        git checkout "$Branch_Name" 2>/dev/null || git checkout main
         
         # Copy missing components while preserving existing configurations
         for dir in "${CYBERCP_ESSENTIAL_DIRS[@]}"; do
@@ -1388,7 +1392,7 @@ if [[ "$Server_Country" = "CN" ]] ; then
     Check_Return "git clone ${Git_Clone_URL}"
 
   # shellcheck disable=SC2086
-  sed -i 's|https://raw.githubusercontent.com/Er-DhruvMishra/cyberpanel/stable/install/litespeed/httpd_config.xml|'${Git_Content_URL}/${Branch_Name}'//install/litespeed/httpd_config.xml|g' upgrade.py
+  sed -i 's|https://raw.githubusercontent.com/Er-DhruvMishra/cyberpanel/main/install/litespeed/httpd_config.xml|'${Git_Content_URL}/${Branch_Name}'//install/litespeed/httpd_config.xml|g' upgrade.py
   sed -i 's|https://cyberpanel.sh/composer.sh|https://gitee.com/qtwrk/cyberpanel/raw/stable/install/composer_cn.sh|g' upgrade.py
 fi
 

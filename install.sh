@@ -1,11 +1,11 @@
 #!/bin/sh
 # CyberPanel Universal bootstrap installer.
 #
-#   sh <(curl -fsSL https://raw.githubusercontent.com/Er-DhruvMishra/cyberpanel/stable/install.sh)
+#   sh <(curl -fsSL https://raw.githubusercontent.com/Er-DhruvMishra/cyberpanel/main/install.sh)
 #
 # Unlike upstream, this does not whitelist distributions: cyberpanel.sh maps any
 # apt- or dnf/yum-based system onto the nearest supported profile (universal/compat.sh).
-# Pass -b <branch|version> to install a specific release.
+# Installs track the fork's main branch. Pass -b <version> (e.g. -b 3.0.8) for a specific branch.
 
 GIT_USER="${CYBERPANEL_GIT_USER:-Er-DhruvMishra}"
 
@@ -31,7 +31,7 @@ if [ -r /etc/os-release ]; then
         echo "Detected ${PRETTY_NAME:-$ID $VERSION_ID}"
 fi
 
-INSTALL_BRANCH="stable"
+INSTALL_BRANCH="${CYBERPANEL_BRANCH:-main}"
 EXPECT_BRANCH=0
 for argument do
         if [ "$EXPECT_BRANCH" -eq 1 ]; then
@@ -43,7 +43,7 @@ for argument do
 done
 
 case "$INSTALL_BRANCH" in
-        ""|*[!A-Za-z0-9._/-]*) INSTALL_BRANCH="stable" ;;
+        ""|*[!A-Za-z0-9._/-]*) INSTALL_BRANCH="main" ;;
         [0-9]*) INSTALL_BRANCH="v$INSTALL_BRANCH" ;;
 esac
 
@@ -54,4 +54,4 @@ if ! curl --fail --location --silent --show-error -o cyberpanel.sh "$INSTALLER_U
         exit 1
 fi
 chmod +x cyberpanel.sh
-CYBERPANEL_GIT_USER="$GIT_USER" ./cyberpanel.sh "$@"
+CYBERPANEL_GIT_USER="$GIT_USER" CYBERPANEL_BRANCH="$INSTALL_BRANCH" ./cyberpanel.sh "$@"

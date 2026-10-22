@@ -2,6 +2,12 @@ VERSION = '3.0'
 BUILD = 8
 FULL_VERSION = '%s.%s' % (VERSION, BUILD)
 
+# Universal fork: installs, upgrades and the panel's update check track this branch.
+RELEASE_REPO = 'Er-DhruvMishra/cyberpanel'
+RELEASE_BRANCH = 'main'
+RELEASE_VERSION_URL = 'https://raw.githubusercontent.com/%s/%s/version.txt' % (RELEASE_REPO, RELEASE_BRANCH)
+RELEASE_COMMITS_URL = 'https://api.github.com/repos/%s/commits?sha=%s' % (RELEASE_REPO, RELEASE_BRANCH)
+
 
 def _version_tuple(version, build):
     version_parts = str(version).split('.')

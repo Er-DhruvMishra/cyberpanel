@@ -5,7 +5,7 @@
 > install commands, what differs from upstream, and how releases and upstream merges work.
 >
 > ```bash
-> sh <(curl -fsSL https://raw.githubusercontent.com/Er-DhruvMishra/cyberpanel/stable/install.sh)
+> sh <(curl -fsSL https://raw.githubusercontent.com/Er-DhruvMishra/cyberpanel/main/install.sh)
 > ```
 
 Web Hosting Control Panel powered by OpenLiteSpeed, designed to simplify hosting management.

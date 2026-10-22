@@ -27,7 +27,7 @@ from loginSystem.models import Administrator
 from packages.models import Package
 from django.views.decorators.http import require_GET, require_POST
 import pwd
-from cyberpanel_version import BUILD, VERSION
+from cyberpanel_version import BUILD, VERSION, RELEASE_COMMITS_URL, RELEASE_VERSION_URL
 from plogical.securityUtils import is_safe_hostname, is_safe_system_user
 
 # Create your views here.
@@ -45,7 +45,7 @@ def renderBase(request):
 
 @ensure_csrf_cookie
 def versionManagement(request):
-    getVersion = requests.get('https://raw.githubusercontent.com/Er-DhruvMishra/cyberpanel/stable/version.txt')
+    getVersion = requests.get(RELEASE_VERSION_URL)
     latest = getVersion.json()
     latestVersion = latest['version']
     latestBuild = latest['build']
@@ -53,7 +53,7 @@ def versionManagement(request):
     currentVersion = VERSION
     currentBuild = str(BUILD)
 
-    u = "https://api.github.com/repos/Er-DhruvMishra/cyberpanel/commits?sha=v%s.%s" % (latestVersion, latestBuild)
+    u = RELEASE_COMMITS_URL
     logging.writeToFile(u)
     r = requests.get(u)
     latestcomit = r.json()[0]['sha']
@@ -80,7 +80,7 @@ def versionManagement(request):
 def upgrade_cyberpanel(request):
     if request.method == 'POST':
         try:
-            upgrade_command = 'sh <(curl https://raw.githubusercontent.com/Er-DhruvMishra/cyberpanel/stable/preUpgrade.sh || wget -O - https://raw.githubusercontent.com/Er-DhruvMishra/cyberpanel/stable/preUpgrade.sh)'
+            upgrade_command = 'sh <(curl https://raw.githubusercontent.com/Er-DhruvMishra/cyberpanel/main/preUpgrade.sh || wget -O - https://raw.githubusercontent.com/Er-DhruvMishra/cyberpanel/main/preUpgrade.sh)'
             result = subprocess.run(upgrade_command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                     universal_newlines=True)
 
@@ -262,7 +262,7 @@ def getLoadAverage(request):
 def versionManagment(request):
     ## Get latest version
 
-    getVersion = requests.get('https://raw.githubusercontent.com/Er-DhruvMishra/cyberpanel/stable/version.txt')
+    getVersion = requests.get(RELEASE_VERSION_URL)
     latest = getVersion.json()
     latestVersion = latest['version']
     latestBuild = latest['build']
@@ -272,7 +272,7 @@ def versionManagment(request):
     currentVersion = VERSION
     currentBuild = str(BUILD)
 
-    u = "https://api.github.com/repos/Er-DhruvMishra/cyberpanel/commits?sha=v%s.%s" % (latestVersion, latestBuild)
+    u = RELEASE_COMMITS_URL
     logging.CyberCPLogFileWriter.writeToFile(u)
     r = requests.get(u)
     latestcomit = r.json()[0]['sha']
@@ -381,7 +381,7 @@ def upgradeVersion(request):
     try:
 
         vers = version.objects.get(pk=1)
-        getVersion = requests.get('https://raw.githubusercontent.com/Er-DhruvMishra/cyberpanel/stable/version.txt')
+        getVersion = requests.get(RELEASE_VERSION_URL)
         latest = getVersion.json()
         vers.currentVersion = latest['version']
         vers.build = latest['build']

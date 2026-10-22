@@ -13,13 +13,13 @@ that host instead of failing the install.
 
 ```bash
 # fresh install
-sh <(curl -fsSL https://raw.githubusercontent.com/Er-DhruvMishra/cyberpanel/stable/install.sh)
+sh <(curl -fsSL https://raw.githubusercontent.com/Er-DhruvMishra/cyberpanel/main/install.sh)
 
 # a specific release
-sh <(curl -fsSL https://raw.githubusercontent.com/Er-DhruvMishra/cyberpanel/stable/install.sh) -b 3.0.8
+sh <(curl -fsSL https://raw.githubusercontent.com/Er-DhruvMishra/cyberpanel/main/install.sh) -b 3.0.8
 
 # upgrade an existing panel (upstream or this fork)
-sh <(curl -fsSL https://raw.githubusercontent.com/Er-DhruvMishra/cyberpanel/stable/preUpgrade.sh)
+sh <(curl -fsSL https://raw.githubusercontent.com/Er-DhruvMishra/cyberpanel/main/preUpgrade.sh)
 ```
 
 All installer options are unchanged from upstream (`cyberpanel.sh -h`). You can also set:
@@ -28,6 +28,7 @@ All installer options are unchanged from upstream (`cyberpanel.sh -h`). You can 
 |---|---|
 | `CYBERPANEL_OS_PROFILE="CentOS 8"` | force a profile instead of auto-detecting it |
 | `CYBERPANEL_GIT_USER=name` | install from another GitHub account's `cyberpanel` repo |
+| `CYBERPANEL_BRANCH=name` | install/upgrade from a branch other than `main` |
 
 ## Why upstream broke on CentOS 8
 
@@ -90,17 +91,21 @@ CentOS 8 is a native profile, so it keeps the custom OLS build and every other f
 
 ## Releasing
 
-1. One-time setup: create the GitHub repo **named `cyberpanel`** under your account. The
-   scripts clone into, and rename, a directory of that name. Then run:
-   `tools/set-github-user.sh <your-github-user>`, commit, and push.
-2. The installer reads `version.txt` from the `stable` branch (`{"version":"3.0","build":8}`)
-   and checks out branch/tag `v<version>.<build>` (here `v3.0.8`). For every release:
-   ```bash
-   git push origin main:stable
-   git push origin main:v3.0.8      # branch (or tag) named after version.txt
-   ```
-3. Keep `version.txt` and `cyberpanel_version.py` in step with upstream's numbering. The panel
-   uses them for its internal upgrade gates.
+Installs, upgrades and the panel's "new version" check all track **`main`** on
+github.com/Er-DhruvMishra/cyberpanel (`Universal_Release_Branch` in `universal/compat.sh`,
+`RELEASE_BRANCH` in `cyberpanel_version.py`). Pushing to `main` releases it:
+
+```bash
+git push origin main
+```
+
+The fork's other branches (`stable`, `v3.0.x`, `v3.0.5-dev`, …) are plain mirrors of
+usmannasir/cyberpanel and are not used by the installer. `-b 3.0.8` or
+`CYBERPANEL_BRANCH=v3.0.8` still installs a specific branch, but those branches carry no
+compatibility layer.
+
+Keep `version.txt` and `cyberpanel_version.py` in step with upstream's numbering. The panel
+shows them, and uses them for its internal upgrade gates.
 
 ## Pulling new upstream fixes
 
@@ -151,6 +156,7 @@ After a merge, re-check two things:
 
 ## Branches
 
-- `main`: upstream stable + this layer (release from here)
+- `main`: upstream stable + dev fixes + this layer. Installs and upgrades use it.
+- `stable`, `v3.0.x`, `v3.0.5-dev`, …: mirrors of upstream, kept in sync by hand
 - `legacy-2.3.4`: snapshot of the production CentOS 8 server's CyberPanel 2.3.4 and its local
   patches, for reference and rollback

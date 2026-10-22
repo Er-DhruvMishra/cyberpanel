@@ -18,6 +18,9 @@ Universal_Features_File="/etc/cyberpanel/disabled_features"
 Universal_Min_Python="3.9"
 Universal_Max_Python="3.12"
 Universal_Python_Changed="No"
+# Installs and upgrades track this branch of the fork (the other branches mirror upstream).
+# CYBERPANEL_BRANCH overrides it; -b <version> still selects a specific vX.Y.Z branch.
+Universal_Release_Branch="${CYBERPANEL_BRANCH:-main}"
 
 Universal_Log() {
   echo -e "[universal] $*"

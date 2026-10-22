@@ -1101,7 +1101,7 @@ class preFlightsChecks:
             if not os.path.exists("/usr/local/CyberCP/public"):
                 os.mkdir("/usr/local/CyberCP/public")
 
-            command = 'wget -O /usr/local/CyberCP/public/phpmyadmin.zip https://github.com/Er-DhruvMishra/cyberpanel/raw/stable/phpmyadmin.zip'
+            command = 'wget -O /usr/local/CyberCP/public/phpmyadmin.zip https://github.com/Er-DhruvMishra/cyberpanel/raw/main/phpmyadmin.zip'
 
             preFlightsChecks.call(command, self.distro, '[download_install_phpmyadmin]',
                                   command, 1, 0, os.EX_OSERR)
@@ -2188,7 +2188,7 @@ $cfg['Servers'][$i]['LogoutURL'] = 'phpmyadminsignin.php?logout';
     def test_Requests(self):
         try:
             import requests
-            getVersion = requests.get('https://raw.githubusercontent.com/Er-DhruvMishra/cyberpanel/stable/version.txt')
+            getVersion = requests.get('https://raw.githubusercontent.com/Er-DhruvMishra/cyberpanel/main/version.txt')
             latest = getVersion.json()
         except BaseException as msg:
 

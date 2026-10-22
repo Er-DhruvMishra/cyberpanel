@@ -66,7 +66,7 @@ else
     if [[ -f "/usr/local/CyberCP/$requirements_name" ]]; then
         cp "/usr/local/CyberCP/$requirements_name" /tmp/requirements.txt
     else
-        wget -q -O /tmp/requirements.txt "https://raw.githubusercontent.com/Er-DhruvMishra/cyberpanel/stable/$requirements_name"
+        wget -q -O /tmp/requirements.txt "https://raw.githubusercontent.com/Er-DhruvMishra/cyberpanel/main/$requirements_name"
     fi
     
     # Upgrade pip first
@@ -93,7 +93,7 @@ if [[ -f /usr/local/lscp/conf/pythonenv.conf ]] && grep -q '^PYTHONHOME=/usr' /u
         RUNTIME_REQ="/usr/local/requirments.txt"
     else
         mkdir -p /etc/cyberpanel
-        if wget -q -O /etc/cyberpanel/cyberpanel-requirments-runtime.txt "https://raw.githubusercontent.com/Er-DhruvMishra/cyberpanel/stable/requirments.txt" 2>/dev/null \
+        if wget -q -O /etc/cyberpanel/cyberpanel-requirments-runtime.txt "https://raw.githubusercontent.com/Er-DhruvMishra/cyberpanel/main/requirments.txt" 2>/dev/null \
           && grep -q 'Django==' /etc/cyberpanel/cyberpanel-requirments-runtime.txt 2>/dev/null; then
             RUNTIME_REQ="/etc/cyberpanel/cyberpanel-requirments-runtime.txt"
         fi
