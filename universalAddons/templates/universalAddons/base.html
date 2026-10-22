@@ -1,0 +1,4 @@
+{% extends "baseTemplate/index.html" %}
+{% load static %}
+{% block header_scripts %}<link rel="stylesheet" href="{% static 'universalAddons/addons.css' %}?v={{ CP_VERSION }}">{% endblock %}
+{% block module_scripts %}<script src="{% static 'universalAddons/addons.js' %}?v={{ CP_VERSION }}"></script>{% block addon_scripts %}{% endblock %}{% endblock %}

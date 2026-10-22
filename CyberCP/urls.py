@@ -36,6 +36,7 @@ urlpatterns = [
     path('api/', include('api.urls')),
     path('filemanager/', include('filemanager.urls')),
     path('emailPremium/', include('emailPremium.urls')),
+    path('addons/', include('universalAddons.urls')),
     path('manageservices/', include('manageServices.urls')),
     path('plugins/', include('pluginHolder.urls')),
     path('emailMarketing/', include('emailMarketing.urls')),

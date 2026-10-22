@@ -235,6 +235,12 @@
             <div class="icon-wrapper"><i class="fas fa-shield-halved"></i></div>
             <span>{% trans "Backups" %}</span>
         </a>
+        {% if admin %}
+        <a href="{% url 'ua-hub' %}" class="menu-item">
+            <div class="icon-wrapper"><i class="fas fa-puzzle-piece"></i></div>
+            <span>{% trans "Universal Add-ons" %}</span>
+        </a>
+        {% endif %}
         {# Installed plugins append their sidebar link right after the pluginsList marker (pluginInstaller.addInterfaceLink). Keep this marker on its own line. #}
         {# pluginsList #}
 

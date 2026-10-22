@@ -98,6 +98,7 @@ INSTALLED_APPS = [
     'manageServices',
     'pluginHolder',
     'emailPremium',
+    'universalAddons',
     'emailMarketing',
     'cloudAPI',
     'highAvailability',

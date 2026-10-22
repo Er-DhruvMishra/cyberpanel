@@ -1,0 +1,96 @@
+{% extends "universalAddons/base.html" %}
+{% load i18n static %}
+{% block title %}{% trans "Email Debugger" %} - CyberPanel{% endblock %}
+{% block addon_scripts %}<script src="{% static 'universalAddons/emaildebug.js' %}?v={{ CP_VERSION }}"></script>{% endblock %}
+{% block content %}
+<div class="ua-wrap" id="ua-emaildebug"
+     data-url-dns="{% url 'ua-emaildebug-dns' %}" data-url-ports="{% url 'ua-emaildebug-ports' %}"
+     data-url-logs="{% url 'ua-emaildebug-logs' %}" data-url-queue="{% url 'ua-emaildebug-queue' %}"
+     data-url-spam="{% url 'ua-emaildebug-spam' %}" data-url-send="{% url 'ua-emaildebug-send' %}"
+     data-url-context="{% url 'ua-emaildebug-context' %}">
+  <div class="ua-header">
+    <h1><i class="fas fa-envelope-open-text"></i> {% trans "Email Debugger" %}</h1>
+    <p>{% trans "Find out why mail is not delivered: DNS and reputation, ports and certificates, the Postfix log, the queue and spam scores." %}
+      <span class="ua-muted" id="ua-ctx"></span></p>
+  </div>
+
+  <div class="ua-tabs">
+    <button class="active" data-pane="dns">{% trans "DNS & reputation" %}</button>
+    <button data-pane="ports">{% trans "Ports & TLS" %}</button>
+    <button data-pane="logs">{% trans "Message trace" %}</button>
+    <button data-pane="queue">{% trans "Queue" %}</button>
+    <button data-pane="spam">{% trans "Spam score" %}</button>
+    <button data-pane="send">{% trans "Send test" %}</button>
+  </div>
+
+  <div class="ua-pane active" id="pane-dns">
+    <div class="ua-card">
+      <div class="ua-row">
+        <select id="dns-domain">
+          {% for d in domains %}<option value="{{ d }}">{{ d }}</option>{% empty %}<option value="">{% trans "No mail domains" %}</option>{% endfor %}
+        </select>
+        <input id="dns-domain-other" placeholder="{% trans 'or type another domain' %}">
+        <button class="ua-btn" id="dns-run">{% trans "Check" %}</button>
+      </div>
+      <div id="dns-out"><p class="ua-muted">{% trans "Checks MX, mail host, SPF, DKIM, DMARC, reverse DNS and major blocklists." %}</p></div>
+    </div>
+  </div>
+
+  <div class="ua-pane" id="pane-ports">
+    <div class="ua-card">
+      <div class="ua-row">
+        <select id="ports-target">
+          <option value="local">{% trans "This server (127.0.0.1)" %}</option>
+          <option value="public">{% trans "Public IP" %}</option>
+        </select>
+        <button class="ua-btn" id="ports-run">{% trans "Test ports" %}</button>
+      </div>
+      <div id="ports-out"><p class="ua-muted">{% trans "Connects to 25, 465, 587, 993, 995, 143 and 110, negotiates TLS and inspects each certificate." %}</p></div>
+    </div>
+  </div>
+
+  <div class="ua-pane" id="pane-logs">
+    <div class="ua-card">
+      <div class="ua-row">
+        <input id="logs-query" placeholder="{% trans 'address, domain, queue ID or Message-ID' %}">
+        <select id="logs-status">
+          <option value="">{% trans "Any status" %}</option>
+          <option value="sent">sent</option><option value="deferred">deferred</option>
+          <option value="bounced">bounced</option><option value="expired">expired</option>
+        </select>
+        <button class="ua-btn" id="logs-run">{% trans "Search log" %}</button>
+      </div>
+      <div id="logs-summary"></div>
+      <div id="logs-out"></div>
+    </div>
+  </div>
+
+  <div class="ua-pane" id="pane-queue">
+    <div class="ua-card">
+      <div class="ua-row"><button class="ua-btn" id="queue-run">{% trans "Refresh" %}</button>
+        <span class="ua-muted">{% trans "Use Email > Mail Queue to flush or delete messages." %}</span></div>
+      <div id="queue-out"></div>
+    </div>
+  </div>
+
+  <div class="ua-pane" id="pane-spam">
+    <div class="ua-card">
+      <p class="ua-muted">{% trans "Paste a complete message source (headers and body). It is scored with Rspamd or SpamAssassin, whichever is installed." %}</p>
+      <textarea id="spam-message"></textarea>
+      <div class="ua-row" style="margin-top:10px"><button class="ua-btn" id="spam-run">{% trans "Score message" %}</button></div>
+      <div id="spam-out"></div>
+    </div>
+  </div>
+
+  <div class="ua-pane" id="pane-send">
+    <div class="ua-card">
+      <div class="ua-row">
+        <input id="send-from" placeholder="{% trans 'from (a mailbox on this server)' %}">
+        <input id="send-to" placeholder="{% trans 'to' %}">
+        <button class="ua-btn" id="send-run">{% trans "Send and trace" %}</button>
+      </div>
+      <div id="send-out"><p class="ua-muted">{% trans "Sends one test message through local Postfix and follows it in the log." %}</p></div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,26 @@
+{% extends "universalAddons/base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Universal Add-ons" %} - CyberPanel{% endblock %}
+{% block content %}
+<div class="ua-wrap">
+  <div class="ua-header">
+    <h1>{% trans "Universal Add-ons" %}</h1>
+    <p>{% trans "Open-source modules maintained in this CyberPanel fork. They run locally and need no external licence." %}</p>
+  </div>
+  <div class="ua-grid">
+    {% for m in modules %}
+      {% if m.state == 'ready' and m.url_name %}
+      <a class="ua-card ua-tile" href="{% url m.url_name %}">
+      {% else %}
+      <div class="ua-card ua-tile">
+      {% endif %}
+        <i class="fas {{ m.icon }}"></i>
+        <h3>{{ m.title }}</h3>
+        <p>{{ m.summary }}</p>
+        {% if m.state != 'ready' %}<span class="ua-state">{% trans "In development" %}</span>
+        {% elif m.problems %}<span class="ua-state">{% trans "Unavailable here:" %} {{ m.problems|join:" " }}</span>{% endif %}
+      {% if m.state == 'ready' and m.url_name %}</a>{% else %}</div>{% endif %}
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}
