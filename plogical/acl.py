@@ -128,7 +128,7 @@ class ACLManager:
     @staticmethod
     def validateInput(value, regex = None):
         if regex == None:
-            verifier = compile(r'[\sa-zA-Z0-9_-]+')
+            verifier = compile(r'[\sa-zA-Z0-9_.\-]+')
         else:
             verifier = regex
 
@@ -568,6 +568,9 @@ class ACLManager:
             php = "80"
         elif phpVersion == "PHP 8.1":
             php = "81"
+        else:
+            # Local patch 2026-10-22: handle PHP 8.2+ generically
+            php = phpVersion.split()[1].replace(".", "")
 
         return php
 

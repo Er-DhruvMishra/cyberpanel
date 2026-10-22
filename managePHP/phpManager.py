@@ -12,6 +12,19 @@ class PHPManager:
 
     @staticmethod
     def findPHPVersions():
+        # Local patch 2026-10-22: list every lsphp actually installed so newer versions show in dropdowns
+        import os
+        installed = []
+        try:
+            for name in os.listdir('/usr/local/lsws'):
+                match = re.match(r'^lsphp(\d)(\d)$', name)
+                if match and os.path.exists('/usr/local/lsws/%s/bin/lsphp' % name):
+                    installed.append((int(match.group(1)), int(match.group(2))))
+        except BaseException:
+            pass
+        if installed:
+            return ['PHP %d.%d' % version for version in sorted(installed)]
+
         distro = ProcessUtilities.decideDistro()
         if distro == ProcessUtilities.centos:
             return ['PHP 5.3', 'PHP 5.4', 'PHP 5.5', 'PHP 5.6', 'PHP 7.0', 'PHP 7.1', 'PHP 7.2', 'PHP 7.3', 'PHP 7.4', 'PHP 8.0', 'PHP 8.1']

@@ -33,7 +33,7 @@ class HandleRequest(multi.Thread):
         try:
             while True:
 
-                Data = self.connection.recv(64)
+                Data = self.connection.recv(64).decode()
                 # Wait for a connection
 
                 try:
@@ -74,13 +74,13 @@ class HandleRequest(multi.Thread):
                 tempData = items.split('=')
                 if tempData[0] == 'sasl_username':
                     if len(tempData[1]) == 0:
-                        self.connection.sendall('action=dunno\n\n')
+                        self.connection.sendall(b'action=dunno\n\n')
                         return
                     emailAddress = tempData[1]
                     domainName = emailAddress.split('@')[1]
                 elif tempData[0] == 'recipient':
                     if len(tempData[1]) == 0:
-                        self.connection.sendall('action=dunno\n\n')
+                        self.connection.sendall(b'action=dunno\n\n')
                         return
                     destination = tempData[1]
 
@@ -100,7 +100,7 @@ class HandleRequest(multi.Thread):
 
                     emailObj = newDomain.findEmailOBJ(emailAddress)
                 except:
-                    self.connection.sendall('action=dunno\n\n')
+                    self.connection.sendall(b'action=dunno\n\n')
                     return
 
             #logging.writeToFile('Domain Limit Status: ' + str(domainObj.limitStatus))
@@ -112,7 +112,7 @@ class HandleRequest(multi.Thread):
 
                 if domainObj.monthlyLimits <= domainObj.monthlyUsed or emailObj.monthlyLimits <= emailObj.monthlyUsed or emailObj.hourlyLimits <= emailObj.hourlyUsed:
                     logging.writeToFile(emailAddress + ' either exceeded monthly or hourly sending limit.')
-                    self.connection.sendall('action=defer_if_permit Service temporarily unavailable\n\n')
+                    self.connection.sendall(b'action=defer_if_permit Service temporarily unavailable\n\n')
                     return
                 else:
                     email = EUsers.objects.get(email=emailAddress)
@@ -122,7 +122,7 @@ class HandleRequest(multi.Thread):
                     emailObj.monthlyUsed = emailObj.monthlyUsed + 1
                     emailObj.hourlyUsed = emailObj.hourlyUsed + 1
                     domainObj.monthlyUsed = domainObj.monthlyUsed + 1
-                    self.connection.sendall('action=dunno\n\n')
+                    self.connection.sendall(b'action=dunno\n\n')
             else:
                 email = EUsers.objects.get(email=emailAddress)
                 if emailObj.logStatus == 1:
@@ -133,9 +133,9 @@ class HandleRequest(multi.Thread):
                 emailObj.monthlyUsed = emailObj.monthlyUsed + 1
                 emailObj.hourlyUsed = emailObj.hourlyUsed + 1
                 domainObj.monthlyUsed = domainObj.monthlyUsed + 1
-                self.connection.sendall('action=dunno\n\n')
+                self.connection.sendall(b'action=dunno\n\n')
 
 
         except BaseException as msg:
             logging.writeToFile(str(msg) + " [HandleRequest.manageRequest]")
-            self.connection.sendall('action=defer_if_permit Service temporarily unavailable\n\n')
+            self.connection.sendall(b'action=defer_if_permit Service temporarily unavailable\n\n')
