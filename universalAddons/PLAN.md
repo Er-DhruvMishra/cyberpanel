@@ -14,6 +14,180 @@ sit beside them and depend only on:
 
 None of them call cyberpanel.net or cyberpersons.com.
 
+## Review of the official modules, and what ours adds
+
+Feature-level review of upstream's gated implementations (2026-10-23). "Parity" lists what the
+official module does, which ours matches. "Fixes" lists defects found in the official code,
+which ours avoids by design. "Extra" lists features we add beyond it.
+
+### Email Debugger: **built** (milestone 1)
+- **Parity:**
+  - mail-SSL self-signed check;
+  - port connect test on 25/587/465/110/143/993/995;
+  - per-site check that `mail.<domain>` resolves here and port 993 is not self-signed.
+- **Fixes:**
+  - port tests that came only from the server itself;
+  - `openssl s_client` with no timeout;
+  - only "self-signed" was detected; expired and wrong-hostname certificates passed;
+  - a destructive "Reset" that took no backups and dropped the Rspamd milter.
+- **Extra:**
+  - MX / SPF (include, redirect, 10-lookup limit) / DKIM-vs-signing-key / DMARC / PTR+FCrDNS checks;
+  - six blocklists (DNSBL);
+  - STARTTLS certificate name, expiry and issuer;
+  - a Postfix message tracer, plus deferral and bounce reasons;
+  - SASL brute-force IP list;
+  - queue summary;
+  - spam score (Rspamd or SpamAssassin);
+  - test send with live trace.
+- **Next:**
+  - external port check via a public TCP-probe service (opt-in);
+  - DMARC aggregate-report (rua) parser;
+  - per-mailbox send volume over time, to spot compromised accounts;
+  - one-click DNS fixes through the panel's DNS when the zone is local.
+
+### Root File Manager
+- **Parity:** browse, create, delete, copy, move, rename, edit, upload, download, extract,
+  compress, permissions.
+- **Fixes:**
+  - root deletes were permanent (no trash);
+  - chmod and the code editor did not work in root mode;
+  - a recursive `chattr` on `/` ran on failure;
+  - `/etc/shadow` was readable and writable through the editor;
+  - there was no audit log.
+- **Extra:**
+  - trash with restore and purge;
+  - chown;
+  - one protected-path policy for every write (unlock per action);
+  - credential files never writable;
+  - atomic saves with a lost-update check (sha256);
+  - zip-slip, symlink and device-file safe extraction;
+  - name search and directory size;
+  - sha256 checksum;
+  - a JSON audit log (`/var/log/cyberpanel_rootfm.log`).
+
+### Rspamd Manager
+- **Official reality:** it is effectively a ClamAV-through-Rspamd configurator plus milter fields.
+- **Fixes:**
+  - the enable toggle stopped the service but left the milter, so mail tempfailed;
+  - uninstall left the milter in `main.cf`;
+  - saves always reported success and never reloaded anything;
+  - inputs were not validated;
+  - milter detection was keyed to the `8891` line.
+- **Extra:**
+  - pre-flight conflict detection;
+  - dry-run `main.cf` diff;
+  - reversible install;
+  - thresholds and actions;
+  - allow and deny lists;
+  - Bayes learning from Junk/Inbox folders;
+  - greylisting;
+  - DKIM signing with key migration from OpenDKIM, plus ARC;
+  - statistics and history;
+  - per-domain settings;
+  - protected access to the Rspamd web UI.
+
+### SSL V2
+- **Parity:**
+  - wildcard and apex issuance over DNS-01 (Cloudflare or local PowerDNS), with fallback to
+    non-wildcard;
+  - installation for OLS and LSWS;
+  - readable ACME errors.
+- **Fixes:**
+  - the PowerDNS API was opened to `0.0.0.0/0` on a page GET (**present on this server**);
+  - Cloudflare scoped tokens were not supported (Global API Key only);
+  - renewal ran through the HTTP-01 v1 path, dropping wildcards, with no reload hook;
+  - leftover `cptest` records;
+  - lost error output.
+- **Extra:**
+  - local PowerDNS through the panel CLI (no API exposure);
+  - Cloudflare API tokens;
+  - choice of CA (Let's Encrypt or ZeroSSL) and key type;
+  - certificate inventory with expiry alerts;
+  - DNS-01 renewal with a reload command;
+  - hostname and mail certificates;
+  - SAN for alias domains.
+
+### Backup V2
+- **Parity:**
+  - per-site SFTP, Google Drive and local repositories;
+  - data, database and mail selection;
+  - snapshot browse and restore;
+  - delete snapshot or repository;
+  - schedules with retention;
+  - failure email.
+- **Fixes:**
+  - repositories were unencrypted (`--password ""`);
+  - no lock, so backup runs could overlap;
+  - hard-coded backup path;
+  - retention only applied to weekly schedules;
+  - unvalidated shell input (SFTP password, restore path, repository name);
+  - `config.json` stored admin password hashes, the API token and the 2FA secret;
+  - no `check`;
+  - no safe restore.
+- **Extra:**
+  - restic with a per-repository key (root-only);
+  - S3, B2 and any rclone back end;
+  - a lock per job;
+  - `restic check` after backup;
+  - restore to an alternate location, of a single file, or of the database only, with dry-run;
+  - a safety snapshot before restore;
+  - append-only and object-lock options;
+  - retention for every schedule.
+
+### WordPress Manager Pro
+- **Parity:**
+  - create with options;
+  - list and import;
+  - plugins and themes (update, delete, activate);
+  - settings (debug, indexing, maintenance, LSCache);
+  - core reinstall and checksum verification;
+  - auto-login;
+  - staging and sync to production;
+  - backup and restore (local, SFTP, S3);
+  - schedules.
+- **Fixes:**
+  - the WP-Cron toggle was not implemented;
+  - password protection ignored the user's credentials and overwrote `.htaccess`;
+  - SFTP restore added the remote host to root's `authorized_keys`;
+  - https was downgraded to http on sync and restore;
+  - no backup before syncing;
+  - `cp -R` never removed deleted files;
+  - missing ownership checks;
+  - plaintext credentials;
+  - a permanent `autologin` admin account.
+- **Extra:**
+  - run everything as the site user;
+  - mirror sync (rsync `--delete`) with a database search-replace that preserves the scheme;
+  - automatic pre-sync snapshot;
+  - safe update (snapshot, update, HTTP health check, roll back);
+  - hardening checklist;
+  - one-time auto-login tokens;
+  - vulnerability feed check.
+
+### .htaccess for OpenLiteSpeed
+- **Official:**
+  - a closed-source `cyberpanel_ols.so` (with a custom OLS build) covering
+    Header, RequestHeader (as env vars), SetEnv, SetEnvIf, Order/Allow/Deny, Redirect,
+    ErrorDocument, FilesMatch, Expires, php_value/php_flag and a wp-login brute-force quota;
+  - no panel UI;
+  - a 3-minute cron that runs a full restart, scanning `public_html` only.
+- **Gaps:**
+  - Basic auth (`AuthType`/`Require`);
+  - `Require ip`;
+  - `<Files>`;
+  - `DirectoryIndex`;
+  - `AddType`;
+  - child-domain document roots;
+  - brute-force state lost on reboot.
+- **Ours:**
+  - an open translator to native OLS configuration (works with stock OLS);
+  - Basic auth through OLS realms;
+  - `Require`;
+  - all document roots;
+  - reload on file change (debounced, graceful);
+  - per-site translation report;
+  - firewall-backed brute-force guard.
+
 ## Shared foundation (milestone 0)
 
 | item | design |
@@ -31,7 +205,7 @@ None of them call cyberpanel.net or cyberpersons.com.
 
 Order is set by value to this server, risk to production and dependency on shared code.
 
-### 1. Email Debugger: *read-only diagnostics* (started)
+### 1. Email Debugger: *read-only diagnostics* (built)
 Debug delivery issues: SMTP logs, connection testing, DNS verification, spam score.
 
 - **DNS checks per domain:**

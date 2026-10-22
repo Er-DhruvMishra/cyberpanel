@@ -132,6 +132,44 @@ After a merge, re-check two things:
 - Any new `requirments.txt` pins that need a Python newer than 3.9. If upstream raises the
   floor, bump `Universal_Min_Python`.
 
+## Universal Add-ons
+
+Our own open-source modules, in `universalAddons/` (sidebar: **Universal Add-ons**, administrators
+only). They are independent of upstream's paid add-ons: they do not use or bypass upstream's
+licence checks and never contact cyberpanel.net.
+
+| module | status |
+|---|---|
+| Email Debugger | ready |
+| Root File Manager | ready |
+| Rspamd Manager | in development |
+| SSL V2 | in development |
+| Backup V2 | in development |
+| WordPress Manager Pro | in development |
+| .htaccess for OpenLiteSpeed | in development |
+
+**Email Debugger** covers:
+- DNS checks (MX, SPF, DKIM, DMARC, PTR) and blocklists;
+- ports and TLS certificates;
+- Postfix message tracing;
+- the mail queue;
+- spam scores;
+- test messages.
+
+**Root File Manager** covers:
+- trash with restore;
+- an audit log at `/var/log/cyberpanel_rootfm.log`;
+- protected paths, which need explicit confirmation;
+- atomic saves;
+- safe archive extraction.
+
+The design, a review of the official modules and the roadmap are in `universalAddons/PLAN.md`.
+Privileged work runs through one root runner (`universalAddons/runner.py`). Request data never
+reaches a shell.
+
+Tests: `python manage.py test universalAddons`. A database is not needed; use a SQLite settings
+override.
+
 ## Status and known limitations
 
 - **What has been verified, on the CentOS 8 production host (without installing anything system-wide):**

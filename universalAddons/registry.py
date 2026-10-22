@@ -13,7 +13,7 @@ MODULES = (
            'ua-emaildebug', 'ready'),
     Module('rootfm', 'Root File Manager', 'fa-folder-tree',
            'Full server file management with protected paths, trash and an audit log.',
-           None, 'building'),
+           'ua-rootfm', 'ready'),
     Module('rspamd', 'Rspamd Manager', 'fa-shield-virus',
            'Rspamd spam filtering: Bayes learning, DKIM signing, greylisting and statistics.',
            None, 'building'),
