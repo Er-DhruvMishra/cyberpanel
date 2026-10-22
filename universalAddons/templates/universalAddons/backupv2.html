@@ -1,0 +1,111 @@
+{% extends "universalAddons/base.html" %}
+{% load i18n static %}
+{% block title %}{% trans "Backup V2" %} - CyberPanel{% endblock %}
+{% block addon_scripts %}<script src="{% static 'universalAddons/backupv2.js' %}?v={{ CP_VERSION }}"></script>{% endblock %}
+{% block content %}
+<div class="ua-wrap" id="ua-backupv2" data-base="{% url 'ua-backupv2' %}">
+  <div class="ua-header">
+    <h1><i class="fas fa-box-archive"></i> {% trans "Backup V2" %}</h1>
+    <p>{% trans "Encrypted, deduplicated incremental backups with restic: site files, databases, mail and configuration. Restores can be previewed, sent to another folder, and in-place restores take a safety snapshot first." %}</p>
+  </div>
+
+  <div class="ua-tabs">
+    <button class="active" data-pane="repos">{% trans "Repositories" %}</button>
+    <button data-pane="policies">{% trans "Schedules" %}</button>
+    <button data-pane="restore">{% trans "Snapshots & restore" %}</button>
+  </div>
+
+  <div class="ua-pane active" id="pane-repos">
+    <div class="ua-card">
+      <h2>{% trans "Repositories" %}</h2>
+      <div id="bk-repos"></div>
+    </div>
+    <div class="ua-card">
+      <h2>{% trans "Add or update a repository" %}</h2>
+      <div class="ua-row">
+        <input id="repo-id" placeholder="{% trans 'id, e.g. offsite' %}" style="min-width:160px">
+        <select id="repo-type">
+          <option value="local">{% trans "Local directory" %}</option><option value="sftp">SFTP</option>
+          <option value="s3">{% trans "S3 / Wasabi / B2 / MinIO" %}</option><option value="rclone">{% trans "rclone remote (Google Drive, OneDrive…)" %}</option>
+        </select>
+      </div>
+      <div class="ua-row repo-f" data-for="local"><input id="repo-path-local" placeholder="/backup/restic"></div>
+      <div class="ua-row repo-f" data-for="sftp">
+        <input id="repo-host" placeholder="backup.example.net"><input id="repo-user" placeholder="user" style="min-width:120px">
+        <input id="repo-port" placeholder="22" style="min-width:70px"><input id="repo-path-sftp" placeholder="/srv/restic">
+        <button class="ua-btn ua-btn-secondary" id="repo-sshkey">{% trans "Show this server's SSH key" %}</button>
+      </div>
+      <div class="ua-row repo-f" data-for="s3">
+        <input id="repo-endpoint" placeholder="s3.amazonaws.com"><input id="repo-bucket" placeholder="bucket">
+        <input id="repo-prefix" placeholder="{% trans 'prefix (optional)' %}"><input id="repo-region" placeholder="{% trans 'region (optional)' %}" style="min-width:120px">
+        <input id="repo-access" placeholder="{% trans 'access key' %}" autocomplete="off">
+        <input id="repo-secret" type="password" placeholder="{% trans 'secret key' %}" autocomplete="off">
+      </div>
+      <div class="ua-row repo-f" data-for="rclone">
+        <input id="repo-remote" placeholder="gdrive"><input id="repo-path-rclone" placeholder="cyberpanel-backups">
+        <span class="ua-muted">{% trans "Create the remote first with: rclone config" %}</span>
+      </div>
+      <div class="ua-row"><button class="ua-btn" id="repo-save">{% trans "Save and initialise" %}</button></div>
+      <div id="repo-out"></div>
+    </div>
+  </div>
+
+  <div class="ua-pane" id="pane-policies">
+    <div class="ua-card"><h2>{% trans "Schedules" %}</h2><div id="bk-policies"></div></div>
+    <div class="ua-card">
+      <h2>{% trans "Add or update a schedule" %}</h2>
+      <div class="ua-row">
+        <input id="pol-id" placeholder="{% trans 'id, e.g. nightly' %}" style="min-width:160px">
+        <select id="pol-repo"></select>
+        <select id="pol-schedule"><option value="daily">{% trans "daily" %}</option><option value="hourly">{% trans "hourly" %}</option>
+          <option value="weekly">{% trans "weekly (Sunday)" %}</option><option value="manual">{% trans "manual only" %}</option></select>
+        <label>{% trans "at hour" %} <input id="pol-hour" type="number" min="0" max="23" value="2" style="min-width:70px"></label>
+      </div>
+      <div class="ua-row">
+        <label><input type="checkbox" class="pol-unit" value="files" checked> {% trans "files" %}</label>
+        <label><input type="checkbox" class="pol-unit" value="db" checked> {% trans "databases" %}</label>
+        <label><input type="checkbox" class="pol-unit" value="mail" checked> {% trans "mail" %}</label>
+        <label><input type="checkbox" class="pol-unit" value="config" checked> {% trans "vhost & SSL config" %}</label>
+        <label><input type="checkbox" id="pol-check" checked> {% trans "verify repository after each run" %}</label>
+      </div>
+      <div class="ua-row">
+        <span>{% trans "Keep:" %}</span>
+        <label>{% trans "last" %} <input id="keep-last" type="number" min="0" style="min-width:60px"></label>
+        <label>{% trans "hourly" %} <input id="keep-hourly" type="number" min="0" style="min-width:60px"></label>
+        <label>{% trans "daily" %} <input id="keep-daily" type="number" min="0" value="7" style="min-width:60px"></label>
+        <label>{% trans "weekly" %} <input id="keep-weekly" type="number" min="0" value="4" style="min-width:60px"></label>
+        <label>{% trans "monthly" %} <input id="keep-monthly" type="number" min="0" value="6" style="min-width:60px"></label>
+      </div>
+      <div class="ua-row">
+        <label><input type="radio" name="pol-sites" value="all" checked> {% trans "all sites" %}</label>
+        <label><input type="radio" name="pol-sites" value="some"> {% trans "only:" %}</label>
+        <select id="pol-site-list" multiple size="5" style="min-width:260px"></select>
+      </div>
+      <div class="ua-row"><button class="ua-btn" id="pol-save">{% trans "Save schedule" %}</button></div>
+      <div id="pol-out"></div>
+    </div>
+  </div>
+
+  <div class="ua-pane" id="pane-restore">
+    <div class="ua-card">
+      <div class="ua-row">
+        <select id="rs-repo"></select><select id="rs-site"><option value="">{% trans "all sites" %}</option></select>
+        <button class="ua-btn" id="rs-list">{% trans "List snapshots" %}</button>
+      </div>
+      <div id="rs-snapshots"></div>
+    </div>
+    <div class="ua-card" id="rs-browser" style="display:none">
+      <h2>{% trans "Browse snapshot" %} <code id="rs-snap-id"></code></h2>
+      <div class="ua-row"><button class="ua-btn ua-btn-secondary" id="rs-up"><i class="fas fa-arrow-up"></i></button><code id="rs-path"></code></div>
+      <div id="rs-files"></div>
+      <div class="ua-row" style="margin-top:12px">
+        <input id="rs-target" placeholder="{% trans 'restore to: original, or a folder like /home/restore-example' %}" value="original" style="flex:1">
+        <button class="ua-btn" id="rs-restore-path">{% trans "Restore this folder" %}</button>
+        <button class="ua-btn ua-btn-secondary" id="rs-restore-all">{% trans "Restore whole snapshot" %}</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="ua-card" id="bk-job" style="display:none"><h2>{% trans "Progress" %}</h2><div id="bk-job-out"></div></div>
+</div>
+{% endblock %}

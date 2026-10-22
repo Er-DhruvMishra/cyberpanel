@@ -22,7 +22,7 @@ MODULES = (
            'ua-sslv2', 'ready'),
     Module('backupv2', 'Backup V2', 'fa-box-archive',
            'Encrypted incremental backups to SFTP, S3 or Google Drive with one-click restore.',
-           None, 'building'),
+           'ua-backupv2', 'ready'),
     Module('wordpress', 'WordPress Manager Pro', 'fa-wordpress',
            'Clone, stage, push to production, safe auto-updates and hardening.',
            None, 'building'),
@@ -43,6 +43,8 @@ def disabled_features(path='/etc/cyberpanel/disabled_features'):
 def requirement_problems(key, which=shutil.which, exists=os.path.exists):
     """Return a list of reasons the module cannot run on this host (empty = fine)."""
     problems = []
+    if key == 'backupv2' and not which('restic'):
+        problems.append('restic is not installed (dnf/apt install restic).')
     if key == 'emaildebug':
         if not which('dig'):
             problems.append('dig is not installed (bind-utils / dnsutils).')

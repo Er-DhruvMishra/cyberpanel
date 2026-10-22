@@ -8,4 +8,5 @@ urlpatterns = [
     path('root-file-manager/', include('universalAddons.rootfm.urls')),
     path('rspamd/', include('universalAddons.rspamd.urls')),
     path('ssl/', include('universalAddons.sslv2.urls')),
+    path('backup/', include('universalAddons.backupv2.urls')),
 ]

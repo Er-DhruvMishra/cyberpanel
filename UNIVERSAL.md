@@ -144,7 +144,7 @@ licence checks and never contact cyberpanel.net.
 | Root File Manager | ready |
 | Rspamd Manager | ready |
 | SSL V2 | ready |
-| Backup V2 | in development |
+| Backup V2 | ready |
 | WordPress Manager Pro | in development |
 | .htaccess for OpenLiteSpeed | in development |
 

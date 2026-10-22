@@ -85,8 +85,25 @@ def status(job_id):
     return data
 
 
+def prune(max_age_days=14):
+    """Delete status files of jobs that finished more than max_age_days ago."""
+    cutoff = time.time() - max_age_days * 86400
+    try:
+        names = os.listdir(JOB_DIR)
+    except OSError:
+        return
+    for name in names:
+        path = os.path.join(JOB_DIR, name)
+        try:
+            if os.path.getmtime(path) < cutoff:
+                os.unlink(path)
+        except OSError:
+            pass
+
+
 def run_job(job_id, steps):
     """Run (title, callable) steps under a Job, recording output and the first failure."""
+    prune()
     job = Job(job_id)
     results = {}
     try:
