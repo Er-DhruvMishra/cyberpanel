@@ -4,9 +4,10 @@ A fork of [usmannasir/cyberpanel](https://github.com/usmannasir/cyberpanel) that
 upgrades on any apt- or dnf/yum-based Linux, including CentOS 8, where current upstream
 releases no longer work.
 
-This tree is upstream `stable` (v3.0.8, 2026-10-21) plus a small, isolated compatibility
-layer. Upstream features and fixes are kept as-is. When something conflicts with a host, it
-is switched off on that host instead of failing the install.
+This tree is upstream `stable` (v3.0.8, 2026-10-21) plus the unreleased fixes from upstream's
+`v3.0.5-dev` (ported 2026-10-23), plus a small, isolated compatibility layer. Upstream
+features and fixes are kept as-is. When something conflicts with a host, it is switched off on
+that host instead of failing the install.
 
 ## Install / upgrade
 
@@ -106,6 +107,7 @@ CentOS 8 is a native profile, so it keeps the custom OLS build and every other f
 ```bash
 git fetch upstream
 git merge upstream/stable          # or the new upstream release branch, e.g. upstream/v3.0.9
+git log --oneline main..upstream/v3.0.5-dev   # upstream's dev line: unreleased fixes
 tools/sync-compat.sh               # re-embed universal/compat.sh if the scripts changed
 python3 universal/tests/test_os_profile.py
 bash -n cyberpanel.sh && bash -n cyberpanel_upgrade.sh
@@ -114,6 +116,12 @@ bash -n cyberpanel.sh && bash -n cyberpanel_upgrade.sh
 Conflicts, if any, will be in the few `# Universal:` hunks of `cyberpanel.sh`,
 `cyberpanel_upgrade.sh`, `install.sh`, `preUpgrade.sh`, and the three Python detectors.
 `git grep -n "Universal"` lists all of them.
+
+Upstream keeps `stable` and its dev branch (GitHub's default, `v3.0.5-dev`) apart, and many
+dev fixes reach `stable` later in reworked form. Cherry-pick dev commits one by one rather
+than merging the branch. Skip any whose subject already exists in `stable`
+(`git log --oneline -F --grep="<subject>" upstream/stable`). Then record the branch with
+`git merge -s ours upstream/v3.0.5-dev`, so GitHub stops reporting `main` as behind.
 
 After a merge, re-check two things:
 - `git grep -n "usmannasir/cyberpanel"` for new upstream download URLs that should point at
