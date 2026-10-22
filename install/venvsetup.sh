@@ -9,7 +9,7 @@ PUREFTPD_VARIABLE="ON"
 PROVIDER="undefined"
 SERIAL_NO=""
 DIR=$(pwd)
-TEMP=$(curl --silent https://raw.githubusercontent.com/YOUR_GITHUB_USER/cyberpanel/stable/version.txt)
+TEMP=$(curl --silent https://raw.githubusercontent.com/Er-DhruvMishra/cyberpanel/stable/version.txt)
 CP_VER1=${TEMP:12:3}
 CP_VER2=${TEMP:25:1}
 SERVER_OS="CentOS"
@@ -67,7 +67,7 @@ rm -rf /root/cyberpanel-tmp
 special_change(){
 sed -i 's|cyberpanel.sh|'$DOWNLOAD_SERVER'|g' install.py
 sed -i 's|mirror.cyberpanel.net|'$DOWNLOAD_SERVER'|g' install.py
-sed -i 's|git clone https://github.com/YOUR_GITHUB_USER/cyberpanel|echo downloaded|g' install.py
+sed -i 's|git clone https://github.com/Er-DhruvMishra/cyberpanel|echo downloaded|g' install.py
 #change to CDN first, regardless country
 sed -i 's|http://|https://|g' install.py
 
@@ -78,7 +78,7 @@ LSWS_STABLE_LINE=`cat /tmp/lsws_latest | grep LSWS_STABLE`
 LSWS_STABLE_VER=`expr "$LSWS_STABLE_LINE" : '.*LSWS_STABLE=\(.*\) BUILD .*'`
 
 if [[ $SERVER_COUNTRY == "CN" ]] ; then
-#line1="$(grep -n "github.com/YOUR_GITHUB_USER/cyberpanel" install.py | head -n 1 | cut -d: -f1)"
+#line1="$(grep -n "github.com/Er-DhruvMishra/cyberpanel" install.py | head -n 1 | cut -d: -f1)"
 #line2=$((line1 - 1))
 #sed -i "${line2}i\ \ \ \ \ \ \ \ subprocess.call(command, shell=True)" install.py
 #sed -i "${line2}i\ \ \ \ \ \ \ \ command = 'tar xzvf cyberpanel-git.tar.gz'" install.py
@@ -93,7 +93,7 @@ sed -i 's|https://copr.fedorainfracloud.org/coprs/copart/restic/repo/epel-7/copa
 
 sed -i 's|yum -y install https://cyberpanel.sh/gf-release-latest.gf.el7.noarch.rpm|wget -O /etc/yum.repos.d/gf.repo https://'$DOWNLOAD_SERVER'/gf-plus/gf.repo|g' install.py
 sed -i 's|dovecot-2.3-latest|dovecot-2.3-latest-mirror|g' install.py
-sed -i 's|git clone https://github.com/YOUR_GITHUB_USER/cyberpanel|wget https://cyberpanel.sh/cyberpanel-git.tar.gz \&\& tar xzvf cyberpanel-git.tar.gz|g' install.py
+sed -i 's|git clone https://github.com/Er-DhruvMishra/cyberpanel|wget https://cyberpanel.sh/cyberpanel-git.tar.gz \&\& tar xzvf cyberpanel-git.tar.gz|g' install.py
 sed -i 's|https://repo.dovecot.org/ce-2.3-latest/centos/$releasever/RPMS/$basearch|https://'$DOWNLOAD_SERVER'/dovecot/|g' install.py
 sed -i 's|'$DOWNLOAD_SERVER'|cyberpanel.sh|g' install.py
 sed -i 's|https://www.litespeedtech.com/packages/5.0/lsws-5.4.2-ent-x86_64-linux.tar.gz|https://'$DOWNLOAD_SERVER'/litespeed/lsws-'$LSWS_STABLE_VER'-ent-x86_64-linux.tar.gz|g' installCyberPanel.py
@@ -897,7 +897,7 @@ fi
 
 source /usr/local/CyberPanel/bin/activate
 rm -rf requirements.txt
-wget -O requirements.txt https://raw.githubusercontent.com/YOUR_GITHUB_USER/cyberpanel/1.8.0/requirments.txt
+wget -O requirements.txt https://raw.githubusercontent.com/Er-DhruvMishra/cyberpanel/1.8.0/requirments.txt
 pip install --ignore-installed -r requirements.txt
 # Install python-dotenv for loading .env file (critical for AlmaLinux 8)
 pip install python-dotenv
@@ -905,11 +905,11 @@ fi
 
 if [[ $DEV == "ON" ]] ; then
 	#install dev branch 
-	#wget https://raw.githubusercontent.com/YOUR_GITHUB_USER/cyberpanel/$BRANCH_NAME/requirments.txt
+	#wget https://raw.githubusercontent.com/Er-DhruvMishra/cyberpanel/$BRANCH_NAME/requirments.txt
 	cd /usr/local/
 	python3 -m venv --system-site-packages CyberPanel
 	source /usr/local/CyberPanel/bin/activate
-	wget -O requirements.txt https://raw.githubusercontent.com/YOUR_GITHUB_USER/cyberpanel/$BRANCH_NAME/requirments.txt
+	wget -O requirements.txt https://raw.githubusercontent.com/Er-DhruvMishra/cyberpanel/$BRANCH_NAME/requirments.txt
 	python -m pip install --ignore-installed -r requirements.txt
 	# Install python-dotenv for loading .env file (critical for AlmaLinux 8)
 	python -m pip install python-dotenv
@@ -927,13 +927,13 @@ if [[ $SERVER_COUNTRY == "CN" ]] ; then
 	cd cyberpanel/install
 else
 	if [[ $DEV == "ON" ]] ; then
-	git clone https://github.com/YOUR_GITHUB_USER/cyberpanel
+	git clone https://github.com/Er-DhruvMishra/cyberpanel
 	cd cyberpanel
 	git checkout $BRANCH_NAME
 	cd -
 	cd cyberpanel/install
 	else
-	git clone https://github.com/YOUR_GITHUB_USER/cyberpanel
+	git clone https://github.com/Er-DhruvMishra/cyberpanel
 	cd cyberpanel/install
 	fi
 fi
@@ -965,7 +965,7 @@ if grep "CyberPanel installation successfully completed" /var/log/installLogs.tx
 if [[ $DEV == "ON" ]] ; then
 python3 -m venv --system-site-packages /usr/local/CyberCP
 source /usr/local/CyberCP/bin/activate
-wget -O requirements.txt https://raw.githubusercontent.com/YOUR_GITHUB_USER/cyberpanel/$BRANCH_NAME/requirments.txt
+wget -O requirements.txt https://raw.githubusercontent.com/Er-DhruvMishra/cyberpanel/$BRANCH_NAME/requirments.txt
 python -m pip install --ignore-installed -r requirements.txt
 # Install python-dotenv for loading .env file (critical for AlmaLinux 8)
 python -m pip install python-dotenv

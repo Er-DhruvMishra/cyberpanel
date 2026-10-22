@@ -4,7 +4,7 @@
 # that error page as a shell script produces confusing failures, so every download
 # below is validated before use.
 
-VERSION_DATA=$(curl -s https://raw.githubusercontent.com/YOUR_GITHUB_USER/cyberpanel/stable/version.txt)
+VERSION_DATA=$(curl -s https://raw.githubusercontent.com/Er-DhruvMishra/cyberpanel/stable/version.txt)
 PANEL_VERSION=$(printf '%s' "$VERSION_DATA" | sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([0-9][0-9.]*\)".*/\1/p')
 PANEL_BUILD=$(printf '%s' "$VERSION_DATA" | sed -n 's/.*"build"[[:space:]]*:[[:space:]]*"\{0,1\}\([0-9][0-9]*\)"\{0,1\}.*/\1/p')
 BRANCH_NAME="v${PANEL_VERSION}.${PANEL_BUILD}"
@@ -14,13 +14,13 @@ case "$BRANCH_NAME" in
     ;;
   *)
     echo ""
-    echo "Failed to determine the CyberPanel version from https://raw.githubusercontent.com/YOUR_GITHUB_USER/cyberpanel/stable/version.txt (got: '$BRANCH_NAME')."
+    echo "Failed to determine the CyberPanel version from https://raw.githubusercontent.com/Er-DhruvMishra/cyberpanel/stable/version.txt (got: '$BRANCH_NAME')."
     echo "Please check your network connection and retry later."
     exit 1
     ;;
 esac
 
-UPGRADE_URL="https://raw.githubusercontent.com/YOUR_GITHUB_USER/cyberpanel/$BRANCH_NAME/cyberpanel_upgrade.sh"
+UPGRADE_URL="https://raw.githubusercontent.com/Er-DhruvMishra/cyberpanel/$BRANCH_NAME/cyberpanel_upgrade.sh"
 
 rm -f /usr/local/cyberpanel_upgrade.sh
 

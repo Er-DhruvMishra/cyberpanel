@@ -1331,7 +1331,7 @@ module cyberpanel_ols {
 
             Upgrade.stdOut("Installing phpMyAdmin...", 0)
             
-            command = 'wget -q -O /usr/local/CyberCP/public/phpmyadmin.zip https://github.com/YOUR_GITHUB_USER/cyberpanel/raw/stable/phpmyadmin.zip'
+            command = 'wget -q -O /usr/local/CyberCP/public/phpmyadmin.zip https://github.com/Er-DhruvMishra/cyberpanel/raw/stable/phpmyadmin.zip'
             Upgrade.executioner_silent(command, 'Download phpMyAdmin')
 
             command = 'unzip -q /usr/local/CyberCP/public/phpmyadmin.zip -d /usr/local/CyberCP/public/'
@@ -3991,7 +3991,7 @@ passdb {
                                              dir='/usr/local') as staging_dir:
                 staged = os.path.join(staging_dir, 'CyberCP')
                 Upgrade.stdOut("Cloning fresh CyberPanel repository into staging...")
-                command = 'git clone -- https://github.com/YOUR_GITHUB_USER/cyberpanel %s' % shlex.quote(staged)
+                command = 'git clone -- https://github.com/Er-DhruvMishra/cyberpanel %s' % shlex.quote(staged)
                 if not Upgrade.executioner(command, 'Clone CyberPanel source', 0):
                     return 0, 'Failed to clone CyberPanel repository'
 
@@ -5311,7 +5311,7 @@ pm.max_spare_servers = 3
             if os.path.exists('httpd_config.xml'):
                 os.remove('httpd_config.xml')
 
-            command = 'wget https://raw.githubusercontent.com/YOUR_GITHUB_USER/cyberpanel/stable/install/litespeed/httpd_config.xml'
+            command = 'wget https://raw.githubusercontent.com/Er-DhruvMishra/cyberpanel/stable/install/litespeed/httpd_config.xml'
             Upgrade.executioner(command, command, 0)
             # os.remove('/usr/local/lsws/conf/httpd_config.xml')
             # shutil.copy('httpd_config.xml', '/usr/local/lsws/conf/httpd_config.xml')

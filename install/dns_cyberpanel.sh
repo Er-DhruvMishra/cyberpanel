@@ -7,7 +7,7 @@ Site: github.com/acmesh-official/acme.sh/wiki/DNS-API-Dev-Guide
 Docs: github.com/acmesh-official/acme.sh/wiki/dnsapi#dns_duckdns
 Options:
  MYAPI_Token API Token. Get API Token from https://example.com/api/. Optional.
-Issues: github.com/YOUR_GITHUB_USER/cyberpanel
+Issues: github.com/Er-DhruvMishra/cyberpanel
 Author: Neil Pang <usman@cyberpersons.com>
 '
 

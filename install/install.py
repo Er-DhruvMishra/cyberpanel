@@ -790,7 +790,7 @@ class preFlightsChecks:
 
         os.chdir('/usr/local')
 
-        command = "git clone https://github.com/YOUR_GITHUB_USER/cyberpanel"
+        command = "git clone https://github.com/Er-DhruvMishra/cyberpanel"
         preFlightsChecks.call(command, self.distro, command, command, 1, 1, os.EX_OSERR)
 
         shutil.move('cyberpanel', 'CyberCP')
@@ -1101,7 +1101,7 @@ class preFlightsChecks:
             if not os.path.exists("/usr/local/CyberCP/public"):
                 os.mkdir("/usr/local/CyberCP/public")
 
-            command = 'wget -O /usr/local/CyberCP/public/phpmyadmin.zip https://github.com/YOUR_GITHUB_USER/cyberpanel/raw/stable/phpmyadmin.zip'
+            command = 'wget -O /usr/local/CyberCP/public/phpmyadmin.zip https://github.com/Er-DhruvMishra/cyberpanel/raw/stable/phpmyadmin.zip'
 
             preFlightsChecks.call(command, self.distro, '[download_install_phpmyadmin]',
                                   command, 1, 0, os.EX_OSERR)
@@ -2188,7 +2188,7 @@ $cfg['Servers'][$i]['LogoutURL'] = 'phpmyadminsignin.php?logout';
     def test_Requests(self):
         try:
             import requests
-            getVersion = requests.get('https://raw.githubusercontent.com/YOUR_GITHUB_USER/cyberpanel/stable/version.txt')
+            getVersion = requests.get('https://raw.githubusercontent.com/Er-DhruvMishra/cyberpanel/stable/version.txt')
             latest = getVersion.json()
         except BaseException as msg:
 

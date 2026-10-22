@@ -452,7 +452,7 @@ parse_panel_version() {
   [[ "$Panel_Version" =~ ^[0-9]+\.[0-9]+$ && "$Panel_Build" =~ ^[0-9]+$ ]]
 }
 
-Temp_Value=$(curl --silent --max-time 30 -4 https://raw.githubusercontent.com/YOUR_GITHUB_USER/cyberpanel/stable/version.txt)
+Temp_Value=$(curl --silent --max-time 30 -4 https://raw.githubusercontent.com/Er-DhruvMishra/cyberpanel/stable/version.txt)
 if parse_panel_version "$Temp_Value"; then
   Branch_Name="v${Panel_Version}.${Panel_Build}"
   echo -e  "\nBranch name fetched...$Branch_Name"
@@ -2206,7 +2206,7 @@ if [[ $Server_Edition = "Enterprise" ]] ; then
   Enterprise_Flag="--ent ent --serial "
 fi
 
-sed -i 's|git clone https://github.com/YOUR_GITHUB_USER/cyberpanel|echo downloaded|g' install.py
+sed -i 's|git clone https://github.com/Er-DhruvMishra/cyberpanel|echo downloaded|g' install.py
 sed -i 's|mirror.cyberpanel.net|cyberpanel.sh|g' install.py
 
 
@@ -2621,7 +2621,7 @@ Install_CyberCP_Runtime_Python_Requirements() {
       wget -q -O "$td/r.txt" "${Git_Content_URL}/${Branch_Name}/requirments.txt" 2>/dev/null && grep -q "Django==" "$td/r.txt" 2>/dev/null && req_file="$td/r.txt"
       [[ -z "$req_file" ]] && wget -q -O "$td/r.txt" "${Git_Content_URL}/${Branch_Name}/requirments-old.txt" 2>/dev/null && grep -q "Django==" "$td/r.txt" 2>/dev/null && req_file="$td/r.txt"
     fi
-    [[ -z "$req_file" ]] && wget -q -O "$td/s.txt" "https://raw.githubusercontent.com/YOUR_GITHUB_USER/cyberpanel/stable/requirments.txt" 2>/dev/null \
+    [[ -z "$req_file" ]] && wget -q -O "$td/s.txt" "https://raw.githubusercontent.com/Er-DhruvMishra/cyberpanel/stable/requirments.txt" 2>/dev/null \
       && grep -q "Django==" "$td/s.txt" 2>/dev/null && req_file="$td/s.txt"
   fi
   if [[ -z "$req_file" || ! -f "$req_file" ]]; then
@@ -2783,7 +2783,7 @@ chown -R cyberpanel:cyberpanel /usr/local/CyberCP/lib64 || true
 
 Pre_Install_Setup_Git_URL() {
 # Universal: releases come from this fork on GitHub (no upstream gitee mirror).
-Git_User="${CYBERPANEL_GIT_USER:-YOUR_GITHUB_USER}"
+Git_User="${CYBERPANEL_GIT_USER:-Er-DhruvMishra}"
 Git_Content_URL="https://raw.githubusercontent.com/${Git_User}/cyberpanel"
 Git_Clone_URL="https://github.com/${Git_User}/cyberpanel.git"
 

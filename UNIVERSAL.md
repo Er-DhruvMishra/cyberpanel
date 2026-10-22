@@ -12,13 +12,13 @@ is switched off on that host instead of failing the install.
 
 ```bash
 # fresh install
-sh <(curl -fsSL https://raw.githubusercontent.com/YOUR_GITHUB_USER/cyberpanel/stable/install.sh)
+sh <(curl -fsSL https://raw.githubusercontent.com/Er-DhruvMishra/cyberpanel/stable/install.sh)
 
 # a specific release
-sh <(curl -fsSL https://raw.githubusercontent.com/YOUR_GITHUB_USER/cyberpanel/stable/install.sh) -b 3.0.8
+sh <(curl -fsSL https://raw.githubusercontent.com/Er-DhruvMishra/cyberpanel/stable/install.sh) -b 3.0.8
 
 # upgrade an existing panel (upstream or this fork)
-sh <(curl -fsSL https://raw.githubusercontent.com/YOUR_GITHUB_USER/cyberpanel/stable/preUpgrade.sh)
+sh <(curl -fsSL https://raw.githubusercontent.com/Er-DhruvMishra/cyberpanel/stable/preUpgrade.sh)
 ```
 
 All installer options are unchanged from upstream (`cyberpanel.sh -h`). You can also set:

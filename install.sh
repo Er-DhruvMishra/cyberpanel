@@ -1,13 +1,13 @@
 #!/bin/sh
 # CyberPanel Universal bootstrap installer.
 #
-#   sh <(curl -fsSL https://raw.githubusercontent.com/YOUR_GITHUB_USER/cyberpanel/stable/install.sh)
+#   sh <(curl -fsSL https://raw.githubusercontent.com/Er-DhruvMishra/cyberpanel/stable/install.sh)
 #
 # Unlike upstream, this does not whitelist distributions: cyberpanel.sh maps any
 # apt- or dnf/yum-based system onto the nearest supported profile (universal/compat.sh).
 # Pass -b <branch|version> to install a specific release.
 
-GIT_USER="${CYBERPANEL_GIT_USER:-YOUR_GITHUB_USER}"
+GIT_USER="${CYBERPANEL_GIT_USER:-Er-DhruvMishra}"
 
 if [ "$(id -u)" != "0" ]; then
         echo "Please run this installer as root."
