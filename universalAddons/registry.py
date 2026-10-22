@@ -19,7 +19,7 @@ MODULES = (
            'ua-rspamd', 'ready'),
     Module('sslv2', 'SSL V2', 'fa-lock',
            'Wildcard and DNS-01 certificates, inventory, renewal monitoring.',
-           None, 'building'),
+           'ua-sslv2', 'ready'),
     Module('backupv2', 'Backup V2', 'fa-box-archive',
            'Encrypted incremental backups to SFTP, S3 or Google Drive with one-click restore.',
            None, 'building'),

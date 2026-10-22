@@ -7,4 +7,5 @@ urlpatterns = [
     path('email-debugger/', include('universalAddons.emaildebug.urls')),
     path('root-file-manager/', include('universalAddons.rootfm.urls')),
     path('rspamd/', include('universalAddons.rspamd.urls')),
+    path('ssl/', include('universalAddons.sslv2.urls')),
 ]

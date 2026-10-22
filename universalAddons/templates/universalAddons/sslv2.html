@@ -1,0 +1,49 @@
+{% extends "universalAddons/base.html" %}
+{% load i18n static %}
+{% block title %}{% trans "SSL V2" %} - CyberPanel{% endblock %}
+{% block addon_scripts %}<script src="{% static 'universalAddons/sslv2.js' %}?v={{ CP_VERSION }}"></script>{% endblock %}
+{% block content %}
+<div class="ua-wrap" id="ua-sslv2" data-base="{% url 'ua-sslv2' %}">
+  <div class="ua-header">
+    <h1><i class="fas fa-lock"></i> {% trans "SSL V2" %}</h1>
+    <p>{% trans "Wildcard and multi-domain certificates over DNS-01, using this server's DNS or Cloudflare. Renewals keep the wildcard and reload the web and mail servers automatically." %}</p>
+  </div>
+
+  <div class="ua-card">
+    <h2>{% trans "Issue a certificate" %}</h2>
+    <div class="ua-row">
+      <input id="ssl-domain" placeholder="example.com">
+      <select id="ssl-provider">
+        <option value="pdns">{% trans "DNS on this server (PowerDNS)" %}</option>
+        <option value="cloudflare">Cloudflare</option>
+      </select>
+      <label><input type="checkbox" id="ssl-wildcard" checked> {% trans "include *.domain" %}</label>
+      <button class="ua-btn ua-btn-secondary" id="ssl-check">{% trans "Check DNS" %}</button>
+    </div>
+    <div class="ua-row">
+      <input id="ssl-aliases" placeholder="{% trans 'extra domains (space separated, optional)' %}" style="flex:1">
+      <select id="ssl-ca"><option value="letsencrypt">Let's Encrypt</option><option value="zerossl">ZeroSSL</option>
+        <option value="letsencrypt_test">{% trans "Let's Encrypt staging (test)" %}</option></select>
+      <select id="ssl-key"><option value="ec-256">ECDSA P-256</option><option value="ec-384">ECDSA P-384</option>
+        <option value="2048">RSA 2048</option><option value="4096">RSA 4096</option></select>
+    </div>
+    <div class="ua-row" id="ssl-cf-row" style="display:none">
+      <input id="ssl-cf-token" type="password" placeholder="{% trans 'Cloudflare API token (Zone:DNS:Edit)' %}" style="flex:1" autocomplete="off">
+      <span class="ua-muted" id="ssl-cf-saved"></span>
+    </div>
+    <div class="ua-row" id="ssl-email-row" style="display:none">
+      <input id="ssl-email" placeholder="{% trans 'ZeroSSL account e-mail' %}">
+    </div>
+    <div class="ua-row"><button class="ua-btn" id="ssl-issue">{% trans "Issue and install" %}</button></div>
+    <div id="ssl-out"></div>
+  </div>
+
+  <div class="ua-card">
+    <h2>{% trans "Certificates" %}
+      <button class="ua-btn ua-btn-secondary" id="ssl-refresh">{% trans "Refresh" %}</button>
+      <label class="ua-muted" style="font-weight:normal;margin-left:12px"><input type="checkbox" id="ssl-monitor"> {% trans "E-mail administrators daily about expiring certificates" %}</label>
+    </h2>
+    <div id="ssl-list"><p class="ua-muted">{% trans "Loading…" %}</p></div>
+  </div>
+</div>
+{% endblock %}

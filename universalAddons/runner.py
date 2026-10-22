@@ -20,6 +20,7 @@ MODULES = {
     'emaildebug': 'universalAddons.emaildebug.actions',
     'rootfm': 'universalAddons.rootfm.actions',
     'rspamd': 'universalAddons.rspamd.actions',
+    'sslv2': 'universalAddons.sslv2.actions',
 }
 
 
