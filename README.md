@@ -126,7 +126,7 @@ sh <(curl https://cyberpanel.net/install.sh || wget -O - https://cyberpanel.net/
 Upgrade your CyberPanel installation using:
 
 ```bash
-sh <(curl https://raw.githubusercontent.com/usmannasir/cyberpanel/stable/preUpgrade.sh || wget -O - https://raw.githubusercontent.com/usmannasir/cyberpanel/stable/preUpgrade.sh)
+sh <(curl https://raw.githubusercontent.com/Er-DhruvMishra/cyberpanel/main/preUpgrade.sh || wget -O - https://raw.githubusercontent.com/Er-DhruvMishra/cyberpanel/main/preUpgrade.sh)
 ```
 
 ---

@@ -15,8 +15,6 @@ that host instead of failing the install.
 # fresh install
 sh <(curl -fsSL https://raw.githubusercontent.com/Er-DhruvMishra/cyberpanel/main/install.sh)
 
-# a specific release
-sh <(curl -fsSL https://raw.githubusercontent.com/Er-DhruvMishra/cyberpanel/main/install.sh) -b 3.0.8
 
 # upgrade an existing panel (upstream or this fork)
 sh <(curl -fsSL https://raw.githubusercontent.com/Er-DhruvMishra/cyberpanel/main/preUpgrade.sh)
