@@ -121,6 +121,26 @@ After a merge, re-check two things:
 - Any new `requirments.txt` pins that need a Python newer than 3.9. If upstream raises the
   floor, bump `Universal_Min_Python`.
 
+## Status and known limitations
+
+- **What has been verified, on the CentOS 8 production host (without installing anything system-wide):**
+  - upstream `requirments.txt` installs and imports on Python 3.9;
+  - `manage.py check` passes on 3.9;
+  - every `.py` file parses on 3.9, and there are no 3.10+ runtime features;
+  - `lswsgi` builds against 3.9, and the WSGI application boots with the generated
+    `PYTHONHOME`/`PYTHONPATH`;
+  - all three Python detectors return `cent8` on the host;
+  - the profile mapping matches between shell and Python for 23 os-release fixtures
+    (`universal/tests/`);
+  - upstream's `install/test_*.py` results are identical to unmodified upstream.
+- **Not yet run end-to-end:** a full install or upgrade, on any distro. Do the first run on
+  a disposable CentOS 8 VM, then on a snapshot of a production server.
+- **Hosts whose only Python is 3.13 or newer, with no 3.9–3.12 package** (for example
+  Debian 13 without backports, Fedora 41+): the installer stops with a clear message. Install
+  e.g. `python3.12` + `-venv`/`-devel` and re-run. Django 4.2 does not support 3.13+.
+- Upstream's China (gitee) source mirror is not used. CN servers clone from GitHub; package
+  mirrors are unchanged.
+
 ## Branches
 
 - `main`: upstream stable + this layer (release from here)
