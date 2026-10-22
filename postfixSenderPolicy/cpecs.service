@@ -1,12 +1,16 @@
 [Unit]
 Description = CyberPanel Email Policy Control Daemon
+After=network.target mariadb.service
 
 [Service]
-Type=forking
-ExecStart = /usr/local/CyberCP/postfixSenderPolicy/policyCTRL.py start
-ExecStop = /usr/local/CyberCP/postfixSenderPolicy/policyCTRL.py stop
-Restart = /usr/local/CyberCP/postfixSenderPolicy/policyCTRL.py restart
-Restart=on-abnormal
+# Run the policy server as a module in the foreground. The old Type=forking unit
+# (policyCTRL.py -> startServer.py) left no running process, so Postfix fell back to
+# smtpd_policy_service_default_action and email limits were never enforced.
+Type=simple
+WorkingDirectory=/usr/local/CyberCP
+ExecStart=/usr/local/CyberCP/bin/python -m postfixSenderPolicy.startServer
+Restart=on-failure
+RestartSec=5
 
 [Install]
 WantedBy=default.target

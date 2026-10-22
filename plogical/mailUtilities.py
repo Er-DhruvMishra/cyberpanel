@@ -1348,8 +1348,11 @@ LogFile /var/log/clamav/clamav.log
             postfixPath = '/etc/postfix/main.cf'
 
             if install == '1':
-                if not os.path.exists('/etc/systemd/system/cpecs.service'):
-                    shutil.copy("/usr/local/CyberCP/postfixSenderPolicy/cpecs.service", "/etc/systemd/system/cpecs.service")
+                unitPath = '/etc/systemd/system/cpecs.service'
+                # Replace the legacy Type=forking unit, which never kept the daemon running.
+                if not os.path.exists(unitPath) or 'policyCTRL.py' in open(unitPath).read():
+                    shutil.copy("/usr/local/CyberCP/postfixSenderPolicy/cpecs.service", unitPath)
+                    subprocess.call(['systemctl', 'daemon-reload'])
 
                 command = 'systemctl enable cpecs'
                 subprocess.call(shlex.split(command))
