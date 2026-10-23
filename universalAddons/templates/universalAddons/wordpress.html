@@ -1,0 +1,88 @@
+{% extends "universalAddons/base.html" %}
+{% load i18n static %}
+{% block title %}{% trans "WordPress Manager Pro" %} - CyberPanel{% endblock %}
+{% block addon_scripts %}<script src="{% static 'universalAddons/wordpress.js' %}?v={{ CP_VERSION }}"></script>{% endblock %}
+{% block content %}
+<div class="ua-wrap" id="ua-wordpress" data-base="{% url 'ua-wordpress' %}">
+  <div class="ua-header">
+    <h1><i class="fas fa-blog"></i> {% trans "WordPress Manager Pro" %}</h1>
+    <p>{% trans "Every action runs as the site's own user with the site's PHP. Updates take a snapshot, check the site still loads, and roll back automatically if it broke." %}
+      <span class="ua-muted" id="wp-cli-version"></span>
+      <button class="ua-btn ua-btn-secondary" id="wp-cli-update">{% trans "Update WP-CLI" %}</button></p>
+  </div>
+
+  <div class="ua-card">
+    <h2>{% trans "WordPress sites" %}</h2>
+    <div id="wp-sites"><p class="ua-muted">{% trans "Scanning…" %}</p></div>
+  </div>
+
+  <div class="ua-card" id="wp-site" style="display:none">
+    <h2 id="wp-site-title"></h2>
+    <div class="ua-row">
+      <button class="ua-btn" id="wp-login">{% trans "Log in to wp-admin" %}</button>
+      <button class="ua-btn ua-btn-secondary" id="wp-refresh">{% trans "Refresh" %}</button>
+      <span id="wp-login-out"></span>
+    </div>
+    <div class="ua-tabs">
+      <button class="active" data-pane="overview">{% trans "Overview" %}</button>
+      <button data-pane="updates">{% trans "Updates" %}</button>
+      <button data-pane="security">{% trans "Security" %}</button>
+      <button data-pane="performance">{% trans "Performance" %}</button>
+      <button data-pane="snapshots">{% trans "Snapshots" %}</button>
+      <button data-pane="staging">{% trans "Staging" %}</button>
+    </div>
+    <div class="ua-pane active" id="pane-overview"><div id="wp-overview"></div></div>
+    <div class="ua-pane" id="pane-updates">
+      <div class="ua-row">
+        <button class="ua-btn" data-update="all">{% trans "Safe update everything" %}</button>
+        <button class="ua-btn ua-btn-secondary" data-update="core">{% trans "Core" %}</button>
+        <button class="ua-btn ua-btn-secondary" data-update="plugins">{% trans "Plugins" %}</button>
+        <button class="ua-btn ua-btn-secondary" data-update="themes">{% trans "Themes" %}</button>
+        <label><input type="checkbox" id="wp-auto-plugin"> {% trans "plugin auto-updates" %}</label>
+        <label><input type="checkbox" id="wp-auto-theme"> {% trans "theme auto-updates" %}</label>
+      </div>
+      <div class="ua-row"><input id="wp-install-slug" placeholder="{% trans 'plugin slug from wordpress.org' %}">
+        <button class="ua-btn ua-btn-secondary" id="wp-install-plugin">{% trans "Install plugin" %}</button></div>
+      <div id="wp-items"></div>
+    </div>
+    <div class="ua-pane" id="pane-security"><div id="wp-security"><p class="ua-muted">{% trans "Open this tab to run the checks." %}</p></div></div>
+    <div class="ua-pane" id="pane-performance">
+      <div class="ua-row">
+        <button class="ua-btn" data-perf="lscache">{% trans "Install and activate LiteSpeed Cache" %}</button>
+        <button class="ua-btn ua-btn-secondary" data-perf="objectcache">{% trans "Enable Redis object cache" %}</button>
+      </div>
+      <div id="wp-perf-out"></div>
+    </div>
+    <div class="ua-pane" id="pane-snapshots">
+      <div class="ua-row"><button class="ua-btn" id="wp-snapshot">{% trans "Take snapshot now" %}</button>
+        <span class="ua-muted">{% trans "Files and database, kept in the site's home (last 5 automatic ones are kept)." %}</span></div>
+      <div id="wp-snapshots"></div>
+    </div>
+    <div class="ua-pane" id="pane-staging">
+      <div class="ua-row">
+        <span>{% trans "Clone this site into" %}</span><select id="wp-clone-target"></select>
+        <button class="ua-btn" id="wp-clone">{% trans "Create staging copy" %}</button>
+      </div>
+      <p class="ua-muted">{% trans "The target must be an empty website or child domain created in the panel. It gets its own database and is hidden from search engines." %}</p>
+      <div class="ua-row">
+        <span>{% trans "Push this site (staging) over" %}</span><select id="wp-push-target"></select>
+        <button class="ua-btn" style="background:#dc2626" id="wp-push">{% trans "Push to production" %}</button>
+      </div>
+      <p class="ua-muted">{% trans "Production is snapshotted first and rolled back automatically if the push fails." %}</p>
+    </div>
+  </div>
+
+  <div class="ua-card" id="wp-install-card" style="display:none">
+    <h2>{% trans "Install WordPress on an empty site" %}</h2>
+    <div class="ua-row">
+      <select id="wp-new-site"></select>
+      <input id="wp-new-title" placeholder="{% trans 'site title' %}">
+      <input id="wp-new-user" placeholder="{% trans 'admin username' %}">
+      <input id="wp-new-email" placeholder="{% trans 'admin e-mail' %}">
+      <button class="ua-btn" id="wp-new-install">{% trans "Install" %}</button>
+    </div>
+  </div>
+
+  <div class="ua-card" id="wp-job" style="display:none"><h2>{% trans "Progress" %}</h2><div id="wp-job-out"></div></div>
+</div>
+{% endblock %}

@@ -146,7 +146,7 @@ class JavaScript(SimpleTestCase):
 
     def test_template_ids_used_by_js_exist(self):
         import re
-        for module in ('emaildebug', 'rootfm', 'rspamd', 'sslv2', 'backupv2'):
+        for module in ('emaildebug', 'rootfm', 'rspamd', 'sslv2', 'backupv2', 'wordpress'):
             with open(os.path.join(REPO, 'universalAddons/static/universalAddons/%s.js' % module)) as handle:
                 ids = set(re.findall(r"\$\('([a-z-]+)'\)", handle.read()))
             with open(os.path.join(REPO, 'universalAddons/templates/universalAddons/%s.html' % module)) as handle:

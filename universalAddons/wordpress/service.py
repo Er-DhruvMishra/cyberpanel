@@ -90,6 +90,12 @@ def _clean(text):
     return re.sub(r'\x1b\[[0-9;]*m', '', text or '').strip()
 
 
+def _last(text):
+    """Last non-empty output line ('' when WP-CLI printed nothing, e.g. a constant set to false)."""
+    lines = [line for line in _clean(text).splitlines() if line.strip()]
+    return lines[-1].strip() if lines else ''
+
+
 def php_for_vhost(domain, vhosts=VHOSTS):
     """CLI php that matches the lsphp the site's vhost uses (fallback: /usr/bin/php)."""
     try:
@@ -124,18 +130,22 @@ def info(site, runner=subprocess.run):
     code, out = site.wp('core', 'version', runner=runner)
     if code != 0:
         raise WPError('This does not look like a working WordPress install: ' + _clean(out)[-400:])
-    data['version'] = _clean(out).splitlines()[-1]
-    data['siteurl'] = _clean(site.wp_ok('option', 'get', 'siteurl', runner=runner)).splitlines()[-1]
+    data['version'] = _last(out)
+    data['siteurl'] = _last(site.wp_ok('option', 'get', 'siteurl', runner=runner))
     data['core_updates'] = site.wp_json('core', 'check-update', runner=runner) if \
         site.wp('core', 'check-update', '--format=count', runner=runner)[1].strip() not in ('', '0') else []
-    data['plugins'] = site.wp_json('plugin', 'list', '--fields=name,status,version,update,update_version,auto_update',
-                                   runner=runner)
+    try:
+        data['plugins'] = site.wp_json('plugin', 'list',
+                                       '--fields=name,status,version,update,update_version,auto_update', runner=runner)
+    except WPError:  # WP-CLI < 2.7 has no auto_update field
+        data['plugins'] = site.wp_json('plugin', 'list', '--fields=name,status,version,update,update_version',
+                                       runner=runner)
     data['themes'] = site.wp_json('theme', 'list', '--fields=name,status,version,update,update_version',
                                   runner=runner)
     flags = {}
     for constant in ('WP_DEBUG', 'DISALLOW_FILE_EDIT', 'DISABLE_WP_CRON'):
         code, out = site.wp('config', 'get', constant, '--type=constant', runner=runner)
-        flags[constant] = code == 0 and _clean(out).splitlines()[-1].lower() in ('1', 'true')
+        flags[constant] = code == 0 and _last(out).lower() in ('1', 'true')
     data['flags'] = flags
     data['maintenance'] = os.path.exists(os.path.join(site.docroot, '.maintenance'))
     data['indexing'] = _clean(site.wp_ok('option', 'get', 'blog_public', runner=runner)).endswith('1')
@@ -231,7 +241,7 @@ def safe_update(site, scope, runner=subprocess.run, log=None):
     if scope not in ('core', 'plugins', 'themes', 'all'):
         raise WPError('Update core, plugins, themes or all.')
     say = log or (lambda text: None)
-    url = _clean(site.wp_ok('option', 'get', 'home', runner=runner)).splitlines()[-1]
+    url = _last(site.wp_ok('option', 'get', 'home', runner=runner))
     before = health_check(site, url, runner)
     say('health before: HTTP %s' % before['status'])
     snap_id = snapshot(site, 'before %s update' % scope, runner)
@@ -426,7 +436,7 @@ def one_time_login(site, runner=subprocess.run):
     value = json.dumps({'hash': hashlib.sha256(token.encode()).hexdigest(), 'expires': int(time.time()) + 60,
                         'user': int(admins[0]['ID'])})
     site.wp_ok('option', 'update', 'cp_ua_login_token', value, '--format=json', runner=runner)
-    home = _clean(site.wp_ok('option', 'get', 'home', runner=runner)).splitlines()[-1].rstrip('/')
+    home = _last(site.wp_ok('option', 'get', 'home', runner=runner)).rstrip('/')
     return {'url': '%s/?cp_ua_login=%s' % (home, token), 'user': admins[0]['user_login'], 'expires_in': 60}
 
 
@@ -435,7 +445,7 @@ def one_time_login(site, runner=subprocess.run):
 def _db_credentials(site, runner=subprocess.run):
     creds = {}
     for name in ('DB_NAME', 'DB_USER', 'DB_PASSWORD', 'DB_HOST'):
-        creds[name] = _clean(site.wp_ok('config', 'get', name, runner=runner)).splitlines()[-1]
+        creds[name] = _last(site.wp_ok('config', 'get', name, runner=runner))
     return creds
 
 
@@ -450,7 +460,7 @@ def clone(source, target, create_database, runner=subprocess.run, log=None, mode
         raise WPError('Source and target are the same.')
     if os.path.isfile(os.path.join(target.docroot, 'wp-config.php')) and mode == 'staging':
         raise WPError('The target already has a WordPress install. Choose an empty site, or push instead.')
-    source_url = _clean(source.wp_ok('option', 'get', 'home', runner=runner)).splitlines()[-1].rstrip('/')
+    source_url = _last(source.wp_ok('option', 'get', 'home', runner=runner)).rstrip('/')
     scheme = source_url.split('://', 1)[0]
     target_url = '%s://%s' % (scheme, target.domain)
     export = os.path.join(target.home, '.cp-wp-clone-%s.sql' % secrets.token_hex(4))
@@ -512,8 +522,8 @@ def push(staging, production, runner=subprocess.run, log=None):
     say = log or (lambda text: None)
     snap_id = snapshot(production, 'before push from %s' % staging.domain, runner)
     say('production snapshot %s taken' % snap_id)
-    prod_url = _clean(production.wp_ok('option', 'get', 'home', runner=runner)).splitlines()[-1].rstrip('/')
-    stage_url = _clean(staging.wp_ok('option', 'get', 'home', runner=runner)).splitlines()[-1].rstrip('/')
+    prod_url = _last(production.wp_ok('option', 'get', 'home', runner=runner)).rstrip('/')
+    stage_url = _last(staging.wp_ok('option', 'get', 'home', runner=runner)).rstrip('/')
     export = os.path.join(production.home, '.cp-wp-push-%s.sql' % secrets.token_hex(4))
     try:
         code, out = run(['rsync', '-a', '--delete', '--exclude', 'wp-config.php', '--exclude', '.htaccess',

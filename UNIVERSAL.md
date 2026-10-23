@@ -145,7 +145,7 @@ licence checks and never contact cyberpanel.net.
 | Rspamd Manager | ready |
 | SSL V2 | ready |
 | Backup V2 | ready |
-| WordPress Manager Pro | in development |
+| WordPress Manager Pro | ready |
 | .htaccess for OpenLiteSpeed | in development |
 
 **Email Debugger** covers:

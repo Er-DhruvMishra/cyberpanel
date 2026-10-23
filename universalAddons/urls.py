@@ -9,4 +9,5 @@ urlpatterns = [
     path('rspamd/', include('universalAddons.rspamd.urls')),
     path('ssl/', include('universalAddons.sslv2.urls')),
     path('backup/', include('universalAddons.backupv2.urls')),
+    path('wordpress/', include('universalAddons.wordpress.urls')),
 ]
