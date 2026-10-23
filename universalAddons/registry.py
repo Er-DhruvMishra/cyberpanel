@@ -28,7 +28,7 @@ MODULES = (
            'ua-wordpress', 'ready'),
     Module('htaccess', '.htaccess for OpenLiteSpeed', 'fa-file-code',
            'Apache .htaccess directives translated into OpenLiteSpeed configuration.',
-           None, 'building'),
+           'ua-htaccess', 'ready'),
 )
 
 
@@ -45,6 +45,8 @@ def requirement_problems(key, which=shutil.which, exists=os.path.exists):
     problems = []
     if key == 'backupv2' and not which('restic'):
         problems.append('restic is not installed (dnf/apt install restic).')
+    if key == 'htaccess' and not exists('/usr/local/lsws/bin/openlitespeed'):
+        problems.append('This server does not run OpenLiteSpeed.')
     if key == 'emaildebug':
         if not which('dig'):
             problems.append('dig is not installed (bind-utils / dnsutils).')

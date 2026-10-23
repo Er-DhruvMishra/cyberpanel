@@ -1,5 +1,7 @@
 # Universal Add-ons: plan
 
+**Status (2026-10-24):** all seven modules are built and tested (`python manage.py test universalAddons`, 182 tests). See each module below for what is verified on a live server and what still needs a first real run.
+
 Seven modules for CyberPanel Universal, written as our own code in one Django app
 (`universalAddons`). Upstream sells comparable features as paid add-ons and gates them
 through `ACLManager.CheckForPremFeature` (a remote licence check against

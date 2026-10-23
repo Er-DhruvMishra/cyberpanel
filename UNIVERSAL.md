@@ -146,7 +146,7 @@ licence checks and never contact cyberpanel.net.
 | SSL V2 | ready |
 | Backup V2 | ready |
 | WordPress Manager Pro | ready |
-| .htaccess for OpenLiteSpeed | in development |
+| .htaccess for OpenLiteSpeed | ready (opt-in per site) |
 
 **Email Debugger** covers:
 - DNS checks (MX, SPF, DKIM, DMARC, PTR) and blocklists;

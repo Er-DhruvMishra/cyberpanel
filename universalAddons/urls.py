@@ -10,4 +10,5 @@ urlpatterns = [
     path('ssl/', include('universalAddons.sslv2.urls')),
     path('backup/', include('universalAddons.backupv2.urls')),
     path('wordpress/', include('universalAddons.wordpress.urls')),
+    path('htaccess/', include('universalAddons.htaccess.urls')),
 ]

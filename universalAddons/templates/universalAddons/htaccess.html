@@ -1,0 +1,35 @@
+{% extends "universalAddons/base.html" %}
+{% load i18n static %}
+{% block title %}{% trans ".htaccess for OpenLiteSpeed" %} - CyberPanel{% endblock %}
+{% block addon_scripts %}<script src="{% static 'universalAddons/htaccess.js' %}?v={{ CP_VERSION }}"></script>{% endblock %}
+{% block content %}
+<div class="ua-wrap" id="ua-htaccess" data-base="{% url 'ua-htaccess' %}">
+  <div class="ua-header">
+    <h1><i class="fas fa-file-code"></i> {% trans ".htaccess for OpenLiteSpeed" %}</h1>
+    <p>{% trans "OpenLiteSpeed only reads rewrite rules from .htaccess. For the sites you enable here, PHP settings, headers, access rules, password protection, error pages, expiry, &lt;Files&gt; blocks, redirects and brute-force protection are translated into native OpenLiteSpeed configuration, and kept in sync when the files change." %}</p>
+  </div>
+  <div class="ua-card">
+    <h2>{% trans "Sites" %}</h2>
+    <div id="ht-sites"><p class="ua-muted">{% trans "Loading…" %}</p></div>
+  </div>
+  <div class="ua-card" id="ht-preview" style="display:none">
+    <h2 id="ht-preview-title"></h2>
+    <div class="ua-row">
+      <button class="ua-btn" id="ht-enable">{% trans "Enable and apply" %}</button>
+      <button class="ua-btn ua-btn-secondary" id="ht-disable">{% trans "Disable and remove" %}</button>
+      <span class="ua-muted">{% trans "Applying backs up vhost.conf, restarts OpenLiteSpeed gracefully and rolls back automatically if the site stops answering." %}</span>
+    </div>
+    <div id="ht-out"></div>
+    <h2 style="margin-top:16px">{% trans "Line-by-line report" %}</h2>
+    <div id="ht-report"></div>
+    <h2 style="margin-top:16px">{% trans "Generated OpenLiteSpeed configuration" %}</h2>
+    <div class="ua-pre" id="ht-config"></div>
+    <div id="ht-redirects"></div>
+  </div>
+  <div class="ua-card">
+    <h2>{% trans "Brute-force guard: recent blocks" %}</h2>
+    <p class="ua-muted">{% trans "Enable it in a site's .htaccess with: BruteForceProtection On (optional: BruteForceAllowedAttempts, BruteForceWindow, BruteForceAction block|throttle|log, BruteForceWhitelist, BruteForceProtectPath). Blocks use self-expiring firewall rules." %}</p>
+    <div id="ht-blocks"></div>
+  </div>
+</div>
+{% endblock %}

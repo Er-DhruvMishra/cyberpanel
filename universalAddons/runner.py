@@ -23,6 +23,7 @@ MODULES = {
     'sslv2': 'universalAddons.sslv2.actions',
     'backupv2': 'universalAddons.backupv2.actions',
     'wordpress': 'universalAddons.wordpress.actions',
+    'htaccess': 'universalAddons.htaccess.actions',
 }
 
 
