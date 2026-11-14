@@ -47,7 +47,7 @@
 
     function watch(jobId) {
         (function poll() {
-            api('job', {job: jobId}).then(function (d) {
+            UA.retry(function () { return api('job', {job: jobId}); }).then(function (d) {
                 var j = d.result;
                 $('ssl-out').innerHTML = '<p>' + esc(j.step || '') + ' <span class="ua-badge ua-badge-' +
                     (j.state === 'done' ? 'pass' : (j.state === 'running' ? 'info' : 'fail')) + '">' + esc(j.state) + '</span></p>' +

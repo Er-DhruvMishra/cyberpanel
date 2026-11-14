@@ -22,13 +22,30 @@
     function watch(jobId, done) {
         $('st-job').style.display = 'block';
         (function poll() {
-            api('job', {job: jobId}).then(function (d) {
+            UA.retry(function () { return api('job', {job: jobId}); }, function (e, n) {
+                var note = $('st-job-retry');
+                if (!note) {
+                    note = document.createElement('p');
+                    note.id = 'st-job-retry';
+                    note.className = 'ua-muted';
+                    $('st-job-out').insertBefore(note, $('st-job-out').firstChild);
+                }
+                note.textContent = 'The panel is busy (' + e.message + '); reconnecting, attempt ' + n + '. The job keeps running on the server.';
+            }).then(function (d) {
                 var j = d.result;
                 $('st-job-out').innerHTML = '<p>' + esc(j.step || '') + ' <span class="ua-badge ua-badge-' +
                     (j.state === 'done' ? 'pass' : (j.state === 'running' ? 'info' : 'fail')) + '">' + esc(j.state) + '</span></p>' +
                     (j.error ? '<div class="ua-alert">' + esc(j.error) + '</div>' : '') + '<div class="ua-pre">' + esc((j.log || []).slice(-60).join('\n')) + '</div>';
                 if (j.state === 'running') { setTimeout(poll, 3000); } else if (done) { done(j); }
-            }).catch(function (e) { UA.showError($('st-job-out'), e); });
+            }).catch(function (e) {
+                UA.showError($('st-job-out'), e);
+                var again = document.createElement('button');
+                again.type = 'button';
+                again.className = 'btn btn-default';
+                again.textContent = 'Check again';
+                again.onclick = function () { watch(jobId, done); };
+                $('st-job-out').appendChild(again);
+            });
         })();
     }
 
