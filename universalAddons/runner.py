@@ -28,6 +28,7 @@ MODULES = {
     'mssql': 'universalAddons.mssql.actions',
     'storage': 'universalAddons.storage.actions',
     'emaillimits': 'universalAddons.emaillimits.actions',
+    'sshsec': 'universalAddons.sshsec.actions',
 }
 
 

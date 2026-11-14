@@ -148,7 +148,7 @@ class PagesRender(SimpleTestCase):
         request.session = {}
         context = {'request': request, 'admin': 1, 'modules': module_status(), 'domains': ['a.com'], 'sites': ['a.com'],
                    'is_admin': True, 'enabled': True, 'start': '/home'}
-        pages = ['hub', 'emaildebug', 'rootfm', 'rspamd', 'sslv2', 'backupv2', 'wordpress', 'htaccess', 'apps', 'mssql', 'storage', 'emaillimits']
+        pages = ['hub', 'emaildebug', 'rootfm', 'rspamd', 'sslv2', 'backupv2', 'wordpress', 'htaccess', 'apps', 'mssql', 'storage', 'emaillimits', 'sshsec']
         for page in pages:
             # No request: the panel's context processors query the database, which unit tests do not have.
             html = render_to_string('universalAddons/%s.html' % page, context)

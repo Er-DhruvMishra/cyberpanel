@@ -1,0 +1,43 @@
+{% extends "universalAddons/base.html" %}
+{% load i18n static %}
+{% block title %}{% trans "SSH Security" %} - CyberPanel{% endblock %}
+{% block addon_scripts %}<script src="{% static 'universalAddons/sshsec.js' %}?v={{ CP_VERSION }}"></script>{% endblock %}
+{% block content %}
+<div class="ua-wrap" id="ua-sshsec" data-base="{% url 'ua-sshsec' %}">
+  <div class="ua-header">
+    <h1><i class="fas fa-user-shield"></i> {% trans "SSH Security" %}</h1>
+    <p>{% trans "Who is trying to log in over SSH, how your sshd is configured, and a firewalld blocklist. The analysis and the audit change nothing; sshd_config is never edited." %}</p>
+  </div>
+  <div class="ua-card"><div id="ss-status" class="ua-muted">{% trans "Checking firewalld and fail2ban…" %}</div></div>
+
+  <div class="ua-card">
+    <h2>{% trans "Login analysis" %}</h2>
+    <div class="ua-row">
+      <select id="ss-window"><option value="24h">{% trans "Last 24 hours" %}</option><option value="7d">{% trans "Last 7 days" %}</option><option value="30d">{% trans "Last 30 days" %}</option></select>
+      <button class="ua-btn" id="ss-analyze">{% trans "Analyse logs" %}</button>
+      <span class="ua-muted">{% trans "Reads at most the newest 512 MB of auth logs (or journalctl -u sshd)." %}</span>
+    </div>
+    <div id="ss-job"></div>
+    <div id="ss-analysis"></div>
+  </div>
+
+  <div class="ua-card">
+    <h2>{% trans "sshd hardening audit" %}</h2>
+    <p class="ua-muted">{% trans "Read from sshd -T (the effective configuration). Recommendations only: change sshd_config yourself, keep a second session or the console open, and test before you log out." %}</p>
+    <div class="ua-row"><button class="ua-btn ua-btn-secondary" id="ss-audit">{% trans "Run audit" %}</button></div>
+    <div id="ss-audit-out"></div>
+  </div>
+
+  <div class="ua-card">
+    <h2>{% trans "Blocklist" %}</h2>
+    <p class="ua-muted">{% trans "Each entry is a firewalld rich rule that drops all traffic from the address, saved permanently and applied at once without a firewall reload (a reload would clear fail2ban's current bans). Your own address, this server's addresses and loopback are refused; private ranges need confirmation." %}</p>
+    <div class="ua-row" id="ss-block-form">
+      <input id="ss-addr" placeholder="{% trans 'IP or CIDR, e.g. 203.0.113.7 or 2001:db8::/48' %}" style="min-width:260px">
+      <input id="ss-reason" placeholder="{% trans 'reason (optional)' %}" maxlength="200" style="min-width:220px">
+      <button class="ua-btn" id="ss-block" style="background:#dc2626">{% trans "Block" %}</button>
+    </div>
+    <div id="ss-block-msg"></div>
+    <div id="ss-blocklist"></div>
+  </div>
+</div>
+{% endblock %}
