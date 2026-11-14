@@ -1,0 +1,52 @@
+{% extends "universalAddons/base.html" %}
+{% load i18n static %}
+{% block title %}{% trans "Apache Manager" %} - CyberPanel{% endblock %}
+{% block addon_scripts %}<script src="{% static 'universalAddons/apache.js' %}?v={{ CP_VERSION }}"></script>{% endblock %}
+{% block content %}
+<div class="ua-wrap" id="ua-apache" data-base="{% url 'ua-apache' %}">
+  <div class="ua-header">
+    <h1><i class="fas fa-feather"></i> {% trans "Apache Manager" %}</h1>
+    <p>{% trans "Serve a site through Apache httpd and PHP-FPM behind OpenLiteSpeed, for full .htaccess compatibility. OpenLiteSpeed keeps ports 80 and 443, TLS, the certificates and Let's Encrypt challenges, and proxies everything else to Apache on 127.0.0.1. Each site gets its own PHP-FPM pool running as the site user. Every switch is previewed, health-checked and rolled back automatically if the site answers differently." %}</p>
+  </div>
+
+  <div class="ua-card">
+    <h2>{% trans "Prerequisites" %}</h2>
+    <div id="ap-host"><p class="ua-muted">{% trans "Loading…" %}</p></div>
+    <div id="ap-install" style="margin-top:12px"></div>
+    <div class="ua-row" style="margin-top:12px">
+      <label id="ap-confirm-wrap" style="display:none"><input type="checkbox" id="ap-confirm"> {% trans "Install anyway, with less than 600 MB of RAM available" %}</label>
+      <button class="ua-btn" id="ap-install-run">{% trans "Install / configure prerequisites" %}</button>
+      <span class="ua-muted" id="ap-install-note"></span>
+    </div>
+  </div>
+
+  <div class="ua-card" id="ap-editor" style="display:none">
+    <h2 id="ap-editor-title"></h2>
+    <p class="ua-muted" id="ap-editor-bounds"></p>
+    <table class="ua-table" id="ap-form"></table>
+    <div class="ua-row" style="margin-top:12px">
+      <button class="ua-btn" id="ap-preview-run">{% trans "Preview" %}</button>
+      <button class="ua-btn ua-btn-secondary" id="ap-editor-close">{% trans "Close" %}</button>
+      <span class="ua-muted" id="ap-ram"></span>
+    </div>
+  </div>
+
+  <div class="ua-card" id="ap-preview" style="display:none">
+    <h2>{% trans "Preview" %} <span class="ua-muted" id="ap-preview-title"></span></h2>
+    <div id="ap-preview-out"></div>
+    <div class="ua-row" style="margin-top:12px">
+      <button class="ua-btn" id="ap-apply" style="background:#dc2626">{% trans "Apply, reload and health-check" %}</button>
+      <span class="ua-muted">{% trans "Backups are kept under /var/lib/cyberpanel-universal/apache-backups." %}</span>
+    </div>
+  </div>
+
+  <div class="ua-card" id="ap-job" style="display:none"><h2>{% trans "Progress" %}</h2><div id="ap-job-out"></div></div>
+
+  <div class="ua-card">
+    <h2>{% trans "Sites" %}</h2>
+    <div class="ua-row"><input type="search" id="ap-filter" placeholder="{% trans 'Filter sites' %}">
+      <span class="ua-muted">{% trans "OpenLiteSpeed = served by lsphp as before. Apache = proxied to Apache and the site's own PHP-FPM pool." %}</span></div>
+    <div id="ap-sites" style="overflow-x:auto"></div>
+  </div>
+</div>
+{% endblock %}

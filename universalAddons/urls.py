@@ -19,4 +19,5 @@ urlpatterns = [
     path('mysql/', include('universalAddons.mysqlmgr.urls')),
     path('roundcube/', include('universalAddons.roundcube.urls')),
     path('limits/', include('universalAddons.limits.urls')),
+    path('apache/', include('universalAddons.apache.urls')),
 ]

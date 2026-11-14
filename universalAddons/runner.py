@@ -32,6 +32,7 @@ MODULES = {
     'mysqlmgr': 'universalAddons.mysqlmgr.actions',
     'roundcube': 'universalAddons.roundcube.actions',
     'limits': 'universalAddons.limits.actions',
+    'apache': 'universalAddons.apache.actions',
 }
 
 
