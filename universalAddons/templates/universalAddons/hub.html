@@ -2,11 +2,23 @@
 {% load i18n %}
 {% block title %}{% trans "Universal Add-ons" %} - CyberPanel{% endblock %}
 {% block content %}
-<div class="ua-wrap">
+<div class="ua-wrap" id="ua-hub" data-access="{% url 'ua-hub-user-access' %}">
   <div class="ua-header">
     <h1>{% trans "Universal Add-ons" %}</h1>
-    <p>{% trans "Open-source modules maintained in this CyberPanel fork. They run locally and need no external licence." %}</p>
+    <p>{% if is_admin %}{% trans "Open-source modules maintained in this CyberPanel fork. They run locally and need no external licence." %}{% else %}{% trans "Tools your administrator has made available for your websites." %}{% endif %}</p>
   </div>
+  {% if is_admin %}
+  <div class="ua-card">
+    <h2>{% trans "User access" %}</h2>
+    <p class="ua-muted">{% trans "Choose which add-ons resellers and users may use for the websites they own. Only the ones ticked here appear in their menu; everything else, and all server-wide settings, stay visible to administrators only." %}</p>
+    <div class="ua-row">
+      {% for a in user_access %}
+      <label><input type="checkbox" class="ua-access" data-switch="{{ a.switch }}"{% if a.enabled %} checked{% endif %}> {{ a.title }}</label>
+      {% endfor %}
+    </div>
+    <div id="ua-access-out" class="ua-muted"></div>
+  </div>
+  {% endif %}
   <div class="ua-grid">
     {% for m in modules %}
       {% if m.state == 'ready' and m.url_name %}
@@ -20,7 +32,23 @@
         {% if m.state != 'ready' %}<span class="ua-state">{% trans "In development" %}</span>
         {% elif m.problems %}<span class="ua-state">{% trans "Unavailable here:" %} {{ m.problems|join:" " }}</span>{% endif %}
       {% if m.state == 'ready' and m.url_name %}</a>{% else %}</div>{% endif %}
+    {% empty %}
+      <div class="ua-card">{% trans "No add-ons have been made available to your account yet." %}</div>
     {% endfor %}
   </div>
 </div>
+{% if is_admin %}
+<script>
+(function () {
+    var root = document.getElementById('ua-hub'), out = document.getElementById('ua-access-out');
+    Array.prototype.forEach.call(document.querySelectorAll('.ua-access'), function (box) {
+        box.addEventListener('change', function () {
+            var body = {}; body[box.dataset.switch] = box.checked;
+            UA.api(root.dataset.access, body).then(function () { out.textContent = 'Saved.'; })
+                .catch(function (e) { box.checked = !box.checked; UA.showError(out, e); });
+        });
+    });
+})();
+</script>
+{% endif %}
 {% endblock %}

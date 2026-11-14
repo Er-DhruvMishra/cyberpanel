@@ -68,10 +68,49 @@ DEFAULT_POLICY = {
     'default_memory_mb': 256,
     'max_cpu_percent': 100,
     'max_mssql_dbs_per_site': 2,
-    'email_limits_for_users': False,
+    'email_limits_for_users': False,   # may non-administrators manage mailbox limits of domains they own?
     'terminal_for_users': False,       # may website owners open a terminal for their own sites?
-    'terminal_root_for_admins': False, # may administrators open a root shell?  # may non-administrators manage mailbox limits of domains they own?
+    'terminal_root_for_admins': False,  # may administrators open a root shell?
 }
+
+# Add-ons that have something for non-administrators, and the policy switch that opens each one
+# to users. Every other add-on is for administrators only and is never shown to users.
+USER_FEATURES = (
+    ('apps', 'apps_for_users'),
+    ('mssql', 'mssql_for_users'),
+    ('emaillimits', 'email_limits_for_users'),
+    ('webterm', 'terminal_for_users'),
+)
+
+
+def user_modules(policy=None):
+    """Keys of the add-ons the administrator has opened to users."""
+    policy = load_policy() if policy is None else policy
+    return [key for key, switch in USER_FEATURES if policy.get(switch) is True]
+
+
+def save_policy_keys(values, path=None):
+    """Root side: update the given boolean switches of the policy file, keeping every other key."""
+    import os
+    allowed = {switch for _, switch in USER_FEATURES} | {'terminal_root_for_admins'}
+    path = path or POLICY_FILE
+    try:
+        with open(path) as handle:
+            stored = json.load(handle)
+        if not isinstance(stored, dict):
+            stored = {}
+    except (OSError, ValueError):
+        stored = {}
+    for key, value in values.items():
+        if key not in allowed or not isinstance(value, bool):
+            raise ValueError('Unknown or invalid setting %r.' % key)
+        stored[key] = value
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path + '.tmp', 'w') as handle:
+        json.dump(stored, handle, indent=2, sort_keys=True)
+    os.chmod(path + '.tmp', 0o644)
+    os.replace(path + '.tmp', path)
+    return load_policy(path)
 
 
 def load_policy(path=None):

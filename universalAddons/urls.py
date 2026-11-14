@@ -4,6 +4,7 @@ from . import views
 
 urlpatterns = [
     path('', views.hub, name='ua-hub'),
+    path('ajax/user-access', views.user_access, name='ua-hub-user-access'),
     path('email-debugger/', include('universalAddons.emaildebug.urls')),
     path('root-file-manager/', include('universalAddons.rootfm.urls')),
     path('rspamd/', include('universalAddons.rspamd.urls')),

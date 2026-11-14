@@ -87,6 +87,11 @@ Please launch the <a href="/base/onboarding">set-up wizard</a> to get maximum ou
                 ACLManager.GetServiceStatus(self.data)
 
                 self.data.update(currentACL)
+                try:  # sidebar: show Universal Add-ons to users only when an add-on is opened to them
+                    from universalAddons.access import user_modules
+                    self.data['ua_user_addons'] = bool(user_modules())
+                except Exception:
+                    self.data['ua_user_addons'] = False
 
                 return render(self.request, self.templateName, self.data)
             except BaseException as msg:

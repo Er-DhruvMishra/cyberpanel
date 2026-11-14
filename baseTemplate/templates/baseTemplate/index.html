@@ -235,11 +235,7 @@
             <div class="icon-wrapper"><i class="fas fa-shield-halved"></i></div>
             <span>{% trans "Backups" %}</span>
         </a>
-        <a href="{% url 'ua-apps' %}" class="menu-item">
-            <div class="icon-wrapper"><i class="fas fa-cubes"></i></div>
-            <span>{% trans "Apps & SQL Server" %}</span>
-        </a>
-        {% if admin %}
+        {% if admin or ua_user_addons %}
         <a href="{% url 'ua-hub' %}" class="menu-item">
             <div class="icon-wrapper"><i class="fas fa-puzzle-piece"></i></div>
             <span>{% trans "Universal Add-ons" %}</span>

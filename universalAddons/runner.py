@@ -34,6 +34,7 @@ MODULES = {
     'limits': 'universalAddons.limits.actions',
     'apache': 'universalAddons.apache.actions',
     'webterm': 'universalAddons.webterm.actions',
+    'hub': 'universalAddons.hub_actions',
 }
 
 
