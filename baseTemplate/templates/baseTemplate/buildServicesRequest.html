@@ -1,0 +1,90 @@
+{% extends "baseTemplate/index.html" %}
+{% load i18n %}
+{% load static %}
+{% block title %}{% trans "Build Services - CyberPanel" %}{% endblock %}
+{% block module_scripts %}{% endblock %}
+{% block content %}
+<style>
+  .bs-wrap{max-width:980px;margin:0 auto;padding:10px 4px}
+  .bs-card{background:var(--bg-primary,#fff);border:1px solid var(--border-color,#e5e7eb);border-radius:12px;padding:22px;margin-bottom:18px}
+  .bs-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media(max-width:700px){.bs-grid{grid-template-columns:1fr}}
+  .bs-wrap label{display:block;font-weight:600;font-size:13px;margin-bottom:5px}
+  .bs-wrap input,.bs-wrap select,.bs-wrap textarea{width:100%;padding:9px 11px;border:1px solid var(--border-color,#d1d5db);border-radius:8px;background:var(--bg-secondary,#fff);color:inherit;font:inherit}
+  .bs-wrap textarea{min-height:140px}
+  .bs-btn{background:#1f6f43;color:#fff;border:0;border-radius:8px;padding:10px 20px;font-weight:600;cursor:pointer}
+  .bs-btn[disabled]{opacity:.6}
+  .bs-note{margin-top:12px;font-size:14px}.bs-ok{color:#15803d}.bs-err{color:#b91c1c}
+  .bs-muted{color:var(--text-muted,#6b7280);font-size:13px}
+  .bs-table{width:100%;border-collapse:collapse;font-size:13px}.bs-table td,.bs-table th{border-bottom:1px solid var(--border-color,#e5e7eb);padding:6px;text-align:left;vertical-align:top}
+</style>
+<div class="bs-wrap" id="bs" data-submit="{% url 'buildServicesSubmit' %}" data-settings="{% url 'buildServicesSettings' %}">
+  <div class="bs-card">
+    <h2 style="margin-top:0"><i class="fas fa-rocket"></i> {% trans "Build Services" %}</h2>
+    <p class="bs-muted">{% trans "Need a website, an app or custom software? Tell us about the project and we will get back to you with a proposal." %} <a href="{% url 'buildServices' %}">{% trans "See what we build" %}</a></p>
+    <form id="bs-form" autocomplete="on">
+      <div class="bs-grid">
+        <div><label for="bs-name">{% trans "Your name" %} *</label><input id="bs-name" required maxlength="100"></div>
+        <div><label for="bs-email">{% trans "Email" %} *</label><input id="bs-email" type="email" required maxlength="254"></div>
+        <div><label for="bs-phone">{% trans "Phone" %}</label><input id="bs-phone" type="tel" maxlength="25"></div>
+        <div><label for="bs-company">{% trans "Company" %}</label><input id="bs-company" maxlength="120"></div>
+        <div><label for="bs-service">{% trans "What should we build?" %} *</label>
+          <select id="bs-service" required><option value="">{% trans "Choose…" %}</option>{% for s in services %}<option{% if s == selected %} selected{% endif %}>{{ s }}</option>{% endfor %}</select></div>
+        <div><label for="bs-budget">{% trans "Budget" %}</label>
+          <select id="bs-budget"><option value="">{% trans "Prefer not to say" %}</option>{% for b in budgets %}<option>{{ b }}</option>{% endfor %}</select></div>
+        <div><label for="bs-deadline">{% trans "Timeline" %}</label><input id="bs-deadline" maxlength="60" placeholder="{% trans 'e.g. within 2 months' %}"></div>
+      </div>
+      <div style="margin-top:14px"><label for="bs-details">{% trans "Project details" %} *</label>
+        <textarea id="bs-details" required maxlength="5000" placeholder="{% trans 'What it should do, who it is for, examples you like, links…' %}"></textarea></div>
+      <div style="margin-top:14px"><button class="bs-btn" id="bs-send" type="submit">{% trans "Send request" %}</button></div>
+      <div id="bs-out" class="bs-note" role="status"></div>
+    </form>
+  </div>
+  {% if is_admin %}
+  <div class="bs-card">
+    <h3 style="margin-top:0">{% trans "Where requests go (administrators only)" %}</h3>
+    <p class="bs-muted">{% trans "Requests are always saved on this server and emailed through its own mail server to the address below. CyberPanel vendor addresses are refused." %}</p>
+    <div class="bs-grid"><div><input id="bs-recipient" type="email" value="{{ recipient }}" placeholder="you@example.com"></div>
+      <div><button class="bs-btn" id="bs-save" type="button">{% trans "Save" %}</button> <span id="bs-save-out" class="bs-muted">{% if not recipient_ok %}{% trans "Not set: requests are only saved, not emailed." %}{% endif %}</span></div></div>
+    <h4>{% trans "Recent requests" %}</h4>
+    {% if recent %}<div style="overflow-x:auto"><table class="bs-table"><thead><tr><th>{% trans "When" %}</th><th>{% trans "From" %}</th><th>{% trans "Service" %}</th><th>{% trans "Details" %}</th></tr></thead><tbody>
+    {% for r in recent %}<tr><td>{{ r.time }}</td><td>{{ r.name }}<br><a href="mailto:{{ r.email }}">{{ r.email }}</a>{% if r.phone %}<br>{{ r.phone }}{% endif %}</td><td>{{ r.service }}{% if r.budget %}<br><span class="bs-muted">{{ r.budget }}</span>{% endif %}</td><td>{{ r.details|truncatechars:240|linebreaksbr }}</td></tr>{% endfor %}
+    </tbody></table></div>{% else %}<p class="bs-muted">{% trans "None yet." %}</p>{% endif %}
+  </div>
+  {% endif %}
+</div>
+<script>
+(function () {
+  var root = document.getElementById('bs');
+  function cookie(n) { var m = document.cookie.match('(?:^|; )' + n + '=([^;]*)'); return m ? decodeURIComponent(m[1]) : ''; }
+  function post(url, body) {
+    return fetch(url, {method: 'POST', credentials: 'same-origin',
+      headers: {'Content-Type': 'application/json', 'X-CSRFToken': cookie('csrftoken')}, body: JSON.stringify(body)})
+      .then(function (r) { return r.json().catch(function () { return {status: 0, error_message: 'Unexpected response (HTTP ' + r.status + ').'}; }); });
+  }
+  var v = function (id) { return document.getElementById(id).value; };
+  document.getElementById('bs-form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var out = document.getElementById('bs-out'), btn = document.getElementById('bs-send');
+    btn.disabled = true; out.className = 'bs-note'; out.textContent = 'Sending…';
+    post(root.dataset.submit, {request: {name: v('bs-name'), email: v('bs-email'), phone: v('bs-phone'), company: v('bs-company'),
+      service: v('bs-service'), budget: v('bs-budget'), deadline: v('bs-deadline'), details: v('bs-details')}})
+      .then(function (d) {
+        out.className = 'bs-note ' + (d.status === 1 ? 'bs-ok' : 'bs-err');
+        out.textContent = d.status === 1 ? d.message : (d.error_message || 'Could not send the request.');
+        if (d.status === 1) { document.getElementById('bs-form').reset(); }
+      }).catch(function () { out.className = 'bs-note bs-err'; out.textContent = 'Network error; please try again.'; })
+      .then(function () { btn.disabled = false; });
+  });
+  var save = document.getElementById('bs-save');
+  if (save) {
+    save.addEventListener('click', function () {
+      var o = document.getElementById('bs-save-out');
+      post(root.dataset.settings, {recipient: v('bs-recipient')}).then(function (d) {
+        o.textContent = d.status === 1 ? 'Saved.' : (d.error_message || 'Could not save.');
+      });
+    });
+  }
+})();
+</script>
+{% endblock %}

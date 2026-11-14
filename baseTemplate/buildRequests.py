@@ -15,8 +15,10 @@ from email.utils import formataddr, make_msgid
 
 SETTINGS = '/home/cyberpanel/build-services.json'
 LOG = '/home/cyberpanel/build-requests.jsonl'
-SERVICES = ('Website', 'Android app', 'iOS app', 'Web application / SaaS', 'E-commerce store',
-            'Custom software', 'Server setup / migration', 'Maintenance & support', 'Other')
+# Same names as the service cards on the Build Services landing page (they preselect these).
+SERVICES = ('Website Development', 'WordPress & eCommerce', 'Website Speed Optimization', 'Android App Development',
+            'iOS App Development', 'Custom Software & APIs', 'UI / UX Design', 'DevOps & Server Management',
+            'Maintenance & Support', 'Other')
 BUDGETS = ('', 'Under ₹25,000', '₹25,000 – ₹1,00,000', '₹1,00,000 – ₹5,00,000', 'Above ₹5,00,000', 'Not sure yet')
 EMAIL_RE = re.compile(r'^[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9.-]{1,253}\.[A-Za-z]{2,63}$')
 PHONE_RE = re.compile(r'^[0-9+()\- .]{6,25}$')

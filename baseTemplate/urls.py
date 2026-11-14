@@ -12,6 +12,7 @@ urlpatterns = [
     re_path(r'^upgrade$', views.upgrade, name='upgrade'),
     re_path(r'^onboarding$', views.onboarding, name='onboarding'),
     re_path(r'^buildServices$', views.buildServices, name='buildServices'),
+    re_path(r'^buildServices/request$', views.buildServicesRequest, name='buildServicesRequest'),
     re_path(r'^buildServices/submit$', views.buildServicesSubmit, name='buildServicesSubmit'),
     re_path(r'^buildServices/settings$', views.buildServicesSettings, name='buildServicesSettings'),
     re_path(r'^hub/(?P<section>[\w-]+)$', views.cpHub, name='cpHub'),

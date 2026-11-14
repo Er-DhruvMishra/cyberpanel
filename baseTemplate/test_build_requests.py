@@ -6,7 +6,7 @@ import unittest
 from baseTemplate import buildRequests as br
 
 GOOD = {'name': 'Asha Rao', 'email': 'Asha@Example.com', 'phone': '+91 98765 43210', 'company': 'Rao & Sons (Pvt)',
-        'service': 'Android app', 'budget': br.BUDGETS[2], 'deadline': 'Q1: before March',
+        'service': 'Android App Development', 'budget': br.BUDGETS[2], 'deadline': 'Q1: before March',
         'details': 'A delivery app: customers order, riders track; see https://example.com/spec for details.'}
 
 
@@ -56,7 +56,7 @@ class BuildRequests(unittest.TestCase):
         self.assertEqual(msg['To'], 'owner@example.org')
         self.assertIn('asha@example.com', msg['Reply-To'])
         self.assertIn('Rao & Sons (Pvt)', msg.get_content())
-        self.assertEqual(json.loads(open(log).read())['service'], 'Android app')
+        self.assertEqual(json.loads(open(log).read())['service'], 'Android App Development')
         self.assertEqual(oct(os.stat(log).st_mode & 0o777), '0o600')
 
     def test_not_mailed_without_recipient_but_kept(self):

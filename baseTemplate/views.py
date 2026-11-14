@@ -490,6 +490,13 @@ def cpHub(request, section):
 
 @ensure_csrf_cookie
 def buildServices(request):
+    # Landing page: what we build. Its buttons open buildServicesRequest with the service preselected.
+    proc = httpProc(request, 'baseTemplate/buildServices.html', {})
+    return proc.render()
+
+
+@ensure_csrf_cookie
+def buildServicesRequest(request):
     # Request form for development services. Submissions are kept on this server and emailed to
     # the address an administrator chose (see baseTemplate/buildRequests.py); nothing leaves the
     # server except that email through the local mail server.
@@ -498,12 +505,14 @@ def buildServices(request):
         is_admin = ACLManager.loadedACL(request.session['userID']).get('admin') == 1
     except Exception:
         is_admin = False
-    data = {'services': br.SERVICES, 'budgets': [b for b in br.BUDGETS if b], 'is_admin': is_admin}
+    wanted = request.GET.get('service', '')
+    data = {'services': br.SERVICES, 'budgets': [b for b in br.BUDGETS if b], 'is_admin': is_admin,
+            'selected': wanted if wanted in br.SERVICES else ''}
     if is_admin:
         settings = br.load_settings()
         data.update(recipient=settings['recipient'], recipient_ok=br.usable_recipient(settings['recipient']),
                     recent=br.recent_requests())
-    proc = httpProc(request, 'baseTemplate/buildServices.html', data)
+    proc = httpProc(request, 'baseTemplate/buildServicesRequest.html', data)
     return proc.render()
 
 
