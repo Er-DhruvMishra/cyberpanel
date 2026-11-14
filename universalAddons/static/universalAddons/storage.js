@@ -23,7 +23,7 @@
         $('st-job').style.display = 'block';
         (function poll() {
             UA.retry(function () { return api('job', {job: jobId}); }, function (e, n) {
-                var note = $('st-job-retry');
+                var note = document.getElementById('st-job-retry');
                 if (!note) {
                     note = document.createElement('p');
                     note.id = 'st-job-retry';

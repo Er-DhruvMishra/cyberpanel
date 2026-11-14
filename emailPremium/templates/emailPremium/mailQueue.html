@@ -170,6 +170,10 @@
         border-collapse: collapse;
         margin-top: 20px;
     }
+
+    .queue-recipients { overflow-wrap: anywhere; min-width: 220px; }
+    .queue-recipients > div + div { margin-top: 6px; }
+    .queue-reason { font-size: 12px; opacity: 0.75; }
     
     .queue-table th {
         text-align: left;
@@ -479,7 +483,7 @@
             </div>
 
             <!-- Queue Table -->
-            <div ng-if="queues.length > 0">
+            <div ng-if="queues.length > 0" style="overflow-x:auto">
                 <table class="queue-table">
                     <thead>
                         <tr>
@@ -497,7 +501,12 @@
                             <td ng-bind="queue.queue_name"></td>
                             <td ng-bind="queue.message_size"></td>
                             <td ng-bind="queue.sender"></td>
-                            <td ng-bind="queue.recipients"></td>
+                            <td class="queue-recipients">
+                                <div ng-repeat="r in queue.recipients track by $index">
+                                    <strong ng-bind="r.address"></strong>
+                                    <div class="queue-reason" ng-if="r.delay_reason" ng-bind="r.delay_reason"></div>
+                                </div>
+                            </td>
                             <td>
                                 <a href="#" class="view-message-btn" data-toggle="modal" data-target="#viewMessage" ng-click="fetchMessage(queue.queue_id)">
                                     <i class="fas fa-eye"></i>

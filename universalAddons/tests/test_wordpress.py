@@ -200,7 +200,7 @@ class LoginAndInstall(unittest.TestCase):
     def test_mu_plugin_is_valid_php(self):
         with tempfile.NamedTemporaryFile('w', suffix='.php', delete=False) as handle:
             handle.write(wp.MU_PLUGIN)
-        result = subprocess.run(['php', '-l', handle.name], stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+        result = subprocess.run(['php', '-n', '-l', handle.name], stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                 universal_newlines=True)
         os.unlink(handle.name)
         self.assertEqual(result.returncode, 0, result.stdout)

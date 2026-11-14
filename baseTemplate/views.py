@@ -45,7 +45,7 @@ def renderBase(request):
 
 @ensure_csrf_cookie
 def versionManagement(request):
-    getVersion = requests.get(RELEASE_VERSION_URL)
+    getVersion = requests.get(RELEASE_VERSION_URL, timeout=10)
     latest = getVersion.json()
     latestVersion = latest['version']
     latestBuild = latest['build']
@@ -55,7 +55,7 @@ def versionManagement(request):
 
     u = RELEASE_COMMITS_URL
     logging.writeToFile(u)
-    r = requests.get(u)
+    r = requests.get(u, timeout=10)
     latestcomit = r.json()[0]['sha']
 
     command = "git -C /usr/local/CyberCP/ rev-parse HEAD"
@@ -262,20 +262,25 @@ def getLoadAverage(request):
 def versionManagment(request):
     ## Get latest version
 
-    getVersion = requests.get(RELEASE_VERSION_URL)
-    latest = getVersion.json()
-    latestVersion = latest['version']
-    latestBuild = latest['build']
+    # GitHub can be slow or unreachable from a server; never let that hang the page.
+    try:
+        latest = requests.get(RELEASE_VERSION_URL, timeout=10).json()
+        latestVersion = latest['version']
+        latestBuild = latest['build']
+    except Exception as msg:
+        logging.CyberCPLogFileWriter.writeToFile('versionManagment: latest version unavailable: %s' % msg)
+        latestVersion, latestBuild = 'unavailable', ''
 
     ## Get local version
 
     currentVersion = VERSION
     currentBuild = str(BUILD)
 
-    u = RELEASE_COMMITS_URL
-    logging.CyberCPLogFileWriter.writeToFile(u)
-    r = requests.get(u)
-    latestcomit = r.json()[0]['sha']
+    try:
+        latestcomit = requests.get(RELEASE_COMMITS_URL, timeout=10).json()[0]['sha']
+    except Exception as msg:
+        logging.CyberCPLogFileWriter.writeToFile('versionManagment: latest commit unavailable: %s' % msg)
+        latestcomit = ''
 
     command = "git -C /usr/local/CyberCP/ rev-parse HEAD"
     output = ProcessUtilities.outputExecutioner(command)
@@ -283,7 +288,7 @@ def versionManagment(request):
     Currentcomt = output.rstrip("\n")
     notechk = True
 
-    if (Currentcomt == latestcomit):
+    if not latestcomit or Currentcomt == latestcomit:
         notechk = False
 
     template = 'baseTemplate/versionManagment.html'
@@ -381,7 +386,7 @@ def upgradeVersion(request):
     try:
 
         vers = version.objects.get(pk=1)
-        getVersion = requests.get(RELEASE_VERSION_URL)
+        getVersion = requests.get(RELEASE_VERSION_URL, timeout=10)
         latest = getVersion.json()
         vers.currentVersion = latest['version']
         vers.build = latest['build']
@@ -452,7 +457,7 @@ def getthemedata(request):
 
         url = "https://raw.githubusercontent.com/usmannasir/CyberPanel-Themes/main/%s/design.css" % data['Themename']
 
-        res = requests.get(url)
+        res = requests.get(url, timeout=10)
 
         rsult = res.text
         final_dic = {'status': 1, 'csscontent': rsult}
