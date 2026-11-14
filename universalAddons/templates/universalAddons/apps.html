@@ -64,6 +64,7 @@
       <label>{% trans "CPU (%)" %} <input id="app-cpu" type="number" min="5" value="100" style="min-width:80px"></label>
     </div>
     <p class="ua-muted" id="app-hint"></p>
+    <p class="ua-muted">{% trans "Served under a URL path other than /? The app receives the full path; its prefix is in the APP_BASE_PATH variable. ASP.NET Core: app.UsePathBase(Environment.GetEnvironmentVariable(\"APP_BASE_PATH\")); Express: app.use(process.env.APP_BASE_PATH || '/', router). Python WSGI (gunicorn) and ASGI (uvicorn) apps get it applied automatically." %}</p>
     <div><strong>{% trans "Environment variables" %}</strong> <span class="ua-muted">{% trans "(stored root-only, passed to the app at start; leave empty to keep the current ones)" %}</span></div>
     <textarea id="app-env" placeholder="DATABASE_URL=...&#10;SECRET_KEY=..." style="min-height:90px"></textarea>
     <div class="ua-row" style="margin-top:10px">

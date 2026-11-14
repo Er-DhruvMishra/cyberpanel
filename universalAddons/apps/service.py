@@ -38,7 +38,7 @@ MODULE_RE = re.compile(r'^[A-Za-z_][A-Za-z0-9_.]{0,100}:[A-Za-z_][A-Za-z0-9_]{0,
 PREFIX_RE = re.compile(r'^/([A-Za-z0-9._-]+/)*$')
 ENV_KEY_RE = re.compile(r'^[A-Z_][A-Z0-9_]{0,63}$')
 VERSION_RE = re.compile(r'^\d{1,3}(\.\d{1,4}){1,3}$')
-RESERVED_ENV = {'PORT', 'HOST', 'ASPNETCORE_URLS', 'PATH', 'HOME', 'USER', 'LD_PRELOAD', 'LD_LIBRARY_PATH',
+RESERVED_ENV = {'PORT', 'HOST', 'APP_BASE_PATH', 'SCRIPT_NAME', 'ASPNETCORE_URLS', 'PATH', 'HOME', 'USER', 'LD_PRELOAD', 'LD_LIBRARY_PATH',
                 'PYTHONPATH', 'NODE_OPTIONS', 'DOTNET_ROOT'}
 
 
@@ -193,6 +193,11 @@ def port_is_free(port):
 
 # ----------------------------------------------------------------------------- command line / unit
 
+def base_path(app):
+    """URL prefix the app is served under, without the trailing slash ('' at the site root)."""
+    return app.get('prefix', '/').rstrip('/')
+
+
 def exec_argv(app, runtime):
     """ExecStart argv for an app (validated tokens only)."""
     directory = app['dir']
@@ -206,8 +211,11 @@ def exec_argv(app, runtime):
             return [os.path.join(venv, 'gunicorn'), '--bind', '127.0.0.1:%d' % app['port'], '--workers',
                     str(app['workers']), '--access-logfile', '-', app['entry']]
         if app['mode'] == 'asgi':
-            return [os.path.join(venv, 'uvicorn'), '--host', '127.0.0.1', '--port', str(app['port']), '--workers',
-                    str(app['workers']), '--proxy-headers', app['entry']]
+            argv = [os.path.join(venv, 'uvicorn'), '--host', '127.0.0.1', '--port', str(app['port']), '--workers',
+                    str(app['workers']), '--proxy-headers']
+            if base_path(app):
+                argv += ['--root-path', base_path(app)]
+            return argv + [app['entry']]
         return [os.path.join(venv, 'python'), os.path.join(directory, app['entry'])]
     return [runtime['path'], os.path.join(directory, app['entry'])]
 
@@ -231,7 +239,11 @@ def render_unit(app, runtime, version=239, unified=False):
     for token in argv:
         if not re.match(r'^[A-Za-z0-9._:/=-]+$', token):
             raise AppError('Unsafe command-line token %r.' % token)
-    environment = {'PORT': str(app['port']), 'HOST': '127.0.0.1', 'NODE_ENV': 'production'}
+    # OpenLiteSpeed forwards the full path, prefix included; APP_BASE_PATH tells the app its prefix
+    # (ASP.NET Core: app.UsePathBase(...); Express: mount routes under it). gunicorn and uvicorn
+    # apply it themselves through SCRIPT_NAME / --root-path.
+    environment = {'PORT': str(app['port']), 'HOST': '127.0.0.1', 'NODE_ENV': 'production',
+                   'APP_BASE_PATH': base_path(app)}
     if app['kind'] == 'node':
         # Only the app directory is writable: npm's cache/logs go to the service's private /tmp.
         environment.update(PATH=os.path.dirname(runtime['path']) + ':/usr/bin:/bin', npm_config_cache='/tmp/.npm',
@@ -239,9 +251,12 @@ def render_unit(app, runtime, version=239, unified=False):
     if app['kind'] == 'dotnet':
         environment.update(ASPNETCORE_URLS='http://127.0.0.1:%d' % app['port'],
                            DOTNET_ROOT=os.path.dirname(runtime['path']),
+                           ASPNETCORE_FORWARDEDHEADERS_ENABLED='true',
                            DOTNET_CLI_TELEMETRY_OPTOUT='1', DOTNET_NOLOGO='1', DOTNET_GCHeapHardLimit=hex(app['memory_mb'] * 1024 * 1024 * 8 // 10))
     if app['kind'] == 'python':
         environment['PYTHONUNBUFFERED'] = '1'
+        if app.get('mode') == 'wsgi' and base_path(app):
+            environment['SCRIPT_NAME'] = base_path(app)
     lines = [
         '# Managed by CyberPanel Universal (Apps). Changes are overwritten.',
         '[Unit]',

@@ -92,7 +92,7 @@ class Units(SimpleTestCase):
         py = self.app(kind='python', runtime='3.9.6', mode='asgi', entry='main:app', workers=3)
         self.assertEqual(svc.exec_argv(py, RUNTIMES['python'][0]),
                          ['/home/shop.example.com/apps/api/.venv/bin/uvicorn', '--host', '127.0.0.1', '--port', '20005',
-                          '--workers', '3', '--proxy-headers', 'main:app'])
+                          '--workers', '3', '--proxy-headers', '--root-path', '/api', 'main:app'])
         net = self.app(kind='dotnet', runtime='10.0.15', entry='Shop.Api.dll')
         unit = svc.render_unit(net, RUNTIMES['dotnet'][0], 239, False)
         self.assertIn('Environment="ASPNETCORE_URLS=http://127.0.0.1:20005"', unit)
@@ -183,3 +183,32 @@ class AccessControl(SimpleTestCase):
         status, body, call = self.post(views.save, {'domain': 'shop.example.com', 'id': 'api', 'kind': 'node',
                                                     'env': [{'key': 'DB', 'value': 'a;b'}]}, admin=1)
         self.assertEqual(call.call_args[1]['spec']['env'], {'DB': 'a;b'})
+
+
+class BasePath(SimpleTestCase):
+    def app(self, **kw):
+        app = svc.validate(spec(**kw), SITE, POLICY, {}, RUNTIMES)
+        app['port'] = 20005
+        return app
+
+    def test_prefix_reaches_every_runtime(self):
+        unit = svc.render_unit(self.app(kind='dotnet', runtime='10.0.15', entry='Shop.dll'), RUNTIMES['dotnet'][0])
+        self.assertIn('Environment="APP_BASE_PATH=/api"', unit)
+        self.assertIn('Environment="ASPNETCORE_FORWARDEDHEADERS_ENABLED=true"', unit)
+        wsgi = svc.render_unit(self.app(kind='python', runtime='3.9.6', mode='wsgi', entry='app:app'), RUNTIMES['python'][0])
+        self.assertIn('Environment="SCRIPT_NAME=/api"', wsgi)
+        asgi = self.app(kind='python', runtime='3.9.6', mode='asgi', entry='main:app')
+        self.assertEqual(svc.exec_argv(asgi, RUNTIMES['python'][0])[-3:], ['--root-path', '/api', 'main:app'])
+
+    def test_site_root_has_no_prefix(self):
+        root = self.app(prefix='/')
+        self.assertIn('Environment="APP_BASE_PATH="', svc.render_unit(root, RUNTIMES['node'][0]))
+        asgi = self.app(kind='python', runtime='3.9.6', mode='asgi', entry='main:app', prefix='/')
+        self.assertNotIn('--root-path', svc.exec_argv(asgi, RUNTIMES['python'][0]))
+        self.assertNotIn('SCRIPT_NAME', svc.render_unit(self.app(kind='python', runtime='3.9.6', mode='wsgi',
+                                                                 entry='app:app', prefix='/'), RUNTIMES['python'][0]))
+
+    def test_users_cannot_override_the_prefix(self):
+        for key in ('APP_BASE_PATH', 'SCRIPT_NAME'):
+            with self.assertRaises(svc.AppError):
+                svc.validate_env({key: '/x'})
