@@ -35,6 +35,9 @@ MODULES = (
     Module('storage', 'Storage Cleaner', 'fa-broom',
            'See where disk space went and reclaim it: caches, old logs, bloated MySQL tables, junk files.',
            'ua-storage', 'ready'),
+    Module('emaillimits', 'Email Limits', 'fa-paper-plane',
+           'Per-domain and per-mailbox outbound sending limits, enforced by the cpecs policy daemon.',
+           'ua-emaillimits', 'ready'),
     Module('htaccess', '.htaccess for OpenLiteSpeed', 'fa-file-code',
            'Apache .htaccess directives translated into OpenLiteSpeed configuration.',
            'ua-htaccess', 'ready'),
@@ -54,6 +57,8 @@ def requirement_problems(key, which=shutil.which, exists=os.path.exists):
     problems = []
     if key == 'backupv2' and not which('restic'):
         problems.append('restic is not installed (dnf/apt install restic).')
+    if key == 'emaillimits' and not exists('/etc/postfix/main.cf'):
+        problems.append('Postfix is not configured on this server.')
     if key == 'htaccess' and not exists('/usr/local/lsws/bin/openlitespeed'):
         problems.append('This server does not run OpenLiteSpeed.')
     if key == 'apps' and not exists('/usr/local/lsws/bin/openlitespeed'):

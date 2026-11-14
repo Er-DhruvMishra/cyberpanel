@@ -14,4 +14,5 @@ urlpatterns = [
     path('apps/', include('universalAddons.apps.urls')),
     path('mssql/', include('universalAddons.mssql.urls')),
     path('storage/', include('universalAddons.storage.urls')),
+    path('email-limits/', include('universalAddons.emaillimits.urls')),
 ]

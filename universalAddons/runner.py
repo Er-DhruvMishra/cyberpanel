@@ -27,6 +27,7 @@ MODULES = {
     'apps': 'universalAddons.apps.actions',
     'mssql': 'universalAddons.mssql.actions',
     'storage': 'universalAddons.storage.actions',
+    'emaillimits': 'universalAddons.emaillimits.actions',
 }
 
 

@@ -82,8 +82,9 @@ def runtime_uninstall(kind, version):
 def save_policy(policy):
     import json
     clean = dict(DEFAULT_POLICY)
+    current = load_policy()  # keys this page does not send (other modules' settings) are kept
     for key, default in DEFAULT_POLICY.items():
-        value = policy.get(key, default)
+        value = policy.get(key, current.get(key, default))
         if isinstance(default, bool):
             if not isinstance(value, bool):
                 raise AppError('%s must be true or false.' % key)

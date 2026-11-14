@@ -68,6 +68,7 @@ DEFAULT_POLICY = {
     'default_memory_mb': 256,
     'max_cpu_percent': 100,
     'max_mssql_dbs_per_site': 2,
+    'email_limits_for_users': False,  # may non-administrators manage mailbox limits of domains they own?
 }
 
 
