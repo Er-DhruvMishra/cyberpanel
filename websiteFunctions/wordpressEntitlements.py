@@ -5,6 +5,7 @@ from django.http import JsonResponse
 from django.shortcuts import redirect
 
 from plogical.acl import ACLManager
+from plogical.universalAlternatives import alternative_for, request_from
 
 
 def wordpress_manager_available():
@@ -21,7 +22,8 @@ def wordpress_entitlement_required(page=False):
         def checked(*args, **kwargs):
             if not wordpress_manager_available():
                 if page:
-                    return redirect('pricing')
+                    request = request_from(args, kwargs)
+                    return redirect(alternative_for(request.path if request else '') or 'pricing')
                 # Existing AJAX and direct API callers use these numeric fields.
                 # Denial must never look like a started installer or worker.
                 return JsonResponse({

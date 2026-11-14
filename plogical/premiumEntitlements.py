@@ -5,6 +5,7 @@ from django.http import JsonResponse
 from django.shortcuts import redirect
 
 from plogical.acl import ACLManager
+from plogical.universalAlternatives import alternative_for, request_from
 
 
 def premium_entitlement_required(feature, *, label='Premium feature', flags=(), page_redirect=None):
@@ -18,7 +19,8 @@ def premium_entitlement_required(feature, *, label='Premium feature', flags=(), 
                 available = False
             if not available:
                 if page_redirect:
-                    return redirect(page_redirect)
+                    request = request_from(args, kwargs)
+                    return redirect(alternative_for(request.path if request else '') or page_redirect)
                 data = {flag: 0 for flag in flags}
                 data.update(status=0, error_message=f'An active {label} entitlement is required.')
                 return JsonResponse(data)
