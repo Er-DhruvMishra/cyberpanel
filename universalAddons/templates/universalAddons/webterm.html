@@ -20,7 +20,7 @@
     <div id="wt-status" class="ua-muted">{% trans "Loading…" %}</div>
     <div class="ua-row" style="margin-top:10px">
       <label>{% trans "Carry connections on site" %}
-        <select id="wt-site">{% for s in sites %}<option value="{{ s }}">{{ s }}</option>{% endfor %}</select></label>
+        <select id="wt-site">{% for s in sites %}<option value="{{ s }}"{% if s == carrier %} selected{% endif %}>{{ s }}</option>{% endfor %}</select></label>
       <button class="ua-btn" id="wt-setup">{% trans "Set up / refresh" %}</button>
       <button class="ua-btn ua-btn-secondary" id="wt-teardown">{% trans "Turn off" %}</button>
     </div>

@@ -25,8 +25,12 @@ def page(request):
     enabled = is_admin or bool(load_policy().get(FEATURE))
     sites = _sites(user_id) if (user_id and enabled) else []
     chosen = request.GET.get('domain', '')
+    # Default carrier site for the websocket route: the site the panel itself is opened on
+    # (panel at https://example.com:8090 -> example.com), so the browser already trusts its certificate.
+    panel_host = request.get_host().rsplit(':', 1)[0].lower() if request.get_host() else ''
+    carrier = panel_host if panel_host in sites else next((s for s in sites if panel_host.endswith('.' + s)), '')
     return httpProc(request, 'universalAddons/webterm.html', {
-        'is_admin': is_admin, 'enabled': enabled, 'sites': sites,
+        'is_admin': is_admin, 'enabled': enabled, 'sites': sites, 'carrier': carrier,
         'chosen': chosen if chosen in sites else (sites[0] if sites else '')}).render()
 
 

@@ -78,7 +78,7 @@ def _ws_probe(site):
     code, out = _run(['curl', '-sk', '-o', '/dev/null', '-m', '10', '-w', '%{http_code}', '--http1.1',
                       '--resolve', '%s:443:127.0.0.1' % site,
                       '-H', 'Connection: Upgrade', '-H', 'Upgrade: websocket', '-H', 'Sec-WebSocket-Version: 13',
-                      '-H', 'Sec-WebSocket-Key: Y3AtdWEtd2VidGVybS1wcm9iZQ==',
+                      '-H', 'Sec-WebSocket-Key: Y3AtdWEtd3QtcHJvYmUxNg==',  # must decode to 16 bytes
                       'https://%s%s' % (site, service.WS_PATH)], timeout=20)
     return out.strip()
 

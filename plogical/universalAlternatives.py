@@ -17,6 +17,7 @@ ALTERNATIVES = (
     (r'^/filemanager/Filemanager/?$', 'rootfm', '/addons/root-file-manager/'),
     (r'^/dataBases/(MysqlManager|OptimizeMySQL|UpgradeMySQL)/?$', 'mysqlmgr', '/addons/mysql/'),
     (r'^/email/EmailLimits/?$', 'emaillimits', '/addons/email-limits/'),
+    (r'^/websites/ApacheManager/(?P<domain>[A-Za-z0-9.-]+)/?$', 'apache', '/addons/apache/?site={domain}'),
 )
 
 
@@ -32,9 +33,11 @@ def _available(key):
 
 def alternative_for(path, available=_available):
     """URL of the free add-on that replaces the paid page at `path`, or None."""
+    from urllib.parse import quote
     for pattern, key, url in ALTERNATIVES:
-        if re.match(pattern, path or '') and available(key):
-            return url
+        match = re.match(pattern, path or '')
+        if match and available(key):
+            return url.format(**{k: quote(v, safe='') for k, v in match.groupdict().items()})
     return None
 
 

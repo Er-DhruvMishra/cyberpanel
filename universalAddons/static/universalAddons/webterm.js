@@ -64,7 +64,7 @@
                 (r.config && r.config.site ? ' · carried on <code>' + UA.esc(r.config.site) + '</code>' : '') +
                 (r.proxied ? ' · proxy active' : ' · proxy not set up') +
                 (s.memory_mb ? ' · ' + UA.esc(s.memory_mb) + ' MB' : '');
-            if (r.config && r.config.site && $('wt-site')) { $('wt-site').value = r.config.site; }
+            if (r.proxied && r.config && r.config.site && $('wt-site')) { $('wt-site').value = r.config.site; }
             $('wt-users').checked = !!(r.policy && r.policy.terminal_for_users);
             $('wt-root').checked = !!(r.policy && r.policy.terminal_root_for_admins);
         };

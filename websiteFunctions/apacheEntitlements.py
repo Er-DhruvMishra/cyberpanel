@@ -6,6 +6,7 @@ from django.http import JsonResponse
 from django.shortcuts import redirect
 
 from plogical.acl import ACLManager
+from plogical.universalAlternatives import alternative_for, request_from
 
 
 def apache_manager_available():
@@ -49,7 +50,10 @@ def apache_entitlement_required(page=False):
         @wraps(method)
         def checked(*args, **kwargs):
             if not apache_manager_available():
-                return redirect('pricing') if page else apache_entitlement_error()
+                if page:
+                    request = request_from(args, kwargs)
+                    return redirect(alternative_for(request.path if request else '') or 'pricing')
+                return apache_entitlement_error()
             return method(*args, **kwargs)
         return checked
     return decorate

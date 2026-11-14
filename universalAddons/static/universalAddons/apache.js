@@ -203,6 +203,11 @@
         }
     });
     $('ap-filter').addEventListener('input', function () { if (state.data) { renderSites(); } });
+    // Opened from a website's Configurations tab (/websites/ApacheManager/<site>): show that site.
+    try {
+        var wanted = new URLSearchParams(window.location.search).get('site');
+        if (wanted && /^[A-Za-z0-9.-]{1,253}$/.test(wanted)) { $('ap-filter').value = wanted; }
+    } catch (e) { /* old browser: show all sites */ }
 
     load();
 })();

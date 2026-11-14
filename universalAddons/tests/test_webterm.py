@@ -156,3 +156,12 @@ class Views(SimpleTestCase):
         call.assert_not_called()
         status, call = self.post({'root': True}, admin=1)
         self.assertEqual(call.call_args[1]['record']['system_user'], 'root')
+
+
+class Probe(SimpleTestCase):
+    def test_probe_key_is_a_valid_websocket_key(self):
+        import base64
+        import inspect
+        import re
+        key = re.search(r"Sec-WebSocket-Key: ([A-Za-z0-9+/=]+)", inspect.getsource(actions._ws_probe)).group(1)
+        self.assertEqual(len(base64.b64decode(key)), 16, 'servers reject keys that are not 16 random bytes')

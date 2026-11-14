@@ -20,6 +20,7 @@ class Alternatives(unittest.TestCase):
             '/filemanager/Filemanager': '/addons/root-file-manager/',
             '/dataBases/MysqlManager': '/addons/mysql/',
             '/email/EmailLimits': '/addons/email-limits/',
+            '/websites/ApacheManager/shop.example.com': '/addons/apache/?site=shop.example.com',
         }
         for path, url in cases.items():
             self.assertEqual(alternative_for(path, on), url, path)
@@ -27,7 +28,7 @@ class Alternatives(unittest.TestCase):
     def test_no_alternative_when_addon_missing_or_page_unrelated(self):
         self.assertIsNone(alternative_for('/dataBases/MysqlManager', lambda key: False))
         self.assertIsNone(alternative_for('/websites/pricing', lambda key: True), 'sales page itself is never hidden')
-        self.assertIsNone(alternative_for('/websites/ApacheManager/example.com', lambda key: True))
+        self.assertIsNone(alternative_for('/websites/ApacheManager/a%2Fb', lambda key: True))
         self.assertIsNone(alternative_for('', lambda key: True))
 
     def test_request_found_in_args_kwargs_or_manager(self):
