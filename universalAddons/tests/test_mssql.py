@@ -177,3 +177,17 @@ class Repositories(SimpleTestCase):
             self.assertFalse(actions._installed())
             with self.assertRaisesRegex(sq.SQLError, 'outside the panel'):
                 actions.install(accept_eula=True)
+
+
+class MemoryProtection(SimpleTestCase):
+    def test_dropin_prefers_killing_sql_server_and_caps_it(self):
+        v1 = sq.protect_dropin_text(1024, unified=False)
+        self.assertIn('OOMScoreAdjust=500', v1)
+        self.assertIn('MemoryLimit=1536M', v1)
+        self.assertIn('MemoryMax=1536M', sq.protect_dropin_text(1024, unified=True))
+
+    def test_written_atomically(self):
+        path = os.path.join(tempfile.mkdtemp(), 'd', 'x.conf')
+        sq.write_protect_dropin(768, path)
+        self.assertIn('=1280M', open(path).read())
+        self.assertEqual(oct(os.stat(path).st_mode & 0o777), '0o644')

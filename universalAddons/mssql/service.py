@@ -92,6 +92,31 @@ def write_tools_repo(version, path=TOOLS_REPO_FILE):
     os.replace(path + '.tmp', path)
 
 
+PROTECT_DROPIN = '/etc/systemd/system/mssql-server.service.d/cyberpanel-memory.conf'
+
+
+def protect_dropin_text(memory_limit_mb, unified=None):
+    """systemd drop-in so SQL Server, not MariaDB or the web stack, gives way when RAM runs out.
+
+    OOMScoreAdjust makes the kernel pick sqlservr first; the cgroup ceiling (SQL Server's own
+    memory limit plus room for its process overhead) keeps it from pushing everything into swap.
+    """
+    if unified is None:
+        unified = os.path.exists('/sys/fs/cgroup/cgroup.controllers')
+    ceiling = int(memory_limit_mb) + 512
+    key = 'MemoryMax' if unified else 'MemoryLimit'
+    return ('# Managed by CyberPanel Universal (SQL Server). Changes are overwritten.\n'
+            '[Service]\nOOMScoreAdjust=500\n%s=%dM\n' % (key, ceiling))
+
+
+def write_protect_dropin(memory_limit_mb, path=PROTECT_DROPIN):
+    os.makedirs(os.path.dirname(path), mode=0o755, exist_ok=True)
+    with open(path + '.tmp', 'w') as handle:
+        handle.write(protect_dropin_text(memory_limit_mb))
+    os.chmod(path + '.tmp', 0o644)
+    os.replace(path + '.tmp', path)
+
+
 def total_ram_mb(meminfo='/proc/meminfo'):
     with open(meminfo) as handle:
         for line in handle:

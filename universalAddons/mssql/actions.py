@@ -112,6 +112,9 @@ def install_run(job_id, memory_limit_mb):
     steps.append(('Listen on 127.0.0.1 only', command([sq.MSSQL_CONF, 'set', 'network.ipaddress', '127.0.0.1'])))
     steps.append(('Cap memory at %d MB' % memory_limit_mb,
                   command([sq.MSSQL_CONF, 'set', 'memory.memorylimitmb', str(memory_limit_mb)])))
+    steps.append(('Let SQL Server give way first when memory runs out',
+                  lambda job: sq.write_protect_dropin(memory_limit_mb)))
+    steps.append(('Reload systemd', command(['systemctl', 'daemon-reload'])))
     steps.append(('Restart SQL Server', command(['systemctl', 'restart', 'mssql-server'])))
 
     def save_secret(job):
@@ -194,7 +197,22 @@ def service(action):
     return overview()
 
 
+def protect():
+    """Apply the memory-safety drop-in to an existing panel-managed SQL Server (idempotent)."""
+    if not _installed():
+        raise SQLError('SQL Server is not installed.')
+    meta = sq._load(os.path.join(sq.STATE_DIR, 'sa.json'), {})
+    limit = int(meta.get('memory_limit_mb') or sq.default_memory_limit_mb(sq.total_ram_mb()))
+    sq.write_protect_dropin(limit)
+    for argv in (['systemctl', 'daemon-reload'], ['systemctl', 'restart', 'mssql-server']):
+        code, out = sq.run(argv, timeout=300)
+        if code != 0:
+            raise SQLError('%s failed: %s' % (' '.join(argv), out.strip()[-300:]))
+    return {'dropin': sq.PROTECT_DROPIN, 'memory_limit_mb': limit}
+
+
 ACTIONS = {
+    'protect': protect,
     'overview': overview,
     'install': install,
     'install_run': install_run,
