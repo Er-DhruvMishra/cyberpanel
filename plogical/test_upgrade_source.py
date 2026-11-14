@@ -261,7 +261,9 @@ class UpgradeEntryPointTests(unittest.TestCase):
         loaded = {}
         exec((self.current / 'CyberCP/settings.py').read_text(), loaded)
         self.assertEqual(['new_app'], loaded['INSTALLED_APPS'])
-        self.assertEqual(self.globals['settings'].DATABASES, loaded['DATABASES'])
+        expected = {alias: dict(config, ENGINE='django.db.backends.mysql')
+                    for alias, config in self.globals['settings'].DATABASES.items()}
+        self.assertEqual(expected, loaded['DATABASES'], 'credentials kept; missing ENGINE filled in')
         self.assertFalse((self.current / 'old_source.py').exists())
         self.assertEqual(0o640, stat.S_IMODE((self.current / '.env').stat().st_mode))
 
@@ -332,6 +334,20 @@ class UpgradeEntryPointTests(unittest.TestCase):
         custom = self.current / 'baseTemplate/static/baseTemplate/custom'
         self.assertEqual('custom configuration', (Path(files[str(custom)]) / 'config').read_text())
         self.assertEqual('phpmyadmin configuration', Path(files[str(self.current / 'public/phpmyadmin/config.inc.php')]).read_text())
+
+
+if __name__ == '__main__':
+    unittest.main()
+
+
+class DatabaseEngineTests(unittest.TestCase):
+    """The recovered settings object and the rewritten settings.py must name a DB engine."""
+
+    def test_recovery_settings_and_rewrite_keep_engine(self):
+        minimal = re.search(r'class MinimalSettings:.*?settings = MinimalSettings\(\)', source, re.DOTALL).group(0)
+        self.assertEqual(minimal.count("'ENGINE': 'django.db.backends.mysql'"), 2)
+        rewrite = re.search(r"databases = \{\}.*?database_config = 'DATABASES = '", source, re.DOTALL).group(0)
+        self.assertIn("config['ENGINE'] = 'django.db.backends.mysql'", rewrite)
 
 
 if __name__ == '__main__':

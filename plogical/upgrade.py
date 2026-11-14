@@ -445,6 +445,7 @@ except ImportError:
     class MinimalSettings:
         DATABASES = {
             'default': {
+                'ENGINE': 'django.db.backends.mysql',
                 'NAME': 'cyberpanel',
                 'USER': 'cyberpanel',
                 'PASSWORD': cyberpanel_password,
@@ -452,6 +453,7 @@ except ImportError:
                 'PORT': '3306'
             },
             'rootdb': {
+                'ENGINE': 'django.db.backends.mysql',
                 'NAME': 'mysql',
                 'USER': 'root',
                 'PASSWORD': root_password,
@@ -4007,7 +4009,15 @@ passdb {
                 # Keep new applications/defaults while preserving DB credentials.
                 database_pattern = r'DATABASES\s*=\s*\{[^}]*\{[^}]*\}[^}]*\{[^}]*\}[^}]*\}'
                 import pprint
-                database_config = 'DATABASES = ' + pprint.pformat(dict(settings.DATABASES))
+                databases = {}
+                for alias, config in dict(settings.DATABASES).items():
+                    config = dict(config)
+                    # A settings object recovered without ENGINE would leave the
+                    # panel unable to start; CyberPanel only uses MySQL/MariaDB.
+                    if not config.get('ENGINE'):
+                        config['ENGINE'] = 'django.db.backends.mysql'
+                    databases[alias] = config
+                database_config = 'DATABASES = ' + pprint.pformat(databases)
                 settingsData, replacements = re.subn(
                     database_pattern, lambda match: database_config, settingsData,
                     count=1, flags=re.DOTALL)
