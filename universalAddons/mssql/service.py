@@ -75,6 +75,23 @@ def tools_repo_for(family, version):
     return 'https://packages.microsoft.com/config/ubuntu/%d.04/prod.list' % version
 
 
+TOOLS_REPO_ID = 'cp-microsoft-prod'
+TOOLS_REPO_FILE = '/etc/yum.repos.d/cp-microsoft-prod.repo'
+
+
+def tools_repo_text(version):
+    return ('[%s]\nname=Microsoft production packages for RHEL %d (CyberPanel)\n'
+            'baseurl=https://packages.microsoft.com/rhel/%d/prod/\nenabled=1\ngpgcheck=1\n'
+            'gpgkey=https://packages.microsoft.com/keys/microsoft.asc\n' % (TOOLS_REPO_ID, int(version), int(version)))
+
+
+def write_tools_repo(version, path=TOOLS_REPO_FILE):
+    with open(path + '.tmp', 'w') as handle:
+        handle.write(tools_repo_text(version))
+    os.chmod(path + '.tmp', 0o644)
+    os.replace(path + '.tmp', path)
+
+
 def total_ram_mb(meminfo='/proc/meminfo'):
     with open(meminfo) as handle:
         for line in handle:

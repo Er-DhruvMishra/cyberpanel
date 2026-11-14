@@ -155,3 +155,25 @@ class PagesRender(SimpleTestCase):
             self.assertIn('ua-wrap', html, page)
         disabled = render_to_string('universalAddons/apps.html', dict(context, enabled=False, is_admin=False))
         self.assertIn('has not enabled apps', disabled)
+
+
+class Repositories(SimpleTestCase):
+    def test_tools_repo_has_its_own_id(self):
+        text = sq.tools_repo_text(8)
+        self.assertIn('[cp-microsoft-prod]', text)
+        self.assertIn('baseurl=https://packages.microsoft.com/rhel/8/prod/', text)
+        self.assertIn('gpgcheck=1', text)
+        self.assertNotIn('packages-microsoft-com-prod', text)
+
+    def test_foreign_install_is_never_reconfigured(self):
+        state = tempfile.mkdtemp()
+        data = tempfile.mkdtemp()
+        os.makedirs(os.path.join(data, 'data'))
+        open(os.path.join(data, 'data', 'master.mdf'), 'w').close()
+        with mock.patch.object(sq, 'STATE_DIR', state), mock.patch.object(sq, 'DATA_DIR', data), \
+                mock.patch('universalAddons.mssql.actions.os.path.exists',
+                           side_effect=lambda p: p == '/opt/mssql/bin/sqlservr' or os.path.isfile(p)):
+            self.assertTrue(actions._foreign_install())
+            self.assertFalse(actions._installed())
+            with self.assertRaisesRegex(sq.SQLError, 'outside the panel'):
+                actions.install(accept_eula=True)

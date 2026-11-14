@@ -19,7 +19,14 @@ def _profile():
 
 
 def _installed():
-    return os.path.exists('/opt/mssql/bin/sqlservr')
+    """SQL Server is set up by the panel (package present and the panel holds its sa password)."""
+    return os.path.exists('/opt/mssql/bin/sqlservr') and os.path.exists(os.path.join(sq.STATE_DIR, 'sa.json'))
+
+
+def _foreign_install():
+    """A SQL Server initialised outside the panel: never re-run setup over its databases."""
+    return (os.path.exists('/opt/mssql/bin/sqlservr') and not os.path.exists(os.path.join(sq.STATE_DIR, 'sa.json'))
+            and os.path.exists(os.path.join(sq.DATA_DIR, 'data', 'master.mdf')))
 
 
 def _site_user(domain):
@@ -53,6 +60,8 @@ def overview():
 def install(accept_eula, memory_limit_mb=None):
     if accept_eula is not True:
         raise SQLError('You must accept the Microsoft SQL Server licence terms to install it.')
+    if _foreign_install():
+        raise SQLError('SQL Server is already set up outside the panel; the panel will not reconfigure it.')
     state = overview()
     failed = [c['detail'] for c in state['preflight'] if not c['ok']]
     if failed:
@@ -80,8 +89,9 @@ def install_run(job_id, memory_limit_mb):
     if kind == 'rpm':
         steps += [
             ('Add Microsoft repository', command(['curl', '-fsSL', '-o', '/etc/yum.repos.d/mssql-server-%s.repo' % product, repo])),
-            ('Add Microsoft tools repository', command(['curl', '-fsSL', '-o', '/etc/yum.repos.d/msprod.repo',
-                                                        sq.tools_repo_for(profile['family'], profile['version'])])),
+            # Own repo id: hosts often carry an older microsoft-prod.repo (e.g. the CentOS 7 one) with
+            # Microsoft's default id, which would shadow the right repository.
+            ('Add Microsoft tools repository', lambda job: sq.write_tools_repo(profile['version'])),
             ('Install SQL Server %s' % product, command(['dnf', '-y', 'install', 'mssql-server'], timeout=3600)),
             ('Install sqlcmd', command(['dnf', '-y', 'install', 'mssql-tools18', 'unixODBC'], env={'ACCEPT_EULA': 'Y'})),
         ]
