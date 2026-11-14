@@ -19,6 +19,7 @@ Units backed up per site (each tagged `site:<domain>` plus the unit tag):
 import contextlib
 import fcntl
 import json
+import glob
 import os
 import re
 import secrets
@@ -253,7 +254,11 @@ def unit_sources(domain, unit):
     if unit == 'mail':
         return ['/home/vmail/%s' % domain]
     if unit == 'config':
-        return ['/usr/local/lsws/conf/vhosts/%s' % domain, '/etc/letsencrypt/live/%s' % domain]
+        # Apache Manager sites also need their Apache vhost and PHP-FPM pool to come back on restore.
+        return (['/usr/local/lsws/conf/vhosts/%s' % domain, '/etc/letsencrypt/live/%s' % domain,
+                 '/etc/httpd/conf.d/cp-ua-%s.conf' % domain]
+                + sorted(glob.glob('/etc/opt/remi/php*/php-fpm.d/cp-ua-%s.conf' % glob.escape(domain)))
+                + sorted(glob.glob('/etc/php-fpm.d/cp-ua-%s.conf' % glob.escape(domain))))
     return []
 
 

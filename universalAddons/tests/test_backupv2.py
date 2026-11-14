@@ -207,3 +207,16 @@ class RealRestic(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class ApacheConfigInBackups(unittest.TestCase):
+    def test_config_unit_includes_apache_vhost_and_fpm_pools(self):
+        from unittest import mock
+        from universalAddons.backupv2 import service as bk
+        pools = {'/etc/opt/remi/php*/php-fpm.d/cp-ua-shop.example.com.conf': ['/etc/opt/remi/php81/php-fpm.d/cp-ua-shop.example.com.conf'],
+                 '/etc/php-fpm.d/cp-ua-shop.example.com.conf': []}
+        with mock.patch.object(bk.glob, 'glob', side_effect=lambda pattern: pools.get(pattern, [])):
+            paths = bk.unit_sources('shop.example.com', 'config')
+        self.assertIn('/usr/local/lsws/conf/vhosts/shop.example.com', paths)
+        self.assertIn('/etc/httpd/conf.d/cp-ua-shop.example.com.conf', paths)
+        self.assertIn('/etc/opt/remi/php81/php-fpm.d/cp-ua-shop.example.com.conf', paths)
