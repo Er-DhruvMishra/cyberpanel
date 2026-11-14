@@ -1233,7 +1233,12 @@ app.controller('dashboardStatsController', function ($scope, $http, $timeout) {
     // For rate calculation
     var lastRx = null, lastTx = null, lastDiskRead = null, lastDiskWrite = null, lastCPU = null;
     var lastCPUTimes = null;
-    var pollInterval = 2000; // ms
+    // Every poll is a Python request on the panel (and getTopProcesses runs ps), so a 2 s loop
+    // kept a worker busy whenever a dashboard tab was open. Poll every 10 s, refresh the
+    // counters once a minute, and stop while the tab is hidden.
+    var pollInterval = 10000; // ms
+    var statsEvery = 6;       // dashboard counters: every 6th poll (one minute)
+    var pollCount = 0;
     var maxPoints = 30;
 
     function pollDashboardStats() {
@@ -1729,8 +1734,14 @@ app.controller('dashboardStatsController', function ($scope, $http, $timeout) {
         pollDashboardStats();
         // Start polling
         function pollAll() {
-            pollDashboardStats();
-            pollAdminWidgets();
+            if (typeof document !== 'undefined' && document.hidden) {
+                // Rates are computed from consecutive samples; start fresh when the tab returns.
+                lastRx = lastTx = lastDiskRead = lastDiskWrite = null;
+            } else {
+                if (pollCount % statsEvery === 0) pollDashboardStats();
+                pollCount += 1;
+                pollAdminWidgets();
+            }
             $timeout(pollAll, pollInterval);
         }
         pollAll();

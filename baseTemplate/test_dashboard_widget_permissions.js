@@ -129,7 +129,7 @@ test('authorized account starts charts and all widgets only after positive permi
     assert.equal(d.scope.hideSystemCharts, false);
     assert.equal(d.chartCount, 3);
     for (const url of adminURLs) assert.equal(d.count(url), 1, url);
-    await d.advance(2000);
+    await d.advance(10000);
     assert.equal(d.count('/base/getTopProcesses'), 2);
     assert.equal(d.count('/base/getRecentSSHLogins'), 1);
     assert.equal(d.count('/base/getRecentSSHLogs'), 1);

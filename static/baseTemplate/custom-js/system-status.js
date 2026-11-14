@@ -4,6 +4,7 @@
 
 /* Utilities */
 
+
 function getCookie(name) {
     var cookieValue = null;
     if (document.cookie && document.cookie !== '') {
@@ -117,10 +118,25 @@ function getWebsiteName(domain) {
 
 app.controller('systemStatusInfo', function ($scope, $http, $timeout) {
 
-    //getStuff();
+    $scope.uptimeLoaded = false;
+    $scope.uptime = 'Loading...';
+    $scope.statusError = false;
+
+    getStuff();
+
+    $scope.getSystemStatus = function() {
+        getStuff();
+    };
+
+    $scope.retryStatus = function() {
+        $scope.statusError = false;
+        $scope.cpuUsage = undefined;
+        $scope.ramUsage = undefined;
+        $scope.diskUsage = undefined;
+        getStuff();
+    };
 
     function getStuff() {
-
 
         url = "/base/getSystemStatus";
 
@@ -129,16 +145,40 @@ app.controller('systemStatusInfo', function ($scope, $http, $timeout) {
 
         function ListInitialData(response) {
 
+            $scope.statusError = false;
             $scope.cpuUsage = response.data.cpuUsage;
             $scope.ramUsage = response.data.ramUsage;
             $scope.diskUsage = response.data.diskUsage;
+            
+            // Total system information
+            $scope.cpuCores = response.data.cpuCores;
+            $scope.ramTotalMB = response.data.ramTotalMB;
+            $scope.diskTotalGB = response.data.diskTotalGB;
+            $scope.diskFreeGB = response.data.diskFreeGB;
+            
+            // Get uptime if available
+            if (response.data.uptime) {
+                $scope.uptime = response.data.uptime;
+                $scope.uptimeLoaded = true;
+            } else {
+                // Fallback: try to get uptime separately
+                $http.get("/base/getUptime").then(function(uptimeResponse) {
+                    if (uptimeResponse.data.uptime) {
+                        $scope.uptime = uptimeResponse.data.uptime;
+                        $scope.uptimeLoaded = true;
+                    }
+                });
+            }
 
         }
 
         function cantLoadInitialData(response) {
+            $scope.uptime = 'Unavailable';
+            $scope.uptimeLoaded = true;
+            $scope.statusError = true;
         }
 
-        //$timeout(getStuff, 2000);
+        $timeout(getStuff, 60000); // Update every minute
 
     }
 });
@@ -562,10 +602,20 @@ app.controller('versionManagment', function ($scope, $http, $timeout) {
         $scope.updateFinish = true;
         $scope.couldNotConnect = true;
 
+        var data = {
+            branchSelect: document.getElementById("branchSelect").value,
+
+        };
+
+        var config = {
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken')
+            }
+        };
+
 
         url = "/base/upgrade";
-
-        $http.get(url).then(ListInitialData, cantLoadInitialData);
+        $http.post(url, data, config).then(ListInitialData, cantLoadInitialData);
 
 
         function ListInitialData(response) {
@@ -618,6 +668,7 @@ app.controller('versionManagment', function ($scope, $http, $timeout) {
 
 
         function ListInitialDatas(response) {
+            console.log(response.data.upgradeLog);
 
 
             if (response.data.upgradeStatus === 1) {
@@ -635,7 +686,7 @@ app.controller('versionManagment', function ($scope, $http, $timeout) {
                 } else {
                     $scope.upgradelogBox = false;
                     $scope.upgradeLog = response.data.upgradeLog;
-                    $timeout(getUpgradeStatus, 2000);
+                    timeout(getUpgradeStatus, 2000);
                 }
             }
 
@@ -698,5 +749,1159 @@ app.controller('designtheme', function ($scope, $http, $timeout) {
 
         //$timeout(getStuff, 2000);
 
+    };
+});
+
+
+app.controller('OnboardingCP', function ($scope, $http, $timeout, $window) {
+
+    $scope.cyberpanelLoading = true;
+    $scope.ExecutionStatus = true;
+    $scope.ReportStatus = true;
+    $scope.OnboardineDone = true;
+    
+    var statusTimer = null;
+
+    function statusFunc() {
+        $scope.cyberpanelLoading = false;
+        $scope.ExecutionStatus = false;
+        var url = "/emailPremium/statusFunc";
+
+        var data = {
+            statusFile: statusFile
+        };
+        var config = {
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken')
+            }
+        };
+
+        $http.post(url, data, config).then(ListInitialData, cantLoadInitialData);
+
+
+        function ListInitialData(response) {
+            if (response.data.status === 1) {
+                if (response.data.abort === 1) {
+                    $scope.functionProgress = {"width": "100%"};
+                    $scope.functionStatus = response.data.currentStatus;
+                    $scope.cyberpanelLoading = true;
+                    $scope.OnboardineDone = false;
+                    if (statusTimer) {
+                        $timeout.cancel(statusTimer);
+                        statusTimer = null;
+                    }
+                } else {
+                    $scope.functionProgress = {"width": response.data.installationProgress + "%"};
+                    $scope.functionStatus = response.data.currentStatus;
+                    statusTimer = $timeout(statusFunc, 3000);
+                }
+
+            } else {
+                $scope.cyberpanelLoading = true;
+                $scope.functionStatus = response.data.error_message;
+                $scope.functionProgress = {"width": response.data.installationProgress + "%"};
+                if (statusTimer) {
+                    $timeout.cancel(statusTimer);
+                    statusTimer = null;
+                }
+            }
+
+        }
+
+        function cantLoadInitialData(response) {
+            $scope.functionProgress = {"width": response.data.installationProgress + "%"};
+            $scope.functionStatus = 'Could not connect to server, please refresh this page.';
+            $timeout.cancel();
+        }
+    }
+
+    $scope.RunOnboarding = function () {
+        $scope.cyberpanelLoading = false;
+        $scope.OnboardineDone = true;
+
+        var url = "/base/runonboarding";
+
+        var data = {
+            hostname: $scope.hostname,
+            rDNSCheck: $scope.rDNSCheck
+        };
+
+        var config = {
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken')
+            }
+        };
+
+
+        $http.post(url, data, config).then(ListInitialData, cantLoadInitialData);
+
+        function ListInitialData(response) {
+            $scope.cyberpanelLoading = true;
+            if (response.data.status === 1) {
+                statusFile = response.data.tempStatusPath;
+                statusFunc();
+
+
+            } else {
+                new PNotify({
+                    title: 'Operation Failed!',
+                    text: response.data.error_message,
+                    type: 'error'
+                });
+            }
+
+        }
+
+        function cantLoadInitialData(response) {
+            $scope.cyberpanelLoading = true;
+
+            new PNotify({
+                title: 'Error',
+                text: 'Could not connect to server, please refresh this page.',
+                type: 'error'
+            });
+        }
+    };
+
+    $scope.RestartCyberPanel = function () {
+        $scope.cyberpanelLoading = false;
+
+        var url = "/base/RestartCyberPanel";
+
+        var data = {
+
+        };
+
+        var config = {
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken')
+            }
+        };
+
+
+        $http.post(url, data, config).then(ListInitialData, cantLoadInitialData);
+        $scope.cyberpanelLoading = true;
+        new PNotify({
+                    title: 'Success',
+                    text: 'Refresh your browser after 3 seconds to fetch new SSL.',
+                    type: 'success'
+                });
+
+        function ListInitialData(response) {
+            $scope.cyberpanelLoading = true;
+            if (response.data.status === 1) {
+
+            } else {
+                new PNotify({
+                    title: 'Operation Failed!',
+                    text: response.data.error_message,
+                    type: 'error'
+                });
+            }
+
+        }
+
+        function cantLoadInitialData(response) {
+            $scope.cyberpanelLoading = true;
+
+            new PNotify({
+                title: 'Error',
+                text: 'Could not connect to server, please refresh this page.',
+                type: 'error'
+            });
+        }
+    };
+
+});
+
+app.controller('dashboardStatsController', function ($scope, $http, $timeout) {
+    // Card values
+    $scope.totalUsers = 0;
+    $scope.totalSites = 0;
+    $scope.totalWPSites = 0;
+    $scope.totalDBs = 0;
+    $scope.totalEmails = 0;
+    $scope.totalFTPUsers = 0;
+    $scope.statsLoaded = false;
+
+    // Admin widgets stay disabled until the permission lookup succeeds.
+    $scope.hideSystemCharts = true;
+    $scope.adminWidgetsError = false;
+    $scope.systemChartsError = false;
+    var chartsReady = false;
+
+    // Top Processes
+    $scope.topProcesses = [];
+    $scope.loadingTopProcesses = true;
+    $scope.errorTopProcesses = '';
+    $scope.refreshTopProcesses = function() {
+        if ($scope.hideSystemCharts) return;
+        $scope.loadingTopProcesses = true;
+        $http.get('/base/getTopProcesses').then(function (response) {
+            $scope.loadingTopProcesses = false;
+            if (response.data && response.data.status === 1 && response.data.processes) {
+                $scope.topProcesses = response.data.processes;
+            } else {
+                $scope.topProcesses = [];
+            }
+        }, function (err) {
+            $scope.loadingTopProcesses = false;
+            $scope.errorTopProcesses = 'Failed to load top processes.';
+        });
+    };
+
+    // SSH Logins
+    $scope.sshLogins = [];
+    $scope.sshLoginsPaginated = [];
+    $scope.sshLoginsCurrentPage = 1;
+    $scope.sshLoginsPerPage = 10;
+    $scope.sshLoginsGoToPage = 1;
+    $scope.loadingSSHLogins = true;
+    $scope.errorSSHLogins = '';
+    
+    $scope.getSSHLoginsTotalPages = function() {
+        return Math.ceil($scope.sshLogins.length / $scope.sshLoginsPerPage);
+    };
+    
+    $scope.getSSHLoginsStart = function() {
+        if (!$scope.sshLogins || $scope.sshLogins.length === 0) {
+            return 0;
+        }
+        return ($scope.sshLoginsCurrentPage - 1) * $scope.sshLoginsPerPage + 1;
+    };
+    
+    $scope.getSSHLoginsEnd = function() {
+        if (!$scope.sshLogins || $scope.sshLogins.length === 0) {
+            return 0;
+        }
+        var end = $scope.sshLoginsCurrentPage * $scope.sshLoginsPerPage;
+        return Math.min(end, $scope.sshLogins.length);
+    };
+    
+    $scope.updateSSHLoginsPaginated = function() {
+        if (!$scope.sshLogins || $scope.sshLogins.length === 0) {
+            $scope.sshLoginsPaginated = [];
+            console.log('updateSSHLoginsPaginated: No data, cleared paginated array');
+            return;
+        }
+        var start = ($scope.sshLoginsCurrentPage - 1) * $scope.sshLoginsPerPage;
+        var end = start + $scope.sshLoginsPerPage;
+        $scope.sshLoginsPaginated = $scope.sshLogins.slice(start, end);
+        console.log('updateSSHLoginsPaginated: start=', start, 'end=', end, 'total=', $scope.sshLogins.length, 'paginated=', $scope.sshLoginsPaginated.length);
+    };
+    
+    $scope.sshLoginsPrevPage = function() {
+        if ($scope.sshLoginsCurrentPage > 1) {
+            $scope.sshLoginsCurrentPage--;
+            $scope.updateSSHLoginsPaginated();
+        }
+    };
+    
+    $scope.sshLoginsNextPage = function() {
+        if ($scope.sshLoginsCurrentPage < $scope.getSSHLoginsTotalPages()) {
+            $scope.sshLoginsCurrentPage++;
+            $scope.updateSSHLoginsPaginated();
+        }
+    };
+    
+    $scope.sshLoginsGoToPageNumber = function() {
+        var page = parseInt($scope.sshLoginsGoToPage);
+        var totalPages = $scope.getSSHLoginsTotalPages();
+        if (page >= 1 && page <= totalPages) {
+            $scope.sshLoginsCurrentPage = page;
+            $scope.updateSSHLoginsPaginated();
+        } else {
+            $scope.sshLoginsGoToPage = $scope.sshLoginsCurrentPage;
+        }
+    };
+    
+    $scope.refreshSSHLogins = function() {
+        if ($scope.hideSystemCharts) return;
+        $scope.loadingSSHLogins = true;
+        $http.get('/base/getRecentSSHLogins').then(function (response) {
+            $scope.loadingSSHLogins = false;
+            console.log('SSH Logins response:', response.data);
+            if (response.data && response.data.logins && Array.isArray(response.data.logins)) {
+                $scope.sshLogins = response.data.logins;
+                $scope.sshLoginsCurrentPage = 1;
+                $scope.sshLoginsGoToPage = 1;
+                console.log('SSH Logins loaded:', $scope.sshLogins.length, 'items');
+                $scope.updateSSHLoginsPaginated();
+                console.log('SSH Logins paginated:', $scope.sshLoginsPaginated.length, 'items');
+            } else {
+                console.warn('SSH Logins: No data or invalid format', response.data);
+                $scope.sshLogins = [];
+                $scope.sshLoginsPaginated = [];
+            }
+        }, function (err) {
+            $scope.loadingSSHLogins = false;
+            console.error('SSH Logins error:', err);
+            $scope.errorSSHLogins = 'Failed to load SSH logins.';
+            $scope.sshLogins = [];
+            $scope.sshLoginsPaginated = [];
+        });
+    };
+
+    // SSH Logs
+    $scope.sshLogs = [];
+    $scope.sshLogsPaginated = [];
+    $scope.sshLogsCurrentPage = 1;
+    $scope.sshLogsPerPage = 10;
+    $scope.sshLogsGoToPage = 1;
+    $scope.loadingSSHLogs = true;
+    $scope.errorSSHLogs = '';
+    $scope.securityAlerts = [];
+    $scope.loadingSecurityAnalysis = false;
+    
+    $scope.getSSHLogsTotalPages = function() {
+        return Math.ceil($scope.sshLogs.length / $scope.sshLogsPerPage);
+    };
+    
+    $scope.getSSHLogsStart = function() {
+        if (!$scope.sshLogs || $scope.sshLogs.length === 0) {
+            return 0;
+        }
+        return ($scope.sshLogsCurrentPage - 1) * $scope.sshLogsPerPage + 1;
+    };
+    
+    $scope.getSSHLogsEnd = function() {
+        if (!$scope.sshLogs || $scope.sshLogs.length === 0) {
+            return 0;
+        }
+        var end = $scope.sshLogsCurrentPage * $scope.sshLogsPerPage;
+        return Math.min(end, $scope.sshLogs.length);
+    };
+    
+    $scope.updateSSHLogsPaginated = function() {
+        if (!$scope.sshLogs || $scope.sshLogs.length === 0) {
+            $scope.sshLogsPaginated = [];
+            console.log('updateSSHLogsPaginated: No data, cleared paginated array');
+            return;
+        }
+        var start = ($scope.sshLogsCurrentPage - 1) * $scope.sshLogsPerPage;
+        var end = start + $scope.sshLogsPerPage;
+        $scope.sshLogsPaginated = $scope.sshLogs.slice(start, end);
+        console.log('updateSSHLogsPaginated: start=', start, 'end=', end, 'total=', $scope.sshLogs.length, 'paginated=', $scope.sshLogsPaginated.length);
+    };
+    
+    $scope.sshLogsPrevPage = function() {
+        if ($scope.sshLogsCurrentPage > 1) {
+            $scope.sshLogsCurrentPage--;
+            $scope.updateSSHLogsPaginated();
+        }
+    };
+    
+    $scope.sshLogsNextPage = function() {
+        if ($scope.sshLogsCurrentPage < $scope.getSSHLogsTotalPages()) {
+            $scope.sshLogsCurrentPage++;
+            $scope.updateSSHLogsPaginated();
+        }
+    };
+    
+    $scope.sshLogsGoToPageNumber = function() {
+        var page = parseInt($scope.sshLogsGoToPage);
+        var totalPages = $scope.getSSHLogsTotalPages();
+        if (page >= 1 && page <= totalPages) {
+            $scope.sshLogsCurrentPage = page;
+            $scope.updateSSHLogsPaginated();
+        } else {
+            $scope.sshLogsGoToPage = $scope.sshLogsCurrentPage;
+        }
+    };
+    
+    $scope.refreshSSHLogs = function() {
+        if ($scope.hideSystemCharts) return;
+        $scope.loadingSSHLogs = true;
+        $http.get('/base/getRecentSSHLogs').then(function (response) {
+            $scope.loadingSSHLogs = false;
+            console.log('SSH Logs response:', response.data);
+            if (response.data && response.data.logs && Array.isArray(response.data.logs)) {
+                $scope.sshLogs = response.data.logs;
+                $scope.sshLogsCurrentPage = 1;
+                $scope.sshLogsGoToPage = 1;
+                console.log('SSH Logs loaded:', $scope.sshLogs.length, 'items');
+                $scope.updateSSHLogsPaginated();
+                console.log('SSH Logs paginated:', $scope.sshLogsPaginated.length, 'items');
+                // Analyze logs for security issues
+                $scope.analyzeSSHSecurity();
+            } else {
+                console.warn('SSH Logs: No data or invalid format', response.data);
+                $scope.sshLogs = [];
+                $scope.sshLogsPaginated = [];
+            }
+        }, function (err) {
+            $scope.loadingSSHLogs = false;
+            console.error('SSH Logs error:', err);
+            $scope.errorSSHLogs = 'Failed to load SSH logs.';
+            $scope.sshLogs = [];
+            $scope.sshLogsPaginated = [];
+        });
+    };
+    
+    // Security Analysis
+    $scope.showAddonRequired = false;
+    $scope.addonInfo = {};
+    
+    // IP Blocking functionality
+    $scope.blockingIP = null;
+    $scope.blockedIPs = {};
+    
+    $scope.analyzeSSHSecurity = function() {
+        $scope.loadingSecurityAnalysis = true;
+        $scope.showAddonRequired = false;
+        $http.post('/base/analyzeSSHSecurity', {}).then(function (response) {
+            $scope.loadingSecurityAnalysis = false;
+            if (response.data) {
+                if (response.data.addon_required) {
+                    $scope.showAddonRequired = true;
+                    $scope.addonInfo = response.data;
+                    $scope.securityAlerts = [];
+                } else if (response.data.status === 1) {
+                    $scope.securityAlerts = response.data.alerts;
+                    $scope.showAddonRequired = false;
+                }
+            }
+        }, function (err) {
+            $scope.loadingSecurityAnalysis = false;
+        });
+    };
+    
+    $scope.blockIPAddress = function(ipAddress) {
+        if (!$scope.blockingIP) {
+            $scope.blockingIP = ipAddress;
+            
+            var data = {
+                ip_address: ipAddress
+            };
+            
+            var config = {
+                headers: {
+                    'X-CSRFToken': getCookie('csrftoken')
+                }
+            };
+            
+            $http.post('/base/blockIPAddress', data, config).then(function (response) {
+                $scope.blockingIP = null;
+                if (response.data && response.data.status === 1) {
+                    // Mark IP as blocked
+                    $scope.blockedIPs[ipAddress] = true;
+                    
+                    // Show success notification
+                    new PNotify({
+                        title: 'Success',
+                        text: `IP address ${ipAddress} has been blocked successfully using ${response.data.firewall.toUpperCase()}`,
+                        type: 'success',
+                        delay: 5000
+                    });
+                    
+                    // Refresh security analysis to update alerts
+                    $scope.analyzeSSHSecurity();
+                } else {
+                    // Show error notification
+                    new PNotify({
+                        title: 'Error',
+                        text: response.data && response.data.error ? response.data.error : 'Failed to block IP address',
+                        type: 'error',
+                        delay: 5000
+                    });
+                }
+            }, function (err) {
+                $scope.blockingIP = null;
+                var errorMessage = 'Failed to block IP address';
+                if (err.data && err.data.error) {
+                    errorMessage = err.data.error;
+                } else if (err.data && err.data.message) {
+                    errorMessage = err.data.message;
+                }
+                
+                new PNotify({
+                    title: 'Error',
+                    text: errorMessage,
+                    type: 'error',
+                    delay: 5000
+                });
+            });
+        }
+    };
+
+    // Chart.js chart objects
+    var trafficChart, diskIOChart, cpuChart;
+    // Data arrays for live graphs
+    var trafficLabels = [], rxData = [], txData = [];
+    var diskLabels = [], readData = [], writeData = [];
+    var cpuLabels = [], cpuUsageData = [];
+    // For rate calculation
+    var lastRx = null, lastTx = null, lastDiskRead = null, lastDiskWrite = null, lastCPU = null;
+    var lastCPUTimes = null;
+    // Every poll is a Python request on the panel (and getTopProcesses runs ps), so a 2 s loop
+    // kept a worker busy whenever a dashboard tab was open. Poll every 10 s, refresh the
+    // counters once a minute, and stop while the tab is hidden.
+    var pollInterval = 10000; // ms
+    var statsEvery = 6;       // dashboard counters: every 6th poll (one minute)
+    var pollCount = 0;
+    var maxPoints = 30;
+
+    function pollDashboardStats() {
+        $http.get('/base/getDashboardStats').then(function(response) {
+            if (response.data.status === 1) {
+                $scope.totalUsers = response.data.total_users;
+                $scope.totalSites = response.data.total_sites;
+                $scope.totalWPSites = response.data.total_wp_sites;
+                $scope.totalDBs = response.data.total_dbs;
+                $scope.totalEmails = response.data.total_emails;
+                $scope.totalFTPUsers = response.data.total_ftp_users;
+                $scope.statsLoaded = true;
+            }
+        });
+    }
+
+    function pollTraffic() {
+        console.log('pollTraffic called');
+        $http.get('/base/getTrafficStats').then(function(response) {
+            if (response.data.admin_only) {
+                // Hide chart for non-admin users
+                $scope.hideSystemCharts = true;
+                return;
+            }
+            if (response.data.status === 1) {
+                var now = new Date();
+                var rx = response.data.rx_bytes;
+                var tx = response.data.tx_bytes;
+                if (lastRx !== null && lastTx !== null) {
+                    var rxRate = (rx - lastRx) / (pollInterval / 1000); // bytes/sec
+                    var txRate = (tx - lastTx) / (pollInterval / 1000);
+                    trafficLabels.push(now.toLocaleTimeString());
+                    rxData.push(rxRate);
+                    txData.push(txRate);
+                    if (trafficLabels.length > maxPoints) {
+                        trafficLabels.shift(); rxData.shift(); txData.shift();
+                    }
+                    if (trafficChart) {
+                        trafficChart.data.labels = trafficLabels.slice();
+                        trafficChart.data.datasets[0].data = rxData.slice();
+                        trafficChart.data.datasets[1].data = txData.slice();
+                        trafficChart.update();
+                        console.log('trafficChart updated:', trafficChart.data.labels, trafficChart.data.datasets[0].data, trafficChart.data.datasets[1].data);
+                    }
+                } else {
+                    // First poll, push zero data point
+                    trafficLabels.push(now.toLocaleTimeString());
+                    rxData.push(0);
+                    txData.push(0);
+                    if (trafficChart) {
+                        trafficChart.data.labels = trafficLabels.slice();
+                        trafficChart.data.datasets[0].data = rxData.slice();
+                        trafficChart.data.datasets[1].data = txData.slice();
+                        trafficChart.update();
+                        console.log('trafficChart first update:', trafficChart.data.labels, trafficChart.data.datasets[0].data, trafficChart.data.datasets[1].data);
+                        setTimeout(function() {
+                            if (window.trafficChart) {
+                                window.trafficChart.resize();
+                                window.trafficChart.update();
+                                console.log('trafficChart forced resize/update after first poll.');
+                            }
+                        }, 1000);
+                    }
+                }
+                lastRx = rx; lastTx = tx;
+            } else {
+                console.log('pollTraffic error or no data:', response);
+            }
+        });
+    }
+
+    function pollDiskIO() {
+        $http.get('/base/getDiskIOStats').then(function(response) {
+            if (response.data.admin_only) {
+                // Hide chart for non-admin users
+                $scope.hideSystemCharts = true;
+                return;
+            }
+            if (response.data.status === 1) {
+                var now = new Date();
+                var read = response.data.read_bytes;
+                var write = response.data.write_bytes;
+                if (lastDiskRead !== null && lastDiskWrite !== null) {
+                    var readRate = (read - lastDiskRead) / (pollInterval / 1000); // bytes/sec
+                    var writeRate = (write - lastDiskWrite) / (pollInterval / 1000);
+                    diskLabels.push(now.toLocaleTimeString());
+                    readData.push(readRate);
+                    writeData.push(writeRate);
+                    if (diskLabels.length > maxPoints) {
+                        diskLabels.shift(); readData.shift(); writeData.shift();
+                    }
+                    if (diskIOChart) {
+                        diskIOChart.data.labels = diskLabels.slice();
+                        diskIOChart.data.datasets[0].data = readData.slice();
+                        diskIOChart.data.datasets[1].data = writeData.slice();
+                        diskIOChart.update();
+                    }
+                } else {
+                    // First poll, push zero data point
+                    diskLabels.push(now.toLocaleTimeString());
+                    readData.push(0);
+                    writeData.push(0);
+                    if (diskIOChart) {
+                        diskIOChart.data.labels = diskLabels.slice();
+                        diskIOChart.data.datasets[0].data = readData.slice();
+                        diskIOChart.data.datasets[1].data = writeData.slice();
+                        diskIOChart.update();
+                    }
+                }
+                lastDiskRead = read; lastDiskWrite = write;
+            }
+        });
+    }
+
+    function pollCPU() {
+        $http.get('/base/getCPULoadGraph').then(function(response) {
+            if (response.data.admin_only) {
+                // Hide chart for non-admin users
+                $scope.hideSystemCharts = true;
+                return;
+            }
+            if (response.data.status === 1 && response.data.cpu_times && response.data.cpu_times.length >= 4) {
+                var now = new Date();
+                var cpuTimes = response.data.cpu_times;
+                if (lastCPUTimes) {
+                    var idle = cpuTimes[3];
+                    var total = cpuTimes.reduce(function(a, b) { return a + b; }, 0);
+                    var lastIdle = lastCPUTimes[3];
+                    var lastTotal = lastCPUTimes.reduce(function(a, b) { return a + b; }, 0);
+                    var idleDiff = idle - lastIdle;
+                    var totalDiff = total - lastTotal;
+                    var usage = totalDiff > 0 ? (100 * (1 - idleDiff / totalDiff)) : 0;
+                    cpuLabels.push(now.toLocaleTimeString());
+                    cpuUsageData.push(usage);
+                    if (cpuLabels.length > maxPoints) {
+                        cpuLabels.shift(); cpuUsageData.shift();
+                    }
+                    if (cpuChart) {
+                        cpuChart.data.labels = cpuLabels.slice();
+                        cpuChart.data.datasets[0].data = cpuUsageData.slice();
+                        cpuChart.update();
+                    }
+                } else {
+                    // First poll, push zero data point
+                    cpuLabels.push(now.toLocaleTimeString());
+                    cpuUsageData.push(0);
+                    if (cpuChart) {
+                        cpuChart.data.labels = cpuLabels.slice();
+                        cpuChart.data.datasets[0].data = cpuUsageData.slice();
+                        cpuChart.update();
+                    }
+                }
+                lastCPUTimes = cpuTimes;
+            }
+        });
+    }
+
+    function setupCharts() {
+        console.log('setupCharts called, initializing charts...');
+        var canvases = ['trafficChart', 'diskIOChart', 'cpuChart'].map(function(id) {
+            return document.getElementById(id);
+        });
+        if (canvases.some(function(canvas) { return !canvas; })) {
+            throw new Error('Dashboard chart canvas is unavailable.');
+        }
+        var contexts = canvases.map(function(canvas) { return canvas.getContext('2d'); });
+        if (contexts.some(function(context) { return !context; })) {
+            throw new Error('Dashboard chart context is unavailable.');
+        }
+        var trafficCtx = contexts[0];
+        trafficChart = new Chart(trafficCtx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [
+                    { 
+                        label: 'Download', 
+                        data: [], 
+                        borderColor: '#5b5fcf', 
+                        backgroundColor: 'rgba(91,95,207,0.1)', 
+                        pointBackgroundColor: '#5b5fcf',
+                        pointBorderColor: '#5b5fcf',
+                        pointRadius: 3,
+                        pointHoverRadius: 5,
+                        borderWidth: 2,
+                        tension: 0.4, 
+                        fill: true 
+                    },
+                    { 
+                        label: 'Upload', 
+                        data: [], 
+                        borderColor: '#4a90e2', 
+                        backgroundColor: 'rgba(74,144,226,0.1)', 
+                        pointBackgroundColor: '#4a90e2',
+                        pointBorderColor: '#4a90e2',
+                        pointRadius: 3,
+                        pointHoverRadius: 5,
+                        borderWidth: 2,
+                        tension: 0.4, 
+                        fill: true 
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: { duration: 0 },
+                plugins: {
+                    legend: { 
+                        display: true, 
+                        position: 'top',
+                        labels: { 
+                            font: { size: 12, weight: '600' },
+                            color: '#64748b',
+                            usePointStyle: true,
+                            padding: 20
+                        } 
+                    },
+                    title: { display: false },
+                    tooltip: { 
+                        enabled: true, 
+                        mode: 'index', 
+                        intersect: false,
+                        backgroundColor: 'rgba(255,255,255,0.95)',
+                        titleColor: '#2f3640',
+                        bodyColor: '#64748b',
+                        borderColor: '#e8e9ff',
+                        borderWidth: 1,
+                        cornerRadius: 8,
+                        padding: 12
+                    }
+                },
+                interaction: { mode: 'nearest', axis: 'x', intersect: false },
+                scales: {
+                    x: { 
+                        grid: { color: '#f0f0ff', drawBorder: false }, 
+                        ticks: { 
+                            font: { size: 11 },
+                            color: '#94a3b8',
+                            maxTicksLimit: 8
+                        }
+                    },
+                    y: { 
+                        beginAtZero: true, 
+                        grid: { color: '#f0f0ff', drawBorder: false }, 
+                        ticks: { 
+                            font: { size: 11 },
+                            color: '#94a3b8'
+                        }
+                    }
+                },
+                layout: { padding: { top: 10, bottom: 10, left: 10, right: 10 } }
+            }
+        });
+        window.trafficChart = trafficChart;
+        setTimeout(function() {
+            if (window.trafficChart) {
+                window.trafficChart.resize();
+                window.trafficChart.update();
+                console.log('trafficChart resized and updated after setup.');
+            }
+        }, 500);
+        var diskCtx = contexts[1];
+        diskIOChart = new Chart(diskCtx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [
+                    { 
+                        label: 'Read', 
+                        data: [], 
+                        borderColor: '#5b5fcf', 
+                        backgroundColor: 'rgba(91,95,207,0.1)', 
+                        pointBackgroundColor: '#5b5fcf',
+                        pointBorderColor: '#5b5fcf',
+                        pointRadius: 3,
+                        pointHoverRadius: 5,
+                        borderWidth: 2,
+                        tension: 0.4, 
+                        fill: true 
+                    },
+                    { 
+                        label: 'Write', 
+                        data: [], 
+                        borderColor: '#e74c3c', 
+                        backgroundColor: 'rgba(231,76,60,0.1)', 
+                        pointBackgroundColor: '#e74c3c',
+                        pointBorderColor: '#e74c3c',
+                        pointRadius: 3,
+                        pointHoverRadius: 5,
+                        borderWidth: 2,
+                        tension: 0.4, 
+                        fill: true 
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: { duration: 0 },
+                plugins: {
+                    legend: { 
+                        display: true, 
+                        position: 'top',
+                        labels: { 
+                            font: { size: 12, weight: '600' },
+                            color: '#64748b',
+                            usePointStyle: true,
+                            padding: 20
+                        } 
+                    },
+                    title: { display: false },
+                    tooltip: { 
+                        enabled: true, 
+                        mode: 'index', 
+                        intersect: false,
+                        backgroundColor: 'rgba(255,255,255,0.95)',
+                        titleColor: '#2f3640',
+                        bodyColor: '#64748b',
+                        borderColor: '#e8e9ff',
+                        borderWidth: 1,
+                        cornerRadius: 8,
+                        padding: 12
+                    }
+                },
+                interaction: { mode: 'nearest', axis: 'x', intersect: false },
+                scales: {
+                    x: { 
+                        grid: { color: '#f0f0ff', drawBorder: false }, 
+                        ticks: { 
+                            font: { size: 11 },
+                            color: '#94a3b8',
+                            maxTicksLimit: 8
+                        }
+                    },
+                    y: { 
+                        beginAtZero: true, 
+                        grid: { color: '#f0f0ff', drawBorder: false }, 
+                        ticks: { 
+                            font: { size: 11 },
+                            color: '#94a3b8'
+                        }
+                    }
+                },
+                layout: { padding: { top: 10, bottom: 10, left: 10, right: 10 } }
+            }
+        });
+        var cpuCtx = contexts[2];
+        cpuChart = new Chart(cpuCtx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [
+                    { 
+                        label: 'CPU Usage (%)', 
+                        data: [], 
+                        borderColor: '#5b5fcf', 
+                        backgroundColor: 'rgba(91,95,207,0.1)', 
+                        pointBackgroundColor: '#5b5fcf',
+                        pointBorderColor: '#5b5fcf',
+                        pointRadius: 3,
+                        pointHoverRadius: 5,
+                        borderWidth: 2,
+                        tension: 0.4, 
+                        fill: true 
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: { duration: 0 },
+                plugins: {
+                    legend: { 
+                        display: true, 
+                        position: 'top',
+                        labels: { 
+                            font: { size: 12, weight: '600' },
+                            color: '#64748b',
+                            usePointStyle: true,
+                            padding: 20
+                        } 
+                    },
+                    title: { display: false },
+                    tooltip: { 
+                        enabled: true, 
+                        mode: 'index', 
+                        intersect: false,
+                        backgroundColor: 'rgba(255,255,255,0.95)',
+                        titleColor: '#2f3640',
+                        bodyColor: '#64748b',
+                        borderColor: '#e8e9ff',
+                        borderWidth: 1,
+                        cornerRadius: 8,
+                        padding: 12
+                    }
+                },
+                interaction: { mode: 'nearest', axis: 'x', intersect: false },
+                scales: {
+                    x: { 
+                        grid: { color: '#f0f0ff', drawBorder: false }, 
+                        ticks: { 
+                            font: { size: 11 },
+                            color: '#94a3b8',
+                            maxTicksLimit: 8
+                        }
+                    },
+                    y: { 
+                        beginAtZero: true, 
+                        max: 100, 
+                        grid: { color: '#f0f0ff', drawBorder: false }, 
+                        ticks: { 
+                            font: { size: 11 },
+                            color: '#94a3b8'
+                        }
+                    }
+                },
+                layout: { padding: { top: 10, bottom: 10, left: 10, right: 10 } }
+            }
+        });
+
+        // Redraw charts on tab shown
+        $("a[data-toggle='tab']").on('shown.bs.tab', function (e) {
+            setTimeout(function() {
+                if (trafficChart) trafficChart.resize();
+                if (diskIOChart) diskIOChart.resize();
+                if (cpuChart) cpuChart.resize();
+            }, 100);
+        });
+        
+        // Also handle custom tab switching
+        document.addEventListener('DOMContentLoaded', function() {
+            var tabs = document.querySelectorAll('a[data-toggle="tab"]');
+            tabs.forEach(function(tab) {
+                tab.addEventListener('click', function(e) {
+                    setTimeout(function() {
+                        if (trafficChart) trafficChart.resize();
+                        if (diskIOChart) diskIOChart.resize();
+                        if (cpuChart) cpuChart.resize();
+                    }, 200);
+                });
+            });
+        });
+    }
+
+    function initializeCharts() {
+        try {
+            if (typeof Chart !== 'function') throw new Error('Chart.js is unavailable.');
+            setupCharts();
+            chartsReady = true;
+        } catch (error) {
+            $scope.systemChartsError = true;
+            [trafficChart, diskIOChart, cpuChart].forEach(function(chart) {
+                if (chart) {
+                    try { chart.destroy(); } catch (cleanupError) { /* Keep the chart failure visible. */ }
+                }
+            });
+            trafficChart = diskIOChart = cpuChart = null;
+            window.trafficChart = null;
+        }
+    }
+
+    function pollAdminWidgets() {
+        if ($scope.hideSystemCharts) return;
+        $scope.refreshTopProcesses();
+        if (!chartsReady) return;
+        pollTraffic();
+        pollDiskIO();
+        pollCPU();
+    }
+
+    // Initial setup
+    $timeout(function() {
+        // Check if user is admin before setting up charts
+        $http.get('/base/getAdminStatus').then(function(response) {
+            if (response.data && response.data.admin === 1) {
+                $scope.hideSystemCharts = false;
+                initializeCharts();
+                $scope.refreshSSHLogins();
+                $scope.refreshSSHLogs();
+                pollAdminWidgets();
+            } else {
+                $scope.hideSystemCharts = true;
+                $scope.adminWidgetsError = !response.data || response.data.admin !== 0;
+            }
+        }, function() {
+            // A failed permission lookup never grants access to admin widgets.
+            $scope.adminWidgetsError = true;
+            $scope.hideSystemCharts = true;
+        });
+        
+        // Immediately poll once so stats are updated on first load
+        pollDashboardStats();
+        // Start polling
+        function pollAll() {
+            if (typeof document !== 'undefined' && document.hidden) {
+                // Rates are computed from consecutive samples; start fresh when the tab returns.
+                lastRx = lastTx = lastDiskRead = lastDiskWrite = null;
+            } else {
+                if (pollCount % statsEvery === 0) pollDashboardStats();
+                pollCount += 1;
+                pollAdminWidgets();
+            }
+            $timeout(pollAll, pollInterval);
+        }
+        pollAll();
+    }, 500);
+
+    // SSH User Activity Modal
+    $scope.showSSHActivityModal = false;
+    $scope.sshActivity = { processes: [], w: [] };
+    $scope.sshActivityUser = '';
+    $scope.loadingSSHActivity = false;
+    $scope.errorSSHActivity = '';
+    
+    $scope.viewSSHActivity = function(login) {
+        $scope.showSSHActivityModal = true;
+        $scope.sshActivity = { processes: [], w: [] };
+        $scope.sshActivityUser = login.user;
+        $scope.loadingSSHActivity = true;
+        $scope.errorSSHActivity = '';
+        var tty = '';
+        // Try to extract tty from login.raw or login.session if available
+        if (login.raw) {
+            var match = login.raw.match(/(pts\/[0-9]+)/);
+            if (match) tty = match[1];
+        }
+        console.log('Fetching SSH activity for user:', login.user, 'IP:', login.ip, 'TTY:', tty);
+        $http.post('/base/getSSHUserActivity', { user: login.user, tty: tty, ip: login.ip || '' }, {
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            timeout: 30000
+        }).then(function(response) {
+            console.log('SSH Activity response received:', response);
+            $scope.loadingSSHActivity = false;
+            if (response.data && response.data.error) {
+                console.error('SSH Activity error:', response.data.error);
+                $scope.errorSSHActivity = response.data.error;
+                $scope.sshActivity = { processes: [], w: [], shell_history: [], geoip: {}, disk_usage: '' };
+            } else if (response.data) {
+                console.log('SSH Activity data:', response.data);
+                $scope.sshActivity = response.data;
+                $scope.errorSSHActivity = '';
+            } else {
+                console.warn('SSH Activity: No data in response');
+                $scope.sshActivity = { processes: [], w: [], shell_history: [], geoip: {}, disk_usage: '' };
+                $scope.errorSSHActivity = 'No data received from server.';
+            }
+        }, function(err) {
+            $scope.loadingSSHActivity = false;
+            console.error('Error fetching SSH activity:', err);
+            console.error('Error status:', err.status);
+            console.error('Error data:', err.data);
+            if (err.status === 0) {
+                $scope.errorSSHActivity = 'Network error: Unable to connect to server. Please check your connection.';
+            } else if (err.status === -1) {
+                $scope.errorSSHActivity = 'Request timeout. The server took too long to respond.';
+            } else if (err.data && err.data.error) {
+                $scope.errorSSHActivity = err.data.error;
+            } else if (err.data && err.data.errorMessage) {
+                $scope.errorSSHActivity = err.data.errorMessage;
+            } else if (err.status === 403) {
+                $scope.errorSSHActivity = 'Access denied. Admin privileges required.';
+            } else if (err.status === 400) {
+                $scope.errorSSHActivity = 'Invalid request. Please try again.';
+            } else if (err.status === 500) {
+                $scope.errorSSHActivity = 'Server error. Please try again later.';
+            } else {
+                $scope.errorSSHActivity = 'Failed to fetch activity. Status: ' + (err.status || 'Unknown') + '. Please check your connection and try again.';
+            }
+            $scope.sshActivity = { processes: [], w: [], shell_history: [], geoip: {}, disk_usage: '' };
+        });
+    };
+    
+    $scope.closeSSHActivityModal = function() {
+        $scope.showSSHActivityModal = false;
+        $scope.sshActivity = { processes: [], w: [] };
+        $scope.sshActivityUser = '';
+        $scope.loadingSSHActivity = false;
+        $scope.errorSSHActivity = '';
+    };
+
+    // Close modal when clicking backdrop
+    $scope.closeModalOnBackdrop = function(event) {
+        if (event.target === event.currentTarget) {
+            $scope.closeSSHActivityModal();
+        }
+    };
+    
+    // Kill a specific process
+    $scope.killProcess = function(pid, user) {
+        if (!confirm('Are you sure you want to kill process ' + pid + '? This action cannot be undone.')) {
+            return;
+        }
+        
+        console.log('Killing process:', pid, 'for user:', user);
+        $http.post('/base/killSSHProcess', { pid: pid, user: user }, { timeout: 10000 }).then(function(response) {
+            var notify = window.cpToast || function (m) { alert(m); };
+            if (response.data && response.data.success) {
+                notify('Process ' + pid + ' killed successfully.', 'success');
+                // Reload activity data
+                if ($scope.sshActivityUser) {
+                    var login = { user: $scope.sshActivityUser, ip: '', tty: '' };
+                    $scope.viewSSHActivity(login);
+                }
+            } else if (response.data && response.data.error) {
+                notify('Error: ' + response.data.error, 'error');
+            } else {
+                notify('Unknown error occurred.', 'error');
+            }
+        }, function(err) {
+            console.error('Error killing process:', err);
+            var errorMsg = 'Failed to kill process. ';
+            if (err.data && err.data.error) {
+                errorMsg += err.data.error;
+            } else if (err.status === 403) {
+                errorMsg += 'Access denied.';
+            } else if (err.status === 404) {
+                errorMsg += 'Process not found.';
+            } else {
+                errorMsg += 'Please try again.';
+            }
+            (window.cpToast || function (m) { alert(m); })(errorMsg, 'error');
+        });
+    };
+    
+    // Kill all sessions for a user
+    $scope.killSession = function(user) {
+        if (!confirm('WARNING: This will force close ALL active sessions for user "' + user + '". This action cannot be undone.\n\nAre you sure you want to continue?')) {
+            return;
+        }
+        
+        if (!confirm('Final confirmation: Kill all sessions for user "' + user + '"?')) {
+            return;
+        }
+        
+        console.log('Killing session for user:', user);
+        $http.post('/base/killSSHSession', { user: user }, { timeout: 10000 }).then(function(response) {
+            if (response.data && response.data.success) {
+                alert('All sessions for user ' + user + ' have been terminated successfully.');
+                // Close modal and refresh SSH logins
+                $scope.closeSSHActivityModal();
+                // Refresh SSH logins list
+                if (typeof $scope.loadSSHLogins === 'function') {
+                    $scope.loadSSHLogins();
+                }
+            } else if (response.data && response.data.error) {
+                alert('Error: ' + response.data.error);
+            } else {
+                alert('Unknown error occurred.');
+            }
+        }, function(err) {
+            console.error('Error killing session:', err);
+            var errorMsg = 'Failed to kill session. ';
+            if (err.data && err.data.error) {
+                errorMsg += err.data.error;
+            } else if (err.status === 403) {
+                errorMsg += 'Access denied.';
+            } else {
+                errorMsg += 'Please try again.';
+            }
+            alert(errorMsg);
+        });
     };
 });
