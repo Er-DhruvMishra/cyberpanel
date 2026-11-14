@@ -1,0 +1,37 @@
+{% extends "universalAddons/base.html" %}
+{% load i18n static %}
+{% block title %}{% trans "Storage Cleaner" %} - CyberPanel{% endblock %}
+{% block addon_scripts %}<script src="{% static 'universalAddons/storage.js' %}?v={{ CP_VERSION }}"></script>{% endblock %}
+{% block content %}
+<div class="ua-wrap" id="ua-storage" data-base="{% url 'ua-storage' %}">
+  <div class="ua-header">
+    <h1><i class="fas fa-broom"></i> {% trans "Storage Cleaner" %}</h1>
+    <p>{% trans "Find where the disk space went and reclaim it. The scan changes nothing; you choose what to clean, can preview it first, and every run is logged under /var/log/cyberpanel-storage-clean-*.log." %}</p>
+  </div>
+  <div class="ua-card">
+    <div class="ua-row"><button class="ua-btn" id="st-scan">{% trans "Scan server" %}</button>
+      <span class="ua-muted">{% trans "Takes a few minutes on a busy server; it runs at idle disk priority." %}</span></div>
+    <div id="st-fs"></div>
+  </div>
+  <div class="ua-card" id="st-job" style="display:none"><h2>{% trans "Progress" %}</h2><div id="st-job-out"></div></div>
+  <div class="ua-card" id="st-results" style="display:none">
+    <h2>{% trans "Reclaimable space" %} <span id="st-total" class="ua-muted"></span></h2>
+    <p class="ua-muted">
+      <span class="ua-badge ua-badge-pass">safe</span> {% trans "caches, rotated logs, temporary and superseded files (pre-selected)" %} &nbsp;
+      <span class="ua-badge ua-badge-warn">review</span> {% trans "real data someone may still want: pick deliberately" %} &nbsp;
+      <span class="ua-badge ua-badge-info">report</span> {% trans "information only" %}</p>
+    <table class="ua-table" id="st-categories"></table>
+    <div class="ua-row" style="margin-top:14px">
+      <button class="ua-btn ua-btn-secondary" id="st-preview">{% trans "Preview (dry run)" %}</button>
+      <button class="ua-btn" id="st-clean" style="background:#dc2626">{% trans "Clean selected" %}</button>
+      <span class="ua-muted" id="st-selected"></span>
+    </div>
+  </div>
+  <div class="ua-card" id="st-usage" style="display:none">
+    <h2>{% trans "Biggest folders" %}</h2>
+    <div id="st-dirs"></div>
+    <h2 style="margin-top:18px">{% trans "Biggest files" %}</h2>
+    <div id="st-files"></div>
+  </div>
+</div>
+{% endblock %}

@@ -13,4 +13,5 @@ urlpatterns = [
     path('htaccess/', include('universalAddons.htaccess.urls')),
     path('apps/', include('universalAddons.apps.urls')),
     path('mssql/', include('universalAddons.mssql.urls')),
+    path('storage/', include('universalAddons.storage.urls')),
 ]

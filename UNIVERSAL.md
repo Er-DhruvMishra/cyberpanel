@@ -149,6 +149,7 @@ licence checks and never contact cyberpanel.net.
 | .htaccess for OpenLiteSpeed | ready (opt-in per site) |
 | Node.js, Python & .NET apps | ready (users: when the administrator enables it) |
 | SQL Server databases (Express) | ready (users: when the administrator enables it) |
+| Storage Cleaner | ready |
 
 **Email Debugger** covers:
 - DNS checks (MX, SPF, DKIM, DMARC, PTR) and blocklists;

@@ -26,6 +26,7 @@ MODULES = {
     'htaccess': 'universalAddons.htaccess.actions',
     'apps': 'universalAddons.apps.actions',
     'mssql': 'universalAddons.mssql.actions',
+    'storage': 'universalAddons.storage.actions',
 }
 
 
