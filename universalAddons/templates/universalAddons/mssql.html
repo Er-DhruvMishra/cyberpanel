@@ -1,0 +1,46 @@
+{% extends "universalAddons/base.html" %}
+{% load i18n static %}
+{% block title %}{% trans "SQL Server databases" %} - CyberPanel{% endblock %}
+{% block addon_scripts %}<script src="{% static 'universalAddons/mssql.js' %}?v={{ CP_VERSION }}"></script>{% endblock %}
+{% block content %}
+<div class="ua-wrap" id="ua-mssql" data-base="{% url 'ua-mssql' %}" data-admin="{{ is_admin|yesno:'1,0' }}">
+  <div class="ua-header">
+    <h1><i class="fas fa-database"></i> {% trans "SQL Server databases" %}</h1>
+    <p>{% trans "Microsoft SQL Server Express, listening on 127.0.0.1 only, for apps on this server. Each database has its own login that can only see that database." %}
+      <a href="{% url 'ua-apps' %}">&larr; {% trans "Apps" %}</a></p>
+  </div>
+  {% if not enabled %}
+  <div class="ua-card"><div class="ua-alert">{% trans "The administrator has not enabled SQL Server databases for user accounts." %}</div></div>
+  {% else %}
+  {% if is_admin %}
+  <div class="ua-card">
+    <h2>{% trans "Server" %}</h2>
+    <div id="sq-server"><p class="ua-muted">{% trans "Checking…" %}</p></div>
+    <div id="sq-install" style="display:none">
+      <p><label><input type="checkbox" id="sq-eula"> {% trans "I accept the" %} <a id="sq-eula-link" target="_blank" rel="noopener">{% trans "Microsoft SQL Server licence terms" %}</a> {% trans "(Express edition)." %}</label></p>
+      <div class="ua-row"><label>{% trans "Memory cap (MB)" %} <input type="number" id="sq-memory" min="512" style="min-width:90px"></label>
+        <button class="ua-btn" id="sq-install-btn">{% trans "Install SQL Server Express" %}</button>
+        <span class="ua-muted">{% trans "About 1.5 GB of disk. SQL Server will use at most the memory cap." %}</span></div>
+    </div>
+    <div id="sq-out"></div>
+  </div>
+  {% endif %}
+  <div class="ua-card">
+    <h2>{% trans "Databases" %}</h2>
+    <div id="sq-list"><p class="ua-muted">{% trans "Loading…" %}</p></div>
+  </div>
+  <div class="ua-card">
+    <h2>{% trans "New database" %}</h2>
+    <div class="ua-row">
+      <select id="sq-domain">{% for s in sites %}<option value="{{ s }}">{{ s }}</option>{% endfor %}</select>
+      <input id="sq-name" placeholder="{% trans 'name, e.g. shop' %}">
+      <input id="sq-password" type="password" autocomplete="new-password" placeholder="{% trans 'password (empty = generate)' %}">
+      <button class="ua-btn" id="sq-create">{% trans "Create" %}</button>
+    </div>
+    <p class="ua-muted">{% trans "The database and its login are both named &lt;site user&gt;_&lt;name&gt;. The password is shown once; copy it into your app's settings." %}</p>
+    <div id="sq-created"></div>
+  </div>
+  <div class="ua-card" id="sq-job" style="display:none"><h2>{% trans "Progress" %}</h2><div id="sq-job-out"></div></div>
+  {% endif %}
+</div>
+{% endblock %}

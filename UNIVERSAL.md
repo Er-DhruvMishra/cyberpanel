@@ -147,6 +147,8 @@ licence checks and never contact cyberpanel.net.
 | Backup V2 | ready |
 | WordPress Manager Pro | ready |
 | .htaccess for OpenLiteSpeed | ready (opt-in per site) |
+| Node.js, Python & .NET apps | ready (users: when the administrator enables it) |
+| SQL Server databases (Express) | ready (users: when the administrator enables it) |
 
 **Email Debugger** covers:
 - DNS checks (MX, SPF, DKIM, DMARC, PTR) and blocklists;
@@ -169,6 +171,16 @@ reaches a shell.
 
 Tests: `python manage.py test universalAddons`. A database is not needed; use a SQLite settings
 override.
+
+**Apps** (sidebar: *Apps & SQL Server*, also for site owners when allowed in the policy):
+- Node.js, Python (WSGI/ASGI/script) and ASP.NET Core apps run as sandboxed systemd services
+  under the site's own Linux user, behind OpenLiteSpeed.
+- Runtimes are the smallest official variants, checksum-verified, in `/opt/cp-runtimes`.
+- Of the versions tested on CentOS 8, Node.js 26 is the only one that cannot run there (it needs a
+  newer glibc); the installer detects this and removes it again.
+
+**SQL Server**: Express edition on 127.0.0.1 with a memory cap. Each database has its own login,
+which cannot see other databases. Installation needs at least 2 GB of RAM and 6 GB of free disk.
 
 ## Status and known limitations
 

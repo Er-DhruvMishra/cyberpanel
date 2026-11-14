@@ -12,4 +12,5 @@ urlpatterns = [
     path('wordpress/', include('universalAddons.wordpress.urls')),
     path('htaccess/', include('universalAddons.htaccess.urls')),
     path('apps/', include('universalAddons.apps.urls')),
+    path('mssql/', include('universalAddons.mssql.urls')),
 ]

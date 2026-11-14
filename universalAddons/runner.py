@@ -25,6 +25,7 @@ MODULES = {
     'wordpress': 'universalAddons.wordpress.actions',
     'htaccess': 'universalAddons.htaccess.actions',
     'apps': 'universalAddons.apps.actions',
+    'mssql': 'universalAddons.mssql.actions',
 }
 
 
