@@ -24,6 +24,7 @@ MODULES = {
     'backupv2': 'universalAddons.backupv2.actions',
     'wordpress': 'universalAddons.wordpress.actions',
     'htaccess': 'universalAddons.htaccess.actions',
+    'apps': 'universalAddons.apps.actions',
 }
 
 

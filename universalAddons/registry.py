@@ -26,6 +26,12 @@ MODULES = (
     Module('wordpress', 'WordPress Manager Pro', 'fa-blog',
            'Clone, stage, push to production, safe auto-updates and hardening.',
            'ua-wordpress', 'ready'),
+    Module('apps', 'Node.js, Python & .NET apps', 'fa-cubes',
+           'Run Node.js, Python and ASP.NET Core apps as sandboxed services behind OpenLiteSpeed.',
+           'ua-apps', 'ready'),
+    Module('mssql', 'SQL Server databases', 'fa-database',
+           'Microsoft SQL Server Express with per-site databases and logins.',
+           'ua-mssql', 'ready'),
     Module('htaccess', '.htaccess for OpenLiteSpeed', 'fa-file-code',
            'Apache .htaccess directives translated into OpenLiteSpeed configuration.',
            'ua-htaccess', 'ready'),
@@ -47,6 +53,8 @@ def requirement_problems(key, which=shutil.which, exists=os.path.exists):
         problems.append('restic is not installed (dnf/apt install restic).')
     if key == 'htaccess' and not exists('/usr/local/lsws/bin/openlitespeed'):
         problems.append('This server does not run OpenLiteSpeed.')
+    if key == 'apps' and not exists('/usr/local/lsws/bin/openlitespeed'):
+        problems.append('Apps are proxied by OpenLiteSpeed, which is not installed.')
     if key == 'emaildebug':
         if not which('dig'):
             problems.append('dig is not installed (bind-utils / dnsutils).')

@@ -1,0 +1,79 @@
+{% extends "universalAddons/base.html" %}
+{% load i18n static %}
+{% block title %}{% trans "Apps" %} - CyberPanel{% endblock %}
+{% block addon_scripts %}<script src="{% static 'universalAddons/apps.js' %}?v={{ CP_VERSION }}"></script>{% endblock %}
+{% block content %}
+<div class="ua-wrap" id="ua-apps" data-base="{% url 'ua-apps' %}" data-admin="{{ is_admin|yesno:'1,0' }}" data-mssql="{% url 'ua-mssql' %}">
+  <div class="ua-header">
+    <h1><i class="fas fa-cubes"></i> {% trans "Node.js, Python & .NET apps" %}</h1>
+    <p>{% trans "Each app runs as a sandboxed service under your site's own user, on a private port, with memory and CPU limits. OpenLiteSpeed forwards a URL path of your site to it." %}
+      <a href="{% url 'ua-mssql' %}">{% trans "SQL Server databases" %} &rarr;</a></p>
+  </div>
+  {% if not enabled %}
+  <div class="ua-card"><div class="ua-alert">{% trans "The administrator has not enabled apps for user accounts." %}</div></div>
+  {% else %}
+
+  {% if is_admin %}
+  <div class="ua-card">
+    <h2>{% trans "Runtimes" %} <span class="ua-muted" id="rt-disk"></span></h2>
+    <div id="rt-installed"></div>
+    <div class="ua-row"><button class="ua-btn ua-btn-secondary" id="rt-catalogue">{% trans "Show installable versions" %}</button>
+      <span class="ua-muted">{% trans "Smallest variants: Node.js official build, ASP.NET Core runtime without the SDK, stripped standalone Python. Every download is checksum-verified." %}</span></div>
+    <div id="rt-available"></div>
+  </div>
+  <div class="ua-card">
+    <h2>{% trans "Policy for user accounts" %}</h2>
+    <div class="ua-row">
+      <label><input type="checkbox" id="pol-apps_for_users"> {% trans "Users may run apps on sites they own" %}</label>
+      <label><input type="checkbox" id="pol-mssql_for_users"> {% trans "Users may create SQL Server databases" %}</label>
+    </div>
+    <div class="ua-row">
+      <label>{% trans "Apps per site" %} <input type="number" id="pol-max_apps_per_site" min="0" max="50" style="min-width:70px"></label>
+      <label>{% trans "Default memory (MB)" %} <input type="number" id="pol-default_memory_mb" min="64" style="min-width:90px"></label>
+      <label>{% trans "Max memory (MB)" %} <input type="number" id="pol-max_memory_mb" min="64" style="min-width:90px"></label>
+      <label>{% trans "Max CPU (%)" %} <input type="number" id="pol-max_cpu_percent" min="5" style="min-width:80px"></label>
+      <label>{% trans "SQL Server DBs per site" %} <input type="number" id="pol-max_mssql_dbs_per_site" min="0" max="50" style="min-width:70px"></label>
+      <button class="ua-btn" id="pol-save">{% trans "Save policy" %}</button>
+    </div>
+    <div id="pol-out"></div>
+  </div>
+  {% endif %}
+
+  <div class="ua-card">
+    <h2>{% trans "Your apps" %}</h2>
+    <div id="app-list"><p class="ua-muted">{% trans "Loading…" %}</p></div>
+  </div>
+
+  <div class="ua-card">
+    <h2 id="app-form-title">{% trans "New app" %}</h2>
+    <div class="ua-row">
+      <select id="app-domain">{% for s in sites %}<option value="{{ s }}">{{ s }}</option>{% endfor %}</select>
+      <input id="app-id" placeholder="{% trans 'app name, e.g. api' %}" style="min-width:150px">
+      <select id="app-kind"><option value="node">Node.js</option><option value="python">Python</option><option value="dotnet">.NET (ASP.NET Core)</option></select>
+      <select id="app-runtime"></select>
+    </div>
+    <div class="ua-row">
+      <select id="app-mode" style="display:none"><option value="wsgi">WSGI (gunicorn)</option><option value="asgi">ASGI (uvicorn)</option><option value="script">{% trans "plain script" %}</option></select>
+      <input id="app-entry" placeholder="server.js" style="min-width:220px">
+      <input id="app-workers" type="number" min="1" max="8" value="2" style="min-width:70px;display:none" title="{% trans 'workers' %}">
+      <label>{% trans "URL path" %} <input id="app-prefix" value="/" style="min-width:100px"></label>
+      <label>{% trans "WebSocket path" %} <input id="app-websocket" placeholder="/ws" style="min-width:90px"></label>
+    </div>
+    <div class="ua-row">
+      <label>{% trans "Memory (MB)" %} <input id="app-memory" type="number" min="64" value="256" style="min-width:80px"></label>
+      <label>{% trans "CPU (%)" %} <input id="app-cpu" type="number" min="5" value="100" style="min-width:80px"></label>
+    </div>
+    <p class="ua-muted" id="app-hint"></p>
+    <div><strong>{% trans "Environment variables" %}</strong> <span class="ua-muted">{% trans "(stored root-only, passed to the app at start; leave empty to keep the current ones)" %}</span></div>
+    <textarea id="app-env" placeholder="DATABASE_URL=...&#10;SECRET_KEY=..." style="min-height:90px"></textarea>
+    <div class="ua-row" style="margin-top:10px">
+      <button class="ua-btn" id="app-save">{% trans "Save" %}</button>
+      <button class="ua-btn ua-btn-secondary" id="app-reset">{% trans "Clear form" %}</button>
+    </div>
+    <div id="app-out"></div>
+  </div>
+
+  <div class="ua-card" id="app-job" style="display:none"><h2>{% trans "Progress / log" %}</h2><div id="app-job-out"></div></div>
+  {% endif %}
+</div>
+{% endblock %}
