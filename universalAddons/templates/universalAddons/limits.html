@@ -1,0 +1,60 @@
+{% extends "universalAddons/base.html" %}
+{% load i18n static %}
+{% block title %}{% trans "Resource Limits" %} - CyberPanel{% endblock %}
+{% block addon_scripts %}<script src="{% static 'universalAddons/limits.js' %}?v={{ CP_VERSION }}"></script>{% endblock %}
+{% block content %}
+<div class="ua-wrap" id="ua-limits" data-base="{% url 'ua-limits' %}">
+  <div class="ua-header">
+    <h1><i class="fas fa-gauge-high"></i> {% trans "Resource Limits" %}</h1>
+    <p>{% trans "Per-site memory, process and connection limits so one busy site cannot take the server down. They are enforced by OpenLiteSpeed itself on each site's PHP (lsphp) handler, so they work on cgroup v1. Preview every change first; applying restarts OpenLiteSpeed gracefully and rolls back automatically if a site answers differently afterwards." %}</p>
+  </div>
+
+  <div class="ua-card">
+    <h2>{% trans "This server" %}</h2>
+    <div id="lim-host"><p class="ua-muted">{% trans "Loading…" %}</p></div>
+  </div>
+
+  <div class="ua-card">
+    <h2>{% trans "Packages" %}</h2>
+    <p class="ua-muted">{% trans "A package profile applies to every site of that package. Empty fields inherit the server defaults." %}</p>
+    <div id="lim-packages"></div>
+  </div>
+
+  <div class="ua-card" id="lim-editor" style="display:none">
+    <h2 id="lim-editor-title"></h2>
+    <p class="ua-muted">{% trans "Leave a field empty to inherit it. Memory is an address-space limit per PHP process; processes count every task of the site user." %}</p>
+    <table class="ua-table" id="lim-form"></table>
+    <div class="ua-row" style="margin-top:12px">
+      <button class="ua-btn" id="lim-save">{% trans "Save profile" %}</button>
+      <button class="ua-btn ua-btn-secondary" id="lim-clear">{% trans "Clear profile" %}</button>
+      <button class="ua-btn ua-btn-secondary" id="lim-cancel">{% trans "Close" %}</button>
+      <span class="ua-muted" id="lim-editor-note"></span>
+    </div>
+  </div>
+
+  <div class="ua-card" id="lim-preview" style="display:none">
+    <h2>{% trans "Preview" %} <span class="ua-muted" id="lim-preview-title"></span></h2>
+    <div id="lim-preview-out"></div>
+    <div class="ua-row" style="margin-top:12px">
+      <button class="ua-btn" id="lim-apply" style="background:#dc2626">{% trans "Apply and restart OpenLiteSpeed" %}</button>
+      <span class="ua-muted">{% trans "A backup of each vhost.conf is kept under /var/lib/cyberpanel-universal/limits-backups." %}</span>
+    </div>
+  </div>
+
+  <div class="ua-card" id="lim-job" style="display:none"><h2>{% trans "Progress" %}</h2><div id="lim-job-out"></div></div>
+
+  <div class="ua-card">
+    <h2>{% trans "Sites" %}</h2>
+    <div class="ua-row"><input type="search" id="lim-filter" placeholder="{% trans 'Filter sites' %}">
+      <span class="ua-muted">{% trans "Effective = what the profile asks for; Current = what vhost.conf has now; Usage = this user's lsphp processes right now." %}</span></div>
+    <div id="lim-sites" style="overflow-x:auto"></div>
+  </div>
+
+  <div class="ua-card">
+    <h2>{% trans "Disk and inodes" %}</h2>
+    <div id="lim-quota"></div>
+    <div class="ua-row" style="margin-top:12px"><button class="ua-btn ua-btn-secondary" id="lim-du">{% trans "Measure site disk usage (du)" %}</button>
+      <span class="ua-muted" id="lim-du-note">{% trans "Runs in the background at idle priority; results are cached." %}</span></div>
+  </div>
+</div>
+{% endblock %}

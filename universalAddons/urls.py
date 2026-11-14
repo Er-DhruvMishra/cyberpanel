@@ -18,4 +18,5 @@ urlpatterns = [
     path('ssh-security/', include('universalAddons.sshsec.urls')),
     path('mysql/', include('universalAddons.mysqlmgr.urls')),
     path('roundcube/', include('universalAddons.roundcube.urls')),
+    path('limits/', include('universalAddons.limits.urls')),
 ]

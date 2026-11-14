@@ -31,6 +31,7 @@ MODULES = {
     'sshsec': 'universalAddons.sshsec.actions',
     'mysqlmgr': 'universalAddons.mysqlmgr.actions',
     'roundcube': 'universalAddons.roundcube.actions',
+    'limits': 'universalAddons.limits.actions',
 }
 
 

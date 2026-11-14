@@ -47,6 +47,9 @@ MODULES = (
     Module('roundcube', 'Roundcube webmail', 'fa-envelope',
            'Free Roundcube 1.6 LTS on a site of your choice, using this server\'s Dovecot and Postfix.',
            'ua-roundcube', 'ready'),
+    Module('limits', 'Resource Limits', 'fa-gauge-high',
+           'Per-site PHP memory, process and connection limits enforced by OpenLiteSpeed, with preview and automatic rollback.',
+           'ua-limits', 'ready'),
     Module('htaccess', '.htaccess for OpenLiteSpeed', 'fa-file-code',
            'Apache .htaccess directives translated into OpenLiteSpeed configuration.',
            'ua-htaccess', 'ready'),
@@ -66,6 +69,8 @@ def requirement_problems(key, which=shutil.which, exists=os.path.exists):
     problems = []
     if key == 'backupv2' and not which('restic'):
         problems.append('restic is not installed (dnf/apt install restic).')
+    if key == 'limits' and not exists('/usr/local/lsws/bin/openlitespeed'):
+        problems.append('Limits are enforced by OpenLiteSpeed, which is not installed.')
     if key == 'roundcube':
         if not exists('/usr/local/lsws/bin/openlitespeed'):
             problems.append('Roundcube is served by OpenLiteSpeed, which is not installed.')
