@@ -3929,8 +3929,16 @@ passdb {
             '/etc/sysconfig/imunify360/integration.conf',
         ]
 
+        # Add-ons installed into public/ (MailWatch, whose files MailScanner's plugins link to,
+        # Imunify UIs, ...) are not part of the source tree; keep every one of them.
+        # static is re-collected and phpMyAdmin reinstalled (config.inc.php is kept above).
+        PUBLIC_REBUILT = ('static', 'phpmyadmin')
+        public_dir = '/usr/local/CyberCP/public'
+        public_paths = [os.path.join(public_dir, name) for name in sorted(os.listdir(public_dir))
+                        if name not in PUBLIC_REBUILT] if os.path.isdir(public_dir) else []
+
         backed_up_files = {}
-        for source_path in critical_files + custom_configs + imunify_paths:
+        for source_path in critical_files + custom_configs + imunify_paths + public_paths:
             source_path = os.path.normpath(source_path)
             if not os.path.exists(source_path):
                 continue

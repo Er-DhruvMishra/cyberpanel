@@ -336,9 +336,6 @@ class UpgradeEntryPointTests(unittest.TestCase):
         self.assertEqual('phpmyadmin configuration', Path(files[str(self.current / 'public/phpmyadmin/config.inc.php')]).read_text())
 
 
-if __name__ == '__main__':
-    unittest.main()
-
 
 class DatabaseEngineTests(unittest.TestCase):
     """The recovered settings object and the rewritten settings.py must name a DB engine."""
@@ -348,6 +345,30 @@ class DatabaseEngineTests(unittest.TestCase):
         self.assertEqual(minimal.count("'ENGINE': 'django.db.backends.mysql'"), 2)
         rewrite = re.search(r"databases = \{\}.*?database_config = 'DATABASES = '", source, re.DOTALL).group(0)
         self.assertIn("config['ENGINE'] = 'django.db.backends.mysql'", rewrite)
+
+
+class PublicAddonsTests(unittest.TestCase):
+    """public/ add-ons such as MailWatch are not in the source tree and must survive upgrades."""
+
+    def test_backup_list_covers_public_except_rebuilt_entries(self):
+        backup = re.search(r'def backupCriticalFiles\(\):.*?backed_up_files = \{\}\n\s+for source_path in ([^:]+):',
+                           source, re.DOTALL)
+        self.assertIn('public_paths', backup.group(1))
+        self.assertIn("PUBLIC_REBUILT = ('static', 'phpmyadmin')", backup.group(0))
+
+    def test_backed_up_public_addon_is_copied_into_new_tree(self):
+        with tempfile.TemporaryDirectory() as root:
+            current, staged, backup = (os.path.join(root, n) for n in ('current', 'staged', 'backup'))
+            scripts = os.path.join(backup, 'public', 'mailwatch', 'MailScanner_perl_scripts')
+            os.makedirs(scripts)
+            with open(os.path.join(scripts, 'MailWatch.pm'), 'w') as handle:
+                handle.write('1;')
+            os.makedirs(current)
+            os.makedirs(os.path.join(staged, 'public', 'static'))
+            preserve_installation_state(current, staged, {
+                os.path.join(current, 'public', 'mailwatch'): os.path.join(backup, 'public', 'mailwatch')})
+            self.assertTrue(os.path.isfile(os.path.join(staged, 'public', 'mailwatch', 'MailScanner_perl_scripts',
+                                                        'MailWatch.pm')))
 
 
 if __name__ == '__main__':
