@@ -60,8 +60,9 @@ class secMiddleware:
 
         # Debug logging removed for performance
 
-        # RainLoop and SnappyMail are gone; mailbox users log in to the built-in webmail now.
-        # Old bookmarks (/rainloop, /snappymail, any subpath) go there before any panel login check.
+        # /rainloop and /snappymail are served by lscpd straight from public/snappymail (SnappyMail,
+        # public/rainloop links to it) and never reach Django. If that folder is missing, send old
+        # bookmarks to the built-in webmail login instead of the panel login.
         import re
         if re.match(r'^/(rainloop|snappymail)(/|$)', pathActual):
             from django.http import HttpResponseRedirect

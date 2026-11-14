@@ -1,0 +1,53 @@
+"""IndiansCloud logo as SVG, traced from https://indianscloud.com/assets/img/logo.png (199x138).
+
+Six layers of three nested clouds: blue outline, red cloud, blue band, white cloud, blue ring,
+green cloud. Each cloud is three circles over a flat base; an outline is the same shape drawn
+`grow` units larger underneath, so all edges stay crisp at any size.
+"""
+BLUE, RED, GREEN, WHITE = '#4b7fbd', '#a82121', '#21b921', '#ffffff'
+
+OUTER = ([(40, 92, 38), (100, 60, 54), (162, 100, 33)], 132)
+MIDDLE = ([(58, 104, 26), (104, 86, 44), (146, 106, 24)], 130)
+INNER = ([(78, 108, 17), (101, 94, 26), (124, 110, 13)], 123)
+
+
+def layer(fill, cloud, grow=0):
+    return '<g fill="%s">%s</g>' % (fill, ''.join(_parts(cloud, grow)))
+
+
+def _parts(cloud, grow):
+    circles, base = cloud
+    out = ['<circle cx="%g" cy="%g" r="%g"/>' % (cx, cy, r + grow) for cx, cy, r in circles]
+    left, right = circles[0][0], circles[-1][0]
+    top = min(circles[0][1], circles[-1][1])
+    out.append('<rect x="%g" y="%g" width="%g" height="%g"/>' % (left, top - grow, right - left, base - top + 2 * grow))
+    return out
+
+
+def mark_group():
+    return ''.join([
+        layer(BLUE, OUTER, 7), layer(RED, OUTER),
+        layer(BLUE, MIDDLE, 7), layer(WHITE, MIDDLE),
+        layer(BLUE, INNER, 5), layer(GREEN, INNER),
+    ])
+
+
+def svg(width, height, body, label='IndiansCloud', x=0, y=0):
+    return ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="%g %g %g %g" role="img" aria-label="%s">'
+            '<title>%s</title>%s</svg>\n' % (x, y, width, height, label, label, body))
+
+
+def wordmark(dark=False):
+    """Mark plus "IndiansCloud" text; dark=True for dark backgrounds (light lettering)."""
+    first, second = ('#ffffff', '#8fb6e6') if dark else (RED, BLUE)
+    text = ('<text x="220" y="98" font-family="Poppins,\'Segoe UI\',Helvetica,Arial,sans-serif" font-size="66" '
+            'font-weight="700" letter-spacing="-1" fill="%s">Indians<tspan fill="%s">Cloud</tspan></text>' % (first, second))
+    return svg(650, 144, '<g>%s</g>%s' % (mark_group(), text), x=-2, y=-2)
+
+
+if __name__ == '__main__':
+    open('indianscloud-mark.svg', 'w').write(svg(206, 144, mark_group(), x=-2, y=-2))
+    open('indianscloud-logo.svg', 'w').write(wordmark())
+    open('indianscloud-logo-dark.svg', 'w').write(wordmark(dark=True))
+    # Square favicon: the mark centred in a 140x140 box.
+    open('indianscloud-favicon.svg', 'w').write(svg(206, 206, '<g transform="translate(0,31)">%s</g>' % mark_group(), x=-2, y=-2))
