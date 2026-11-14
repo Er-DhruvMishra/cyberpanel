@@ -3750,7 +3750,8 @@ context /cyberpanel_suspension_page.html {
             import requests
             import json
             try:
-                response = requests.post(url, data=json.dumps(addon_data))
+                # Bounded: an unreachable licence server must not stall the site's management page.
+                response = requests.post(url, data=json.dumps(addon_data), timeout=8)
                 Status = response.json().get('status', 0)
             except Exception:
                 Status = 0

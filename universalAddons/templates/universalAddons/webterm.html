@@ -1,0 +1,48 @@
+{% extends "universalAddons/base.html" %}
+{% load i18n static %}
+{% block title %}{% trans "Web Terminal" %} - CyberPanel{% endblock %}
+{% block header_scripts %}{{ block.super }}<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.css" integrity="sha384-8Xk9wy/gzEDUKrXtrmCFa2bBuK3BpjpDuL/p0SeKQX19Khl/M+lHOgD/CyYf7efP" crossorigin="anonymous">{% endblock %}
+{% block addon_scripts %}<script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.js" integrity="sha384-M169f14mRZOXm3hD/v2Ti0ThIT/RnAQagXA9nlE15yHAtrW19gdePJh/HaTzUOe/" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.js" integrity="sha384-iF+jqbuti4XlB64clWgFWYEscb+UnSRv3VgVikGYZu+otNFnSHr7y7NcKfBnGizn" crossorigin="anonymous"></script>
+<script src="{% static 'universalAddons/webterm.js' %}?v={{ CP_VERSION }}"></script>{% endblock %}
+{% block content %}
+<div class="ua-wrap" id="ua-webterm" data-base="{% url 'ua-webterm' %}" data-admin="{{ is_admin|yesno:'1,0' }}">
+  <div class="ua-header">
+    <h1><i class="fas fa-terminal"></i> {% trans "Web Terminal" %}</h1>
+    <p>{% trans "A shell in your browser as the website's own Linux user, in the site's home directory. Use it for composer, wp-cli, npm, git and the like. Sessions end after 15 minutes without input or after 2 hours; starts and stops are logged, keystrokes are not." %}</p>
+  </div>
+  {% if not enabled %}
+  <div class="ua-card"><div class="ua-alert">{% trans "The administrator has not enabled the web terminal for user accounts." %}</div></div>
+  {% else %}
+  {% if is_admin %}
+  <div class="ua-card">
+    <h2>{% trans "Service" %}</h2>
+    <div id="wt-status" class="ua-muted">{% trans "Loading…" %}</div>
+    <div class="ua-row" style="margin-top:10px">
+      <label>{% trans "Carry connections on site" %}
+        <select id="wt-site">{% for s in sites %}<option value="{{ s }}">{{ s }}</option>{% endfor %}</select></label>
+      <button class="ua-btn" id="wt-setup">{% trans "Set up / refresh" %}</button>
+      <button class="ua-btn ua-btn-secondary" id="wt-teardown">{% trans "Turn off" %}</button>
+    </div>
+    <p class="ua-muted">{% trans "The terminal service listens on 127.0.0.1 only; OpenLiteSpeed forwards wss://<site>/cp-webterm/ws to it over the site's existing HTTPS, so no new port is opened. Setup checks the site still answers as before and rolls back otherwise." %}</p>
+    <div class="ua-row">
+      <label><input type="checkbox" id="wt-users"> {% trans "Website owners (resellers/users) may open a terminal for their own sites" %}</label>
+      <label><input type="checkbox" id="wt-root"> {% trans "Administrators may open a root shell" %}</label>
+    </div>
+    <div id="wt-admin-out"></div>
+  </div>
+  {% endif %}
+  <div class="ua-card">
+    <div class="ua-row">
+      <label>{% trans "Website" %}
+        <select id="wt-domain">{% for s in sites %}<option value="{{ s }}"{% if s == chosen %} selected{% endif %}>{{ s }}</option>{% endfor %}</select></label>
+      {% if is_admin %}<label><input type="checkbox" id="wt-asroot"> {% trans "root shell" %}</label>{% endif %}
+      <button class="ua-btn" id="wt-connect">{% trans "Connect" %}</button>
+      <button class="ua-btn ua-btn-secondary" id="wt-disconnect" disabled>{% trans "Disconnect" %}</button>
+      <span class="ua-muted" id="wt-state"></span>
+    </div>
+    <div id="wt-term" style="height:480px;background:#000;border-radius:6px;padding:4px;margin-top:10px"></div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

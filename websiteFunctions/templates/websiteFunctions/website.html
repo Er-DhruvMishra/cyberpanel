@@ -1325,10 +1325,18 @@
         <!-- Quick Actions Bar -->
         <div class="quick-actions">
             <div class="action-group">
+                {% if has_addons %}
                 <button type="button" class="action-btn terminal" data-toggle="modal" data-target="#web-terminal-modal">
                     <i class="fas fa-terminal"></i>
                     {% trans "Open Terminal" %}
                 </button>
+                {% else %}
+                {# Free Universal Add-ons terminal: a shell as this site's own Linux user. #}
+                <a class="action-btn terminal" href="/addons/terminal/?domain={{ domain|urlencode }}" title="{% trans "Open a terminal as this website's Linux user" %}">
+                    <i class="fas fa-terminal"></i>
+                    {% trans "Open Terminal" %}
+                </a>
+                {% endif %}
             <!-- Modal for Web Terminal -->
             <div id="web-terminal-modal" class="modal fade" tabindex="-1" role="dialog">
                 <div class="modal-dialog modal-lg" role="document">
@@ -2372,7 +2380,8 @@
 
             {% if marketingStatus %}
 
-                <div class="example-box-wrapper my-10">
+                {# Lives in the Apps tab; links are real URLs (emailMarketing.js is not loaded on this page). #}
+                <div class="example-box-wrapper my-10 cp-wtab-panel" data-wtab="apps">
                     <div class="panel panel-body">
                         <h3 class="content-box-header">
                             {% trans "Email Marketing" %}
@@ -2381,7 +2390,7 @@
                         <div class="content-box-wrapper">
                             <div class="row mx-10">
                                 <div class="col-md-3">
-                                    <a id="emailLists" href="#" title="{% trans 'Create Lists' %}">
+                                    <a id="emailLists" href="/emailMarketing/{{ domain|urlencode }}/emailLists" title="{% trans 'Create Lists' %}">
                                         <img src="{% static 'emailMarketing/mailing.png' %}" width="65"
                                              class="mr-10">
                                         <span class="h4">{% trans "Create Lists" %}</span>
@@ -2389,7 +2398,7 @@
                                 </div>
 
                                 <div class="col-md-3">
-                                    <a id="manageLists" href="#" title="{% trans 'Manage Lists' %}">
+                                    <a id="manageLists" href="/emailMarketing/{{ domain|urlencode }}/manageLists" title="{% trans 'Manage Lists' %}">
                                         <img src="{% static 'emailMarketing/checklist.png' %}" width="65"
                                              class="mr-10">
                                         <span class="h4">{% trans "Manage Lists" %}</span>
@@ -2397,7 +2406,7 @@
                                 </div>
 
                                 <div class="col-md-3">
-                                    <a id="manageSMTPHosts" href="#" title="{% trans 'SMTP Hosts' %}">
+                                    <a id="manageSMTPHosts" href="/emailMarketing/{{ domain|urlencode }}/manageSMTP" title="{% trans 'SMTP Hosts' %}">
                                         <img src="{% static 'emailMarketing/post-office.png' %}" width="65"
                                              class="mr-10">
                                         <span class="h4">{% trans "SMTP Hosts" %}</span>
@@ -2405,7 +2414,7 @@
                                 </div>
 
                                 <div class="col-md-3">
-                                    <a id="composeEmails" href="#" title="{% trans 'Compose Message' %}">
+                                    <a id="composeEmails" href="/emailMarketing/composeEmailMessage" title="{% trans 'Compose Message' %}">
                                         <img src="{% static 'emailMarketing/compose.png' %}" width="65"
                                              class="mr-10">
                                         <span class="h4">{% trans "Compose" %}</span>
@@ -2413,7 +2422,7 @@
                                 </div>
 
                                 <div class="col-md-3">
-                                    <a id="sendEmailsPage" href="#" title="{% trans 'Send Emails' %}">
+                                    <a id="sendEmailsPage" href="/emailMarketing/sendEmails" title="{% trans 'Send Emails' %}">
                                         <img src="{% static 'emailMarketing/paper-plane.png' %}" width="65"
                                              class="mr-10">
                                         <span class="h4">{% trans "Send Emails" %}</span>
