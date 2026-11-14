@@ -44,6 +44,9 @@ MODULES = (
     Module('mysqlmgr', 'MySQL Manager', 'fa-server',
            'Database status, running queries, a tuning advisor and an upgrade-readiness report for MariaDB/MySQL.',
            'ua-mysqlmgr', 'ready'),
+    Module('roundcube', 'Roundcube webmail', 'fa-envelope',
+           'Free Roundcube 1.6 LTS on a site of your choice, using this server\'s Dovecot and Postfix.',
+           'ua-roundcube', 'ready'),
     Module('htaccess', '.htaccess for OpenLiteSpeed', 'fa-file-code',
            'Apache .htaccess directives translated into OpenLiteSpeed configuration.',
            'ua-htaccess', 'ready'),
@@ -63,6 +66,13 @@ def requirement_problems(key, which=shutil.which, exists=os.path.exists):
     problems = []
     if key == 'backupv2' and not which('restic'):
         problems.append('restic is not installed (dnf/apt install restic).')
+    if key == 'roundcube':
+        if not exists('/usr/local/lsws/bin/openlitespeed'):
+            problems.append('Roundcube is served by OpenLiteSpeed, which is not installed.')
+        if not which('mysql'):
+            problems.append('The mysql client is not installed.')
+        if not which('doveconf'):
+            problems.append('Dovecot is not installed.')
     if key == 'mysqlmgr' and not which('mysql'):
         problems.append('The mysql client is not installed.')
     if key == 'emaillimits' and not exists('/etc/postfix/main.cf'):

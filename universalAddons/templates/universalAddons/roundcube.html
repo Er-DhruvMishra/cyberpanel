@@ -1,0 +1,50 @@
+{% extends "universalAddons/base.html" %}
+{% load i18n static %}
+{% block title %}{% trans "Roundcube webmail" %} - CyberPanel{% endblock %}
+{% block addon_scripts %}<script src="{% static 'universalAddons/roundcube.js' %}?v={{ CP_VERSION }}"></script>{% endblock %}
+{% block content %}
+<div class="ua-wrap" id="ua-roundcube" data-base="{% url 'ua-roundcube' %}" data-db="{{ db_name }}">
+  <div class="ua-header">
+    <h1><i class="fas fa-envelope"></i> {% trans "Roundcube webmail" %}</h1>
+    <p>{% blocktrans %}Free, open-source Roundcube {{ version }} (1.6 LTS), installed from the official release with a verified checksum and served at {{ prefix }} on a site you choose. Uses this server's Dovecot (IMAP) and Postfix (submission) with each user's own mailbox login.{% endblocktrans %}
+      <a href="{% url 'ua-hub' %}">&larr; {% trans "Add-ons" %}</a></p>
+  </div>
+  {% if not is_admin %}
+  <div class="ua-card"><div class="ua-alert">{% trans "Administrator access is required." %}</div></div>
+  {% else %}
+  <div class="ua-card">
+    <h2>{% trans "Status" %}</h2>
+    <div id="rc-status"><p class="ua-muted">{% trans "Checking…" %}</p></div>
+    <div id="rc-out"></div>
+  </div>
+  <div class="ua-card">
+    <h2 id="rc-site-title">{% trans "Site" %}</h2>
+    <div class="ua-row">
+      <select id="rc-site">
+        <option value="">{% trans "Choose a site…" %}</option>
+        {% for s in sites %}<option value="{{ s }}"{% if s == default_site %} selected{% endif %}>{{ s }}</option>{% endfor %}
+      </select>
+      <button class="ua-btn ua-btn-secondary" id="rc-check">{% trans "Check site" %}</button>
+      <button class="ua-btn" id="rc-install" style="display:none">{% trans "Install Roundcube" %}</button>
+      <button class="ua-btn" id="rc-enable" style="display:none">{% trans "Serve on this site" %}</button>
+    </div>
+    <p class="ua-muted">{% blocktrans %}Roundcube runs with the site's own PHP handler, as the site's Linux user, so that user can read Roundcube's configuration (database password and encryption key). Choose a site you control, normally the one named after this server. A root-owned folder cp-roundcube-web is created in the site's home for the web entry point and static files.{% endblocktrans %}</p>
+    <div id="rc-preflight"></div>
+  </div>
+  <div class="ua-card" id="rc-manage" style="display:none">
+    <h2>{% trans "Manage" %}</h2>
+    <div class="ua-row">
+      <button class="ua-btn ua-btn-secondary" id="rc-disable">{% trans "Stop serving (remove the vhost block)" %}</button>
+      <button class="ua-btn ua-btn-secondary" id="rc-upgrade">{% trans "Check for a newer 1.6 release" %}</button>
+    </div>
+    <div id="rc-upgrade-out"></div>
+    <h3>{% trans "Uninstall" %}</h3>
+    <p class="ua-muted">{% trans "Removes the vhost block, the web folder and /usr/local/cp-roundcube. The database (users' settings, contacts and identities) is kept unless you also drop it." %}</p>
+    <p><label><input type="checkbox" id="rc-drop"> {% trans "Also drop the database and its user. Type the database name to confirm:" %}</label>
+      <input id="rc-confirm" placeholder="{{ db_name }}" autocomplete="off" style="min-width:140px"></p>
+    <button class="ua-btn" id="rc-uninstall" style="background:#dc2626">{% trans "Uninstall Roundcube" %}</button>
+  </div>
+  <div class="ua-card" id="rc-job" style="display:none"><h2>{% trans "Progress" %}</h2><div id="rc-job-out"></div></div>
+  {% endif %}
+</div>
+{% endblock %}

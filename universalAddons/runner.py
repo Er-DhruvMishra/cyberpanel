@@ -30,6 +30,7 @@ MODULES = {
     'emaillimits': 'universalAddons.emaillimits.actions',
     'sshsec': 'universalAddons.sshsec.actions',
     'mysqlmgr': 'universalAddons.mysqlmgr.actions',
+    'roundcube': 'universalAddons.roundcube.actions',
 }
 
 
