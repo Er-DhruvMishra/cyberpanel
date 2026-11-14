@@ -1,0 +1,69 @@
+{% extends "universalAddons/base.html" %}
+{% load i18n static %}
+{% block title %}{% trans "MySQL Manager" %} - CyberPanel{% endblock %}
+{% block addon_scripts %}<script src="{% static 'universalAddons/mysqlmgr.js' %}?v={{ CP_VERSION }}"></script>{% endblock %}
+{% block content %}
+<div class="ua-wrap" id="ua-mysqlmgr" data-base="{% url 'ua-mysqlmgr' %}">
+  <div class="ua-header">
+    <h1><i class="fas fa-server"></i> {% trans "MySQL Manager" %}</h1>
+    <p>{% trans "Status, running queries, tuning and upgrade planning for the database server. Tuning is written only to its own drop-in file and never restarts the server by itself." %}</p>
+  </div>
+  <div class="ua-tabs">
+    <button class="active" data-pane="status">{% trans "Status" %}</button>
+    <button data-pane="processes">{% trans "Processes" %}</button>
+    <button data-pane="tuning">{% trans "Tuning advisor" %}</button>
+    <button data-pane="upgrade">{% trans "Upgrade readiness" %}</button>
+  </div>
+
+  <div class="ua-pane active" id="pane-status">
+    <div class="ua-card">
+      <div class="ua-row"><button class="ua-btn ua-btn-secondary" id="my-status-refresh">{% trans "Refresh" %}</button></div>
+      <div id="my-status"><p class="ua-muted">{% trans "Loading…" %}</p></div>
+    </div>
+    <div class="ua-card"><h2>{% trans "Databases" %}</h2>
+      <div class="ua-row"><button class="ua-btn ua-btn-secondary" id="my-db-load">{% trans "Show database sizes" %}</button>
+        <span class="ua-muted">{% trans "Reads information_schema, which opens every table once; on a busy server this briefly fills the table cache." %}</span></div>
+      <div id="my-databases"></div></div>
+  </div>
+
+  <div class="ua-pane" id="pane-processes">
+    <div class="ua-card">
+      <div class="ua-row">
+        <button class="ua-btn ua-btn-secondary" id="my-proc-refresh">{% trans "Refresh" %}</button>
+        <label><input type="checkbox" id="my-proc-sleep"> {% trans "Show idle connections" %}</label>
+        <span class="ua-muted">{% trans "System, replication and panel connections cannot be killed." %}</span>
+      </div>
+      <div id="my-proc-out"></div>
+      <div id="my-processes"></div>
+    </div>
+  </div>
+
+  <div class="ua-pane" id="pane-tuning">
+    <div class="ua-card">
+      <div class="ua-row">
+        <button class="ua-btn ua-btn-secondary" id="my-advise">{% trans "Analyse again" %}</button>
+        <span class="ua-muted" id="my-dropin-path"></span>
+      </div>
+      <div id="my-notes"></div>
+      <table class="ua-table" id="my-recs"></table>
+      <div class="ua-row" style="margin-top:14px">
+        <button class="ua-btn" id="my-apply">{% trans "Apply selected (writes the drop-in only)" %}</button>
+        <button class="ua-btn ua-btn-secondary" id="my-revert">{% trans "Revert to previous tuning" %}</button>
+        <button class="ua-btn ua-btn-secondary" id="my-check">{% trans "Check configuration" %}</button>
+        <button class="ua-btn" id="my-restart" style="background:#dc2626">{% trans "Check and restart MariaDB" %}</button>
+      </div>
+      <div id="my-tuning-out"></div>
+    </div>
+    <div class="ua-card"><h2>{% trans "Current drop-in" %}</h2><div id="my-dropin"></div></div>
+    <div class="ua-card" id="my-job" style="display:none"><h2>{% trans "Restart" %}</h2><div id="my-job-out"></div></div>
+  </div>
+
+  <div class="ua-pane" id="pane-upgrade">
+    <div class="ua-card">
+      <p class="ua-muted">{% trans "A report only: nothing is installed or changed." %}</p>
+      <div class="ua-row"><button class="ua-btn" id="my-upgrade">{% trans "Check upgrade readiness" %}</button></div>
+      <div id="my-upgrade-out"></div>
+    </div>
+  </div>
+</div>
+{% endblock %}

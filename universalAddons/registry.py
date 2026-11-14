@@ -41,6 +41,9 @@ MODULES = (
     Module('sshsec', 'SSH Security', 'fa-user-shield',
            'SSH login analysis, sshd hardening audit and a firewalld IP blocklist.',
            'ua-sshsec', 'ready'),
+    Module('mysqlmgr', 'MySQL Manager', 'fa-server',
+           'Database status, running queries, a tuning advisor and an upgrade-readiness report for MariaDB/MySQL.',
+           'ua-mysqlmgr', 'ready'),
     Module('htaccess', '.htaccess for OpenLiteSpeed', 'fa-file-code',
            'Apache .htaccess directives translated into OpenLiteSpeed configuration.',
            'ua-htaccess', 'ready'),
@@ -60,6 +63,8 @@ def requirement_problems(key, which=shutil.which, exists=os.path.exists):
     problems = []
     if key == 'backupv2' and not which('restic'):
         problems.append('restic is not installed (dnf/apt install restic).')
+    if key == 'mysqlmgr' and not which('mysql'):
+        problems.append('The mysql client is not installed.')
     if key == 'emaillimits' and not exists('/etc/postfix/main.cf'):
         problems.append('Postfix is not configured on this server.')
     if key == 'htaccess' and not exists('/usr/local/lsws/bin/openlitespeed'):
