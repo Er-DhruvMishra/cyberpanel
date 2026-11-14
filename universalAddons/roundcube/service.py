@@ -396,8 +396,11 @@ def render_vhost_block(vh_root, release_dir):
         parts.append('context %s%s/ {\n  location                %s\n  allowBrowse             0\n}'
                      % (URL_PREFIX, name, mirror))
     basedir = '/tmp:%s:%s/' % (vh_root, os.path.dirname(release_dir.rstrip('/')))
+    # rewrite disabled: the site's own .htaccess is loaded vhost-wide (autoLoadHtaccess) and a
+    # catch-all "missing file -> index.php" rule would otherwise hand /webmail-rc/ to the site's app.
     parts.append('context %s {\n  location                %s\n  allowBrowse             1\n'
                  '  indexFiles              index.php\n  addDefaultCharset       off\n\n'
+                 '  rewrite  {\n    enable                0\n  }\n\n'
                  '  phpIniOverride  {\nphp_admin_value open_basedir "%s"\n  }\n}' % (URL_PREFIX, mirror, basedir))
     parts.append(MARK_END)
     return '\n\n'.join(parts) + '\n'

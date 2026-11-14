@@ -421,3 +421,12 @@ class PagesRender(SimpleTestCase):
         denied = render_to_string('universalAddons/roundcube.html', dict(context, is_admin=False))
         self.assertIn('Administrator access is required', denied)
         self.assertNotIn('rc-install', denied)
+
+
+class SiteRewriteIsolation(SimpleTestCase):
+    def test_roundcube_context_disables_the_sites_rewrites(self):
+        from universalAddons.roundcube import service as rcs
+        block = rcs.render_vhost_block('/home/example.com', '/usr/local/cp-roundcube/1.6.21')
+        main = block[block.index('context /webmail-rc/ {'):]
+        self.assertIn('rewrite  {\n    enable                0\n  }', main)
+        self.assertEqual(block.count('{'), block.count('}'))

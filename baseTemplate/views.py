@@ -490,12 +490,68 @@ def cpHub(request, section):
 
 @ensure_csrf_cookie
 def buildServices(request):
-    # In-panel landing for CyberPanel development services (Android, iOS,
-    # web and custom software). The full marketing page lives on
-    # cyberpanel.net; this page introduces the offering and deep-links out.
-    template = 'baseTemplate/buildServices.html'
-    proc = httpProc(request, template, {})
+    # Request form for development services. Submissions are kept on this server and emailed to
+    # the address an administrator chose (see baseTemplate/buildRequests.py); nothing leaves the
+    # server except that email through the local mail server.
+    from baseTemplate import buildRequests as br
+    try:
+        is_admin = ACLManager.loadedACL(request.session['userID']).get('admin') == 1
+    except Exception:
+        is_admin = False
+    data = {'services': br.SERVICES, 'budgets': [b for b in br.BUDGETS if b], 'is_admin': is_admin}
+    if is_admin:
+        settings = br.load_settings()
+        data.update(recipient=settings['recipient'], recipient_ok=br.usable_recipient(settings['recipient']),
+                    recent=br.recent_requests())
+    proc = httpProc(request, 'baseTemplate/buildServices.html', data)
     return proc.render()
+
+
+def _build_json(payload, status=200):
+    return HttpResponse(json.dumps(payload), content_type='application/json', status=status)
+
+
+@require_POST
+def buildServicesSubmit(request):
+    from baseTemplate import buildRequests as br
+    from CyberCP.sessionSecurity import get_client_ip
+    from loginSystem.models import Administrator
+    try:
+        user_id = request.session['userID']
+    except KeyError:
+        return _build_json({'status': 0, 'error_message': 'Please sign in again.'}, 401)
+    try:
+        # Fields arrive inside one object: free text (URLs, "&", ":") must reach br.validate,
+        # which checks every field itself, instead of being refused by the generic filter.
+        req = br.validate(json.loads(request.body or b'{}').get('request') or {})
+    except (ValueError, AttributeError) as exc:
+        return _build_json({'status': 0, 'error_message': str(exc) if isinstance(exc, br.RequestError) else 'Invalid request.'}, 400)
+    if br.rate_limited(request.session):
+        return _build_json({'status': 0, 'error_message': 'You have sent several requests in the last hour; please try again later.'}, 429)
+    import time as _time
+    host = (request.get_host() or 'localhost').rsplit(':', 1)[0]
+    meta = {'panel_user': Administrator.objects.get(pk=user_id).userName, 'ip': get_client_ip(request),
+            'time': _time.strftime('%Y-%m-%d %H:%M:%S %Z')}
+    try:
+        mailed, note = br.submit(req, meta, 'noreply@%s' % host)
+    except OSError:
+        logging.CyberCPLogFileWriter.writeToFile('buildServicesSubmit: could not store the request')
+        return _build_json({'status': 0, 'error_message': 'The request could not be saved; please try again.'}, 500)
+    return _build_json({'status': 1, 'mailed': mailed, 'message': note})
+
+
+@require_POST
+def buildServicesSettings(request):
+    from baseTemplate import buildRequests as br
+    try:
+        if ACLManager.loadedACL(request.session['userID']).get('admin') != 1:
+            return _build_json({'status': 0, 'error_message': 'Administrator access is required.'}, 403)
+        settings = br.save_settings(json.loads(request.body or b'{}').get('recipient'))
+    except KeyError:
+        return _build_json({'status': 0, 'error_message': 'Please sign in again.'}, 401)
+    except (ValueError, AttributeError) as exc:
+        return _build_json({'status': 0, 'error_message': str(exc)}, 400)
+    return _build_json({'status': 1, 'recipient': settings['recipient']})
 
 
 @require_POST

@@ -60,8 +60,14 @@ class secMiddleware:
 
         # Debug logging removed for performance
 
-        # Define webhook pattern for secure matching
+        # RainLoop and SnappyMail are gone; mailbox users log in to the built-in webmail now.
+        # Old bookmarks (/rainloop, /snappymail, any subpath) go there before any panel login check.
         import re
+        if re.match(r'^/(rainloop|snappymail)(/|$)', pathActual):
+            from django.http import HttpResponseRedirect
+            return HttpResponseRedirect('/webmail/login')
+
+        # Define webhook pattern for secure matching
         webhook_pattern = re.compile(r'^/websites/[^/]+/(webhook|gitNotify)/?$')
         
         # Roundcube owns mailbox authentication and CSRF; its gateway enforces

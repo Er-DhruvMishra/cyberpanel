@@ -31,6 +31,8 @@ class Tickets(SimpleTestCase):
         token = tickets.issue(self.record(), self.dir)
         with self.assertRaisesRegex(tickets.TicketError, 'different address'):
             tickets.consume(token, '198.51.100.1', self.dir)
+        token = tickets.issue(self.record(ip='157.49.80.156'), self.dir)  # same carrier /24 (CGNAT)
+        self.assertTrue(tickets.consume(token, '157.49.80.3', self.dir))
         token = tickets.issue(self.record(), self.dir)
         self.assertEqual(tickets.consume(token, None, self.dir)['domain'], 'shop.example.com')
 

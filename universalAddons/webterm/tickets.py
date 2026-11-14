@@ -28,17 +28,21 @@ class TicketError(ValueError):
 
 
 def address_key(address):
-    """Compare addresses like the panel's own session binding: IPv4 exactly (IPv4-mapped IPv6
-    folded to IPv4), IPv6 by its /48."""
+    """IPv4 by its /24, IPv6 by its /48 (IPv4-mapped IPv6 folded to IPv4).
+
+    Mobile carriers (CGNAT) send a client's separate connections - the panel page on :8090 and
+    the websocket on :443 - out through different public addresses of the same /24, so an exact
+    IPv4 match refuses legitimate users. The ticket is still single-use, 60 s and origin-bound."""
     try:
         parsed = ipaddress.ip_address(str(address or '').strip())
     except ValueError:
         return None
     if isinstance(parsed, ipaddress.IPv6Address):
         if parsed.ipv4_mapped:
-            return str(parsed.ipv4_mapped)
-        return str(ipaddress.ip_network('%s/48' % parsed, strict=False))
-    return str(parsed)
+            parsed = parsed.ipv4_mapped
+        else:
+            return str(ipaddress.ip_network('%s/48' % parsed, strict=False))
+    return str(ipaddress.ip_network('%s/24' % parsed, strict=False))
 
 
 def _ensure_dir(directory):
