@@ -469,3 +469,401 @@ class ViewerErrors(SimpleTestCase):
         with self.assertRaisesRegex(sq.SQLError, '2 MB'):
             sq.capped_runner(['sh', '-c', 'head -c 5000 /dev/zero'], timeout=10, limit=1000)
         self.assertEqual(sq.capped_runner(['sh', '-c', 'printf ok'], timeout=10).stdout, 'ok')
+
+
+# ----------------------------------------------------------------------------- changes (DML mode)
+
+class ChangeFilter(SimpleTestCase):
+    ALLOWED = {
+        'UPDATE dbo.visits SET at = SYSDATETIME() WHERE id = 4': ('UPDATE', True, False),
+        'update visits set a = 1, b = (SELECT MAX(x) FROM y WHERE y.k = visits.k) where id in (select id from z);': ('UPDATE', True, False),
+        'DELETE FROM visits WHERE id = 3': ('DELETE', True, False),
+        'DELETE TOP (5) FROM visits': ('DELETE', False, False),
+        'DELETE FROM visits OUTPUT deleted.* WHERE id = 1': ('DELETE', True, True),
+        'INSERT INTO visits (at) VALUES (SYSDATETIME())': ('INSERT', False, False),
+        'INSERT visits DEFAULT VALUES': ('INSERT', False, False),
+        'INSERT INTO visits (at) OUTPUT inserted.id VALUES (SYSDATETIME()), (NULL)': ('INSERT', False, True),
+        'INSERT INTO t (a) SELECT 1 UNION ALL SELECT 2 EXCEPT SELECT 3': ('INSERT', False, False),
+        'INSERT INTO t (a) SELECT v FROM (VALUES (1), (2)) AS x(v)': ('INSERT', False, False),
+        'WITH old AS (SELECT TOP 10 * FROM visits ORDER BY at) DELETE FROM old': ('DELETE', False, False),
+        "UPDATE visits SET note = N'SET; DELETE -- not code' WHERE id = 1": ('UPDATE', True, False),
+        'UPDATE [update] SET [delete] = 1 WHERE [where] = 2': ('UPDATE', True, False),
+        ('MERGE INTO t USING s ON t.id = s.id WHEN MATCHED AND s.gone = 1 THEN DELETE '
+         'WHEN MATCHED THEN UPDATE SET t.a = s.a WHEN NOT MATCHED THEN INSERT (id, a) VALUES (s.id, s.a) '
+         'OUTPUT $action, inserted.id;'): ('MERGE', False, True),
+        'SELECT * FROM visits': ('SELECT', True, False),
+    }
+    REFUSED = [
+        'CREATE TABLE x (a int)', 'ALTER TABLE visits ADD b int', 'DROP TABLE visits', 'TRUNCATE TABLE visits',
+        'UPDATE visits SET a = 1 WHERE id = 1 DROP TABLE visits',
+        'EXEC sp_who', 'EXECUTE xp_cmdshell', 'INSERT INTO t EXEC sp_who', 'SELECT * FROM sys.sp_helptext',
+        'GRANT SELECT ON visits TO public', 'DENY SELECT ON visits TO x', 'REVOKE SELECT ON visits FROM x',
+        "BACKUP DATABASE x TO DISK = '/tmp/x'", "RESTORE DATABASE x FROM DISK = '/tmp/x'", 'SHUTDOWN', 'DBCC CHECKIDENT(visits)',
+        "INSERT INTO t SELECT * FROM OPENROWSET(BULK '/etc/passwd', SINGLE_CLOB) x",
+        "DELETE FROM OPENQUERY(srv, 'SELECT 1')", "UPDATE OPENDATASOURCE('x', 'y').a.b.c SET a = 1",
+        'UPDATE visits SET a = 1 WHERE id = 1\nGO\nDELETE FROM visits', 'UPDATE visits SET a = 1 GO',
+        "UPDATE visits SET a = 1 WHERE id = 1\n:!! id", 'USE master', 'UPDATE visits SET a = 1; DELETE FROM visits',
+        'UPDATE visits SET a = 1 DELETE FROM visits',                       # no ';' needed between statements
+        'DELETE FROM visits WHERE id = 1 INSERT INTO visits DEFAULT VALUES',
+        'INSERT INTO visits VALUES (1) SELECT * FROM sys.sql_logins',
+        'INSERT INTO t SELECT 1 SELECT 2', 'UPDATE visits SET a = 1 WHERE id = 1 SELECT 1',
+        'UPDATE visits SET a = 1 SET ROWCOUNT 0', 'DELETE FROM visits SET ROWCOUNT 0',
+        'UPDATE visits SET a = 1 WHERE b IN (SELECT 1) BEGIN TRANSACTION', 'BEGIN TRAN', 'COMMIT', 'ROLLBACK',
+        'SELECT * INTO copy FROM visits', 'INSERT INTO t OUTPUT inserted.* INTO audit VALUES (1)',
+        'DELETE FROM t OUTPUT deleted.* INTO audit', 'UPDATE STATISTICS visits',
+        'UPDATE visits SET a = 1 WHERE id = 1 DISABLE TRIGGER trg ON visits', 'REVERT', 'DECLARE @x int',
+        'MERGE t USING s ON t.id = s.id WHEN MATCHED THEN UPDATE SET a = 1 UPDATE t SET b = 2',
+        'INSERT INTO t SELECT * FROM (DELETE FROM x OUTPUT deleted.*) d',  # nested DML
+        'UPDATE visits SET a = 1 /* unterminated', 'MERGE t USING s ON 1 = 1 WHEN MATCHED THEN DELETE; DROP TABLE t',
+        'x' * (sq.MAX_QUERY_CHARS + 1), '',
+    ]
+
+    def test_allowed(self):
+        for sql, (verb, where, output) in self.ALLOWED.items():
+            info = sq.change_query(sql)
+            self.assertEqual((info['verb'], info['where'], info['output']), (verb, where, output), sql)
+
+    def test_refused(self):
+        for sql in self.REFUSED:
+            with self.assertRaises(sq.SQLError, msg=sql):
+                sq.change_query(sql)
+
+    def test_read_only_mode_still_refuses_changes(self):
+        for sql in list(self.ALLOWED)[:-1]:
+            with self.assertRaises(sq.SQLError, msg=sql):
+                sq.readonly_query(sql)
+        with self.assertRaisesRegex(sq.SQLError, 'Allow changes'):
+            sq.refuse_readonly('DELETE FROM visits WHERE id = 1', sq.SQLError('x'))
+        with self.assertRaisesRegex(sq.SQLError, '^x$'):
+            sq.refuse_readonly('DROP TABLE visits', sq.SQLError('x'))
+
+    def test_dml_batch_is_sandboxed_and_committed(self):
+        sql = sq.dml_sql('shop1234_orders', "UPDATE visits SET note = N'it''s' WHERE id = 4 -- tail")
+        order = [sql.index(p) for p in ('SET XACT_ABORT ON;', 'BEGIN TRANSACTION;', "EXECUTE AS LOGIN = N'shop1234_orders';",
+                                        'EXEC sp_executesql @ua_run', 'REVERT;', 'COMMIT;', sq.END_MARK)]
+        self.assertEqual(order, sorted(order))
+        self.assertIn('SET LOCK_TIMEOUT 5000;', sql)
+        self.assertNotIn('ROLLBACK', sql)
+        self.assertNotIn('SET ROWCOUNT', sql)  # would cap the rows a change affects
+        # The statement is one N'' literal (quotes doubled), with ';' on its own line after a trailing comment.
+        self.assertIn("DECLARE @ua_q nvarchar(max) = N'UPDATE visits SET note = N''it''''s'' WHERE id = 4 -- tail\n;';", sql)
+        self.assertIn('@@ROWCOUNT', sql)
+        out = sq.dml_sql('shop1234_orders', 'DELETE FROM visits OUTPUT deleted.id WHERE id = 1')
+        self.assertIn('INSERT INTO #ua_out EXEC sp_executesql @q', out)
+        self.assertIn('sys.dm_exec_describe_first_result_set(@ua_q', out)
+        self.assertIn('TOP (500)', out)
+        self.assertIn('ROLLBACK;', sq.dml_sql('shop1234_orders', 'DELETE FROM visits WHERE id = 1', commit=False))
+        with self.assertRaises(sq.SQLError):
+            sq.dml_sql('shop1234_orders', 'SELECT 1')
+        with self.assertRaises(sq.SQLError):
+            sq.dml_sql('shop1234_orders', 'DROP TABLE visits')
+
+    def test_change_result(self):
+        describe = [{'name': 'old_at', 'type': 'datetime2(7)'}, {'name': 'id', 'type': 'int'}, {'name': 'h', 'type': 'varbinary(8)'}]
+        out = _sqlcmd_output(describe, [{'c1': '2030-01-01T00:00:00', 'c2': 4, 'c3': 'AAE='}], {'affected': 1})
+        result = sq.change_result(sq.documents(out), 'update')
+        self.assertEqual(result['affected'], 1)
+        self.assertEqual(result['columns'], ['old_at', 'id', 'h'])
+        self.assertEqual(result['rows'], [['2030-01-01T00:00:00', 4, '0x0001']])
+        plain = sq.change_result(sq.documents(_sqlcmd_output(None, None, {'affected': 7})), 'delete')
+        self.assertEqual((plain['affected'], plain['columns'], plain['rows']), (7, [], []))
+
+
+class ChangeActions(SimpleTestCase):
+    def setUp(self):
+        self.state = tempfile.mkdtemp()
+        sq.save_registry({'shop1234_orders': {'domain': 'shop.example.com', 'login': 'shop1234_orders', 'created': 1}}, self.state)
+
+    def patched(self, outputs=None):
+        sent = []
+
+        def fake(sql, password, runner, database, options, timeout):
+            sent.append(sql)
+            return outputs.pop(0)
+        return sent, (mock.patch.object(sq, 'STATE_DIR', self.state), mock.patch.object(actions, '_installed', return_value=True),
+                      mock.patch.object(sq, 'sa_password', return_value='x'), mock.patch.object(sq, 'sqlcmd', side_effect=fake))
+
+    def run_with(self, call, outputs=None):
+        sent, patches = self.patched(list(outputs or []))
+        with patches[0], patches[1], patches[2], patches[3]:
+            return call(), sent
+
+    def test_dml_only_with_write(self):
+        with self.assertRaisesRegex(sq.SQLError, 'Allow changes'):
+            self.run_with(lambda: actions.query('shop1234_orders', 'shop.example.com', 'DELETE FROM visits WHERE id = 1'))
+        with self.assertRaisesRegex(sq.SQLError, 'Allow changes'):
+            self.run_with(lambda: actions.query('shop1234_orders', 'shop.example.com', 'INSERT INTO visits DEFAULT VALUES', write='true'))
+        result, sent = self.run_with(lambda: actions.query('shop1234_orders', 'shop.example.com', 'DELETE FROM visits WHERE id = 1',
+                                                           write=True), [_sqlcmd_output(None, None, {'affected': 1})])
+        self.assertEqual(result['affected'], 1)
+        self.assertIn('COMMIT;', sent[0])
+        # A SELECT with "Allow changes" is still the read-only, rolled-back path.
+        result, sent = self.run_with(lambda: actions.query('shop1234_orders', 'shop.example.com', 'SELECT 1 AS a', write=True),
+                                     [_sqlcmd_output([{'name': 'a', 'type': 'int', 'error_message': None}], [{'a': 1}])])
+        self.assertEqual(result['rows'], [[1]])
+        self.assertIn('ROLLBACK;', sent[0])
+        self.assertNotIn('COMMIT', sent[0])
+
+    def test_whole_table_changes_need_confirm_all(self):
+        for sql in ('DELETE FROM visits', 'UPDATE visits SET at = NULL', 'WITH c AS (SELECT * FROM visits WHERE id > 1) DELETE FROM c'):
+            with self.assertRaisesRegex(sq.SQLError, 'confirm'):
+                self.run_with(lambda: actions.query('shop1234_orders', 'shop.example.com', sql, write=True))
+            with self.assertRaisesRegex(sq.SQLError, 'confirm'):
+                self.run_with(lambda: actions.query('shop1234_orders', 'shop.example.com', sql, write=True, confirm_all='yes'))
+            result, sent = self.run_with(lambda: actions.query('shop1234_orders', 'shop.example.com', sql, write=True, confirm_all=True),
+                                         [_sqlcmd_output(None, None, {'affected': 3})])
+            self.assertEqual(result['affected'], 3)
+        # INSERT and MERGE have no WHERE to forget.
+        self.run_with(lambda: actions.query('shop1234_orders', 'shop.example.com', 'INSERT INTO visits DEFAULT VALUES', write=True),
+                      [_sqlcmd_output(None, None, {'affected': 1})])
+
+    def test_ddl_and_exec_refused_even_with_write(self):
+        for sql in ('DROP TABLE visits', 'EXEC sp_who', 'CREATE TABLE x (a int)', 'TRUNCATE TABLE visits', 'ALTER TABLE visits ADD b int'):
+            sent, patches = self.patched([])
+            with patches[0], patches[1], patches[2], patches[3]:
+                with self.assertRaises(sq.SQLError, msg=sql):
+                    actions.query('shop1234_orders', 'shop.example.com', sql, write=True, confirm_all=True)
+            self.assertEqual(sent, [])
+
+    def test_new_actions_check_ownership(self):
+        sent, patches = self.patched([])
+        with patches[0], patches[1], patches[2], patches[3]:
+            for call in (lambda: actions.structure('shop1234_orders', 'other.com', 'dbo', 'visits'),
+                         lambda: actions.update_row('shop1234_orders', 'other.com', 'dbo', 'visits', {'id': 1}, {'at': None}),
+                         lambda: actions.delete_row('shop1234_orders', 'other.com', 'dbo', 'visits', {'id': 1}),
+                         lambda: actions.insert_row('shop1234_orders', 'other.com', 'dbo', 'visits', {}),
+                         lambda: actions.query('shop1234_orders', 'other.com', 'DELETE FROM visits WHERE id = 1', write=True),
+                         lambda: actions.rows('shop1234_orders', 'other.com', 'dbo', 'visits', 0, 25, 'id'),
+                         lambda: actions.insert_row('nope_db', 'shop.example.com', 'dbo', 'visits', {})):
+                with self.assertRaisesRegex(sq.SQLError, 'Unknown database'):
+                    call()
+        self.assertEqual(sent, [])
+
+    COLUMNS = [{'name': 'id', 'type': 'int', 'base': 'int', 'max_length': 4, 'nullable': False, 'pk': 1, 'identity': True, 'kind': 'table'},
+               {'name': 'at', 'type': 'datetime2', 'base': 'datetime2', 'max_length': 8, 'scale': 7, 'nullable': True, 'pk': None}]
+
+    def test_owner_edits_a_row(self):
+        result, sent = self.run_with(lambda: actions.update_row('shop1234_orders', 'shop.example.com', 'dbo', 'visits',
+                                                                {'id': '4'}, {'at': '2030-01-01'}),
+                                     [_sqlcmd_output(self.COLUMNS), _sqlcmd_output(None, None, {'affected': 1})])
+        self.assertEqual(result['affected'], 1)
+        self.assertIn("EXEC sp_executesql N'UPDATE [dbo].[visits] SET [at] = @p0 WHERE [id] = @k0;", sent[1])
+        self.assertIn("@p0 = N'2030-01-01', @k0 = N'4'", sent[1])
+        self.assertIn('IF @ua_n > 1 BEGIN ROLLBACK;', sent[1])
+        self.assertIn("EXECUTE AS LOGIN = N'shop1234_orders';", sent[1])
+        with self.assertRaisesRegex(sq.SQLError, 'identity'):
+            self.run_with(lambda: actions.update_row('shop1234_orders', 'shop.example.com', 'dbo', 'visits', {'id': '4'}, {'id': '5'}),
+                          [_sqlcmd_output(self.COLUMNS)])
+
+
+class RowStatements(SimpleTestCase):
+    COLUMNS = [
+        {'name': 'id', 'type': 'int', 'base': 'int', 'max_length': 4, 'nullable': False, 'pk': 1, 'identity': True, 'kind': 'table'},
+        {'name': 'code', 'type': 'nvarchar', 'base': 'nvarchar', 'max_length': 20, 'nullable': False, 'pk': 2},
+        {'name': 'name', 'type': 'nvarchar', 'base': 'nvarchar', 'max_length': -1, 'nullable': True},
+        {'name': 'qty', 'type': 'smallint', 'base': 'smallint', 'max_length': 2, 'nullable': True},
+        {'name': 'price', 'type': 'decimal', 'base': 'decimal', 'max_length': 9, 'precision': 6, 'scale': 2, 'nullable': True},
+        {'name': 'ok', 'type': 'bit', 'base': 'bit', 'max_length': 1, 'nullable': True},
+        {'name': 'hash', 'type': 'varbinary', 'base': 'varbinary', 'max_length': 4, 'nullable': True},
+        {'name': 'total', 'type': 'decimal', 'base': 'decimal', 'max_length': 9, 'precision': 9, 'scale': 2, 'nullable': True, 'computed': True},
+        {'name': 'ver', 'type': 'timestamp', 'base': 'timestamp', 'max_length': 8, 'nullable': False},
+        {'name': 'where]', 'type': 'char', 'base': 'char', 'max_length': 3, 'nullable': True},
+    ]
+
+    def test_update_parameters(self):
+        statement, params = sq.row_statement('update', 'dbo', 'items', self.COLUMNS, {'id': 7, 'code': "A'1"},
+                                             {'name': 'Grüße 😀 \'quoted\'', 'qty': None, 'ok': True, 'where]': 'x'})
+        self.assertEqual(statement, 'UPDATE [dbo].[items] SET [name] = @p0, [ok] = @p1, [qty] = @p2, [where]]] = @p3 '
+                                    'WHERE [id] = @k0 AND [code] = @k1;')
+        self.assertEqual(params, [('@p0', 'nvarchar(max)', "N'Grüße 😀 ''quoted'''"), ('@p1', 'bit', "N'1'"),
+                                  ('@p2', 'smallint', 'NULL'), ('@p3', 'char(3)', "N'x'"),
+                                  ('@k0', 'int', "N'7'"), ('@k1', 'nvarchar(10)', "N'A''1'")])
+        batch = sq.row_sql('shop1234_orders', 'dbo', 'items', self.COLUMNS, 'update', {'id': 7, 'code': 'A'}, {'qty': '3'})
+        self.assertIn("N'@p0 smallint, @k0 int, @k1 nvarchar(10), @ua_rc bigint OUTPUT', @p0 = N'3', @k0 = N'7', @k1 = N'A', "
+                      "@ua_rc = @ua_n OUTPUT;", batch)
+        self.assertIn('COMMIT;', batch)
+
+    def test_values_never_enter_the_statement(self):
+        evil = "x'); DROP TABLE items; --"
+        statement, params = sq.row_statement('update', 'dbo', 'items', self.COLUMNS, {'id': 1, 'code': "a'--"}, {'name': evil})
+        self.assertNotIn('DROP', statement)
+        self.assertNotIn("a'", statement)
+        batch = sq.row_sql('l1', 'dbo', 'items', self.COLUMNS, 'update', {'id': 1, 'code': 'a'}, {'name': evil})
+        self.assertIn("@p0 = N'x''); DROP TABLE items; --'", batch)
+
+    def test_insert_skips_identity_computed_rowversion_and_empty(self):
+        statement, params = sq.row_statement('insert', 'dbo', 'items', self.COLUMNS,
+                                             values={'id': '99', 'code': 'Ü1', 'name': '', 'qty': None, 'total': '1', 'ver': '0x00',
+                                                     'hash': '0xBEEF', 'price': '1234.56'})
+        self.assertEqual(statement, 'INSERT INTO [dbo].[items] ([code], [qty], [price], [hash]) VALUES (@p0, @p1, @p2, @p3);')
+        self.assertEqual([p[1:] for p in params], [('nvarchar(10)', "N'Ü1'"), ('smallint', 'NULL'), ('decimal(6,2)', "N'1234.56'"),
+                                                   ('varbinary(4)', '0xBEEF')])
+        self.assertEqual(sq.row_statement('insert', 'dbo', 'items', self.COLUMNS, values={'id': ''}),
+                         ('INSERT INTO [dbo].[items] DEFAULT VALUES;', []))
+        with self.assertRaisesRegex(sq.SQLError, 'Unknown column'):
+            sq.row_statement('insert', 'dbo', 'items', self.COLUMNS, values={'nope': '1'})
+        view = [dict(self.COLUMNS[2], kind='view')]
+        with self.assertRaisesRegex(sq.SQLError, 'tables'):
+            sq.row_statement('insert', 'dbo', 'v', view, values={'name': 'x'})
+
+    def test_delete_parameters(self):
+        statement, params = sq.row_statement('delete', 'dbo', 'items', self.COLUMNS, {'code': 'a', 'id': '3'})
+        self.assertEqual(statement, 'DELETE FROM [dbo].[items] WHERE [id] = @k0 AND [code] = @k1;')
+        self.assertEqual(params, [('@k0', 'int', "N'3'"), ('@k1', 'nvarchar(10)', "N'a'")])
+        for key in ({'id': '3'}, {'id': '3', 'code': 'a', 'qty': 1}, {'id': None, 'code': 'a'}, ['3'], None):
+            with self.assertRaises(sq.SQLError, msg=key):
+                sq.row_statement('delete', 'dbo', 'items', self.COLUMNS, key)
+        with self.assertRaisesRegex(sq.SQLError, 'primary key'):
+            sq.row_statement('delete', 'dbo', 'log', [self.COLUMNS[2]], {'name': 'x'})
+
+    def test_type_validation(self):
+        key = {'id': 1, 'code': 'a'}
+        for values in ({'qty': '40000'}, {'qty': '1.5'}, {'qty': ''}, {'qty': True}, {'price': '12345.6'}, {'price': 'abc'},
+                       {'ok': 'maybe'}, {'hash': 'BEEF'}, {'hash': '0x0102030405'}, {'where]': 'abcd'}, {'code': None},
+                       {'total': '1'}, {'ver': '0x00'}, {'name': 'a\x00b'}, {'nope': 1}, {'name': ['x']}, {}):
+            with self.assertRaises(sq.SQLError, msg=values):
+                sq.row_statement('update', 'dbo', 'items', self.COLUMNS, key, values)
+        ok = {'qty': '-32768', 'price': '-9999.99', 'ok': 'false', 'hash': '0x', 'where]': 'abc', 'name': None}
+        _, params = sq.row_statement('update', 'dbo', 'items', self.COLUMNS, key, ok)
+        self.assertIn(('@p0', 'varbinary(4)', '0x'), params)
+        self.assertIn(('@p2', 'bit', "N'0'"), params)
+        guid = {'name': 'g', 'type': 'uniqueidentifier', 'base': 'uniqueidentifier', 'max_length': 16, 'nullable': False}
+        self.assertEqual(sq.value_literal(guid, '6F9619FF-8B86-D011-B42D-00C04FC964FF'), "N'6F9619FF-8B86-D011-B42D-00C04FC964FF'")
+        with self.assertRaises(sq.SQLError):
+            sq.value_literal(guid, "6F9619FF' OR 1=1 --")
+        when = {'name': 'w', 'base': 'datetime2', 'scale': 3, 'nullable': True}
+        self.assertEqual(sq.param_type(when), 'datetime2(3)')
+        with self.assertRaises(sq.SQLError):
+            sq.value_literal(when, "2024-01-01'; DROP")
+        self.assertIsNone(sq.param_type({'base': 'geography', 'clr': True}))
+
+
+class ExportAndBrowse(SimpleTestCase):
+    def test_csv_quoting(self):
+        text = sq.to_csv(['id', 'note, "quoted"', 'ü'], [[1, 'a,b', None], [2, 'say "hi"\nnext line', True],
+                                                      [3, '', [('k', 'v')]], [4, ' lead', 'Grüße 😀']])
+        self.assertTrue(text.startswith('﻿'))
+        self.assertEqual(text[1:].split('\r\n'), [
+            'id,"note, ""quoted""",ü', '1,"a,b",', '2,"say ""hi""\nnext line",1', '3,,"{""k"": ""v""}"', '4, lead,Grüße 😀', ''])
+        import csv
+        import io
+        self.assertEqual(list(csv.reader(io.StringIO(text[1:])))[2], ['2', 'say "hi"\nnext line', '1'])
+
+    def test_json_export(self):
+        self.assertEqual(json.loads(sq.to_json(['id', 'id', 'x'], [[1, 2, None]])), [{'id': 1, 'id_2': 2, 'x': None}])
+
+    COLUMNS = [{'name': 'id', 'base': 'int', 'pk': 1}, {'name': 'note', 'base': 'ntext'}, {'name': 'odd]name', 'base': 'nvarchar', 'max_length': 20},
+               {'name': 'at', 'base': 'datetime'}, {'name': 'g', 'base': 'geography', 'clr': True}]
+
+    def test_sort_and_filter_names_are_validated(self):
+        for kwargs in ({'sort': 'nope'}, {'sort': 'note'}, {'sort': 'g'}, {'sort': 'ID'}, {'page_size': 30}, {'page_size': True},
+                       {'filter_column': 'nope', 'filter_text': 'x'}, {'filter_column': None, 'filter_text': 'x'},
+                       {'filter_column': 'id', 'filter_text': 'x' * 201}, {'filter_column': 'id', 'filter_text': 5}):
+            with self.assertRaises(sq.SQLError, msg=kwargs):
+                sq.browse_options(self.COLUMNS, **dict({'page_size': 25}, **kwargs))
+        sql = sq.rows_sql('l1', 'dbo', 't', self.COLUMNS, 1, 25, 'odd]name', True, 'odd]name', "50%_off' [x]")
+        self.assertIn('ORDER BY [odd]]name] DESC, [id] OFFSET 25 ROWS FETCH NEXT 25 ROWS ONLY', sql)
+        self.assertIn("WHERE CONVERT(nvarchar(max), [odd]]name]) LIKE @f ESCAPE N''\\''", sql)
+        # The filter text is only the parameter value, wildcards escaped.
+        self.assertIn("@f = N'%50\\%\\_off'' \\[x]%';", sql)
+        self.assertEqual(sql.count('50%'), 0)
+        self.assertEqual(sql.count('off'), 1)
+        self.assertEqual(sq.like_pattern('a\\b%c_d[e'), '%a\\\\b\\%c\\_d\\[e%')
+        self.assertIn('CONVERT(nvarchar(max), [at], 121) LIKE', sq.rows_sql('l1', 'dbo', 't', self.COLUMNS, 0, 50, None, False, 'at', '2024'))
+        self.assertIn('[g].ToString() LIKE', sq.rows_sql('l1', 'dbo', 't', self.COLUMNS, 0, 50, None, False, 'g', 'POINT'))
+        self.assertIn('CONVERT(nvarchar(4000), [id]) AS [k0]', sql)  # exact key text for edit/delete
+
+    def test_structure_sql(self):
+        sql = sq.structure_sql('l1', 'dbo', 'visits')
+        for part in ('sys.indexes', 'sys.foreign_keys', 'sys.dm_db_partition_stats', "OBJECT_ID(N'[dbo].[visits]')", 'ROLLBACK;'):
+            self.assertIn(part, sql)
+        self.assertEqual(sql.count(sq.DOC_MARK), 3)
+        with self.assertRaises(sq.SQLError):
+            sq.structure_sql('l1', 'dbo', 'x]; DROP TABLE y')
+
+
+class ChangeViews(Views):
+    BODY = {'name': 'shop1234_orders', 'domain': 'shop.example.com', 'schema': 'dbo', 'table': 'visits'}
+    USERS = {'mssql_for_users': True}
+
+    def test_new_endpoints_need_policy_and_ownership(self):
+        body = dict(self.BODY, row={'key': {'id': 1}, 'values': {'at': None}}, format='csv', source='rows')
+        for view in (views.structure, views.update_row, views.delete_row, views.insert_row, views.export):
+            self.assertEqual(self.post(view, body)[0], 403, view.__name__)  # policy off
+            status, _, call = self.post(view, dict(body, domain='other.com'), owns=False, policy=self.USERS)
+            self.assertEqual(status, 403, view.__name__)
+            call.assert_not_called()
+
+    def test_query_write_flags(self):
+        status, _, call = self.post(views.query, dict(self.BODY, content='DELETE FROM visits WHERE id = 1'), policy=self.USERS)
+        self.assertEqual(status, 400)
+        call.assert_not_called()
+        status, data, call = self.post(views.query, dict(self.BODY, content='DELETE FROM visits', write=True), policy=self.USERS)
+        self.assertTrue(data['result']['needs_confirm'])
+        call.assert_not_called()
+        _, _, call = self.post(views.query, dict(self.BODY, content='DELETE FROM visits', write=True, confirm_all=True), policy=self.USERS)
+        call.assert_called_once_with('mssql', 'query', name='shop1234_orders', domain='shop.example.com', sql='DELETE FROM visits',
+                                     write=True, confirm_all=True)
+        status, _, call = self.post(views.query, dict(self.BODY, content='DROP TABLE visits', write=True, confirm_all=True), policy=self.USERS)
+        self.assertEqual(status, 400)
+        call.assert_not_called()
+
+    def test_row_data_travels_in_the_row_object(self):
+        row = {'key': {'id': 4}, 'values': {"we]ird; (name)": "it's; DROP", 'at': None}}
+        _, _, call = self.post(views.update_row, dict(self.BODY, row=row), policy=self.USERS)
+        call.assert_called_once_with('mssql', 'update_row', name='shop1234_orders', domain='shop.example.com', schema='dbo',
+                                     table='visits', key={'id': 4}, values=row['values'])
+        _, _, call = self.post(views.insert_row, dict(self.BODY, row={'values': {}}), policy=self.USERS)
+        call.assert_called_once_with('mssql', 'insert_row', name='shop1234_orders', domain='shop.example.com', schema='dbo',
+                                     table='visits', values={})
+        for view, bad in ((views.update_row, {'key': {'id': 4}, 'values': {}}), (views.update_row, {'key': 4, 'values': {'a': 1}}),
+                          (views.delete_row, {'key': None}), (views.insert_row, {'values': {'a': {'nested': 1}}}),
+                          (views.insert_row, {'values': {'a': 'x' * (sq.MAX_ROW_CHARS + 1)}}), (views.insert_row, 'x')):
+            status, _, call = self.post(view, dict(self.BODY, row=bad), policy=self.USERS)
+            self.assertEqual(status, 400, bad)
+            call.assert_not_called()
+
+    def test_browse_options(self):
+        body = dict(self.BODY, page=2, browse={'pageSize': 100, 'sort': 'at', 'desc': True, 'filterColumn': 'at', 'filterText': "50%; '"})
+        _, _, call = self.post(views.rows, body, policy=self.USERS)
+        call.assert_called_once_with('mssql', 'rows', name='shop1234_orders', domain='shop.example.com', schema='dbo', table='visits',
+                                     page=2, page_size=100, sort='at', descending=True, filter_column='at', filter_text="50%; '")
+        for browse in ({'pageSize': 10}, {'pageSize': '25'}, {'filterText': 'x'}, {'sort': ['a']}, 'x', {'filterText': 'x' * 201, 'filterColumn': 'a'}):
+            status, _, call = self.post(views.rows, dict(self.BODY, browse=browse), policy=self.USERS)
+            self.assertEqual(status, 400, browse)
+            call.assert_not_called()
+
+    def export(self, body):
+        request = RequestFactory().post('/x', data=json.dumps(body), content_type='application/json')
+        request.session = {'userID': 3}
+        result = {'columns': ['id', 'note'], 'rows': [[1, 'a,"b"']]}
+        with mock.patch('universalAddons.access.ACLManager.loadedACL', return_value={'admin': 1}), \
+                mock.patch('loginSystem.models.Administrator.objects.get', return_value=object()), \
+                mock.patch('universalAddons.privileged.call', return_value=result) as call:
+            return views.export(request), call
+
+    def test_export(self):
+        response, call = self.export(dict(self.BODY, source='rows', format='csv', page=0, browse={'pageSize': 25}))
+        self.assertEqual(response['Content-Type'], 'text/csv; charset=utf-8')
+        self.assertEqual(response['Content-Disposition'], 'attachment; filename="shop1234_orders_dbo_visits_page1.csv"')
+        self.assertEqual(response.content.decode('utf-8'), '﻿id,note\r\n1,"a,""b"""\r\n')
+        self.assertEqual(call.call_args[0][:2], ('mssql', 'rows'))
+        response, call = self.export(dict(self.BODY, source='query', format='json', content='SELECT 1'))
+        self.assertEqual(json.loads(response.content), [{'id': 1, 'note': 'a,"b"'}])
+        call.assert_called_once_with('mssql', 'query', name='shop1234_orders', domain='shop.example.com', sql='SELECT 1')
+        for body in (dict(self.BODY, source='query', format='csv', content='DELETE FROM visits WHERE id = 1'),
+                     dict(self.BODY, source='rows', format='xlsx'), dict(self.BODY, source='other', format='csv'),
+                     dict(self.BODY, source='rows', format='csv', table='x]; DROP')):
+            response, call = self.export(body)
+            self.assertEqual(response.status_code, 400, body)
+            call.assert_not_called()
+
+
+class CsvInjection(SimpleTestCase):
+    def test_formula_cells_are_neutralised_numbers_kept(self):
+        out = sq.to_csv(['a', 'b'], [['=HYPERLINK("x")', '-12.5'], ['@SUM(A1)', '+1-2']])
+        self.assertIn("'=HYPERLINK", out)
+        self.assertIn('-12.5', out)
+        self.assertNotIn("'-12.5", out)
+        self.assertIn("'@SUM", out)
+        self.assertIn("'+1-2", out)

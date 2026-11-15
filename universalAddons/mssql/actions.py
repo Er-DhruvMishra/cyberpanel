@@ -188,7 +188,7 @@ def drop(name, domain):
     return {'dropped': name}
 
 
-# ----------------------------------------------------------------------------- viewer (read-only)
+# ----------------------------------------------------------------------------- viewer and row editing
 
 def _viewer(name, domain):
     """(login, sa password) for a database the caller's site owns; the views check site ownership."""
@@ -212,30 +212,99 @@ def tables(name, domain):
     return {'name': name, 'tables': sq.records(docs[0] if docs else None)}
 
 
+def _column_info(c):
+    return {'name': c['name'], 'type': sq.display_type(c), 'base': c.get('base'), 'nullable': bool(c.get('nullable')),
+            'pk': bool(c.get('pk')), 'identity': bool(c.get('identity')), 'computed': bool(c.get('computed')),
+            'default': c.get('default'), 'editable': sq.editable(c), 'max_chars': sq.char_limit(c)}
+
+
 def columns(name, domain, schema, table):
     login, password = _viewer(name, domain)
-    return {'name': name, 'schema': schema, 'table': table,
-            'columns': [{'name': c['name'], 'type': sq.display_type(c), 'nullable': bool(c.get('nullable')),
-                         'pk': bool(c.get('pk'))} for c in _columns(name, login, password, schema, table)]}
+    cols = _columns(name, login, password, schema, table)
+    keyed = bool(cols) and cols[0].get('kind', 'table') == 'table' and any(c.get('pk') for c in cols)
+    return {'name': name, 'schema': schema, 'table': table, 'kind': cols[0].get('kind', 'table'),
+            'editable': keyed and all(sq.param_type(c) is not None for c in cols if c.get('pk')),
+            'columns': [_column_info(c) for c in cols]}
 
 
-def rows(name, domain, schema, table, page=0):
+def structure(name, domain, schema, table):
     login, password = _viewer(name, domain)
     cols = _columns(name, login, password, schema, table)
-    docs = sq.viewer_run(sq.rows_sql(login, schema, table, cols, page), password, name)
-    data = docs[0] if docs else None
-    values = [[sq.display_value(v) for _, v in row] for row in (data or [])]
-    return sq.check_size({'name': name, 'schema': schema, 'table': table, 'page': int(page),
-                          'page_size': sq.PAGE_SIZE, 'columns': [c['name'] for c in cols], 'rows': values})
-
-
-def query(name, domain, sql):
-    sq.readonly_query(sql)  # refuse before touching the server
-    login, password = _viewer(name, domain)
-    docs = sq.viewer_run(sq.query_sql(login, sql), password, name)
-    if len(docs) != 2:
+    docs = sq.viewer_run(sq.structure_sql(login, schema, table), password, name)
+    if len(docs) != 3:
         raise SQLError('Could not read the result from SQL Server.')
-    return sq.check_size(dict(sq.result_table(docs[0], docs[1]), name=name))
+    stats = sq.records(docs[2])
+    return {'name': name, 'schema': schema, 'table': table,
+            'columns': [dict(_column_info(c), length=c.get('max_length'), precision=c.get('precision'),
+                             scale=c.get('scale'), computed_definition=c.get('computed_definition'),
+                             seed=c.get('seed'), increment=c.get('increment'), collation=c.get('collation'))
+                        for c in cols],
+            'indexes': sq.records(docs[0]), 'foreign_keys': sq.records(docs[1]),
+            'stats': stats[0] if stats else {}}
+
+
+def rows(name, domain, schema, table, page=0, page_size=sq.PAGE_SIZE, sort=None, descending=False,
+         filter_column=None, filter_text=None):
+    login, password = _viewer(name, domain)
+    cols = _columns(name, login, password, schema, table)
+    sql = sq.rows_sql(login, schema, table, cols, page, page_size, sort, descending, filter_column, filter_text)
+    docs = sq.viewer_run(sql, password, name)
+    data = docs[0] if docs else None
+    width = len(cols)
+    values, keys = [], []
+    for row in (data or []):
+        cells = [v for _, v in row]
+        values.append([sq.display_value(v) for v in cells[:width]])
+        keys.append(cells[width:])
+    has_keys = any(c.get('pk') for c in cols)
+    return sq.check_size({'name': name, 'schema': schema, 'table': table, 'page': int(page),
+                          'page_size': page_size, 'columns': [c['name'] for c in cols], 'rows': values,
+                          'keys': keys if has_keys else None,
+                          'key_columns': [c['name'] for c in sorted((c for c in cols if c.get('pk')), key=lambda c: c['pk'])],
+                          'sort': sort or None, 'descending': descending is True,
+                          'filter_column': filter_column if filter_text else None, 'filter_text': filter_text or None})
+
+
+def query(name, domain, sql, write=False, confirm_all=False):
+    """A SELECT (always rolled back) or, with write=True, one committed INSERT/UPDATE/DELETE/MERGE."""
+    if write is not True:
+        try:
+            sq.readonly_query(sql)  # refuse before touching the server
+        except SQLError as refused:
+            sq.refuse_readonly(sql, refused)
+        login, password = _viewer(name, domain)
+        docs = sq.viewer_run(sq.query_sql(login, sql), password, name)
+        if len(docs) != 2:
+            raise SQLError('Could not read the result from SQL Server.')
+        return sq.check_size(dict(sq.result_table(docs[0], docs[1]), name=name))
+    info = sq.change_query(sql)
+    if info['verb'] == 'SELECT':
+        return query(name, domain, sql)
+    if sq.needs_confirmation(info) and confirm_all is not True:
+        raise SQLError('%s without WHERE changes every row; confirm to run it.' % info['verb'])
+    login, password = _viewer(name, domain)
+    docs = sq.viewer_run(sq.dml_sql(login, sql), password, name)
+    return sq.check_size(dict(sq.change_result(docs, info['verb'].lower()), name=name))
+
+
+def _change_row(action, name, domain, schema, table, key=None, values=None):
+    login, password = _viewer(name, domain)
+    cols = _columns(name, login, password, schema, table)
+    docs = sq.viewer_run(sq.row_sql(login, schema, table, cols, action, key, values), password, name)
+    result = sq.change_result(docs, action)
+    return {'name': name, 'schema': schema, 'table': table, 'action': action, 'affected': result['affected']}
+
+
+def update_row(name, domain, schema, table, key, values):
+    return _change_row('update', name, domain, schema, table, key, values)
+
+
+def delete_row(name, domain, schema, table, key):
+    return _change_row('delete', name, domain, schema, table, key)
+
+
+def insert_row(name, domain, schema, table, values):
+    return _change_row('insert', name, domain, schema, table, values=values)
 
 
 def service(action):
@@ -273,7 +342,11 @@ ACTIONS = {
     'service': service,
     'tables': tables,
     'columns': columns,
+    'structure': structure,
     'rows': rows,
     'query': query,
+    'update_row': update_row,
+    'delete_row': delete_row,
+    'insert_row': insert_row,
     'job': lambda job_id: jobs.status(job_id),
 }

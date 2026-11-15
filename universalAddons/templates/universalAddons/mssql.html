@@ -34,22 +34,49 @@
       <h2 style="margin:0">{% trans "Browse" %} <code id="sq-v-db"></code></h2>
       <button class="ua-btn ua-btn-secondary" id="sq-v-close">{% trans "Close" %}</button>
     </div>
-    <p class="ua-muted">{% trans "Read-only. Everything runs as the database's own login inside a transaction that is always rolled back." %}</p>
+    <p class="ua-muted">{% trans "Everything runs as the database's own login, so only this database's objects and permissions apply. Reads run in a transaction that is always rolled back; changes are single statements that are committed." %}</p>
     <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start">
       <div id="sq-v-tables" style="flex:0 0 260px;max-width:100%;max-height:520px;overflow:auto"></div>
       <div style="flex:1 1 420px;min-width:0">
-        <div id="sq-v-columns"></div>
-        <div class="ua-row" id="sq-v-pager" style="display:none">
-          <button class="ua-btn ua-btn-secondary" id="sq-v-prev">&larr; {% trans "Previous" %}</button>
-          <span id="sq-v-page" class="ua-muted"></span>
-          <button class="ua-btn ua-btn-secondary" id="sq-v-next">{% trans "Next" %} &rarr;</button>
+        <div id="sq-v-table" style="display:none">
+          <div class="ua-row" style="justify-content:space-between">
+            <h3 style="margin:0" id="sq-v-title"></h3>
+            <div class="ua-row">
+              <button class="ua-btn sq-v-tab" data-tab="data">{% trans "Data" %}</button>
+              <button class="ua-btn ua-btn-secondary sq-v-tab" data-tab="structure">{% trans "Structure" %}</button>
+            </div>
+          </div>
+          <div id="sq-v-data">
+            <div class="ua-row" style="margin:8px 0">
+              <select id="sq-v-fcol" aria-label="{% trans 'Filter column' %}"></select>
+              <input id="sq-v-ftext" placeholder="{% trans 'contains…' %}" maxlength="200">
+              <button class="ua-btn ua-btn-secondary" id="sq-v-filter">{% trans "Filter" %}</button>
+              <button class="ua-btn ua-btn-secondary" id="sq-v-unfilter">{% trans "Clear" %}</button>
+              <label>{% trans "Rows per page" %} <select id="sq-v-size"><option>25</option><option selected>50</option><option>100</option></select></label>
+              <button class="ua-btn" id="sq-v-add" style="display:none">{% trans "Insert row" %}</button>
+              <button class="ua-btn ua-btn-secondary sq-v-export" data-source="rows" data-format="csv">CSV</button>
+              <button class="ua-btn ua-btn-secondary sq-v-export" data-source="rows" data-format="json">JSON</button>
+            </div>
+            <p class="ua-muted" id="sq-v-hint"></p>
+            <div id="sq-v-insert"></div>
+            <div id="sq-v-msg"></div>
+            <div class="ua-row" id="sq-v-pager" style="display:none">
+              <button class="ua-btn ua-btn-secondary" id="sq-v-prev">&larr; {% trans "Previous" %}</button>
+              <span id="sq-v-page" class="ua-muted"></span>
+              <button class="ua-btn ua-btn-secondary" id="sq-v-next">{% trans "Next" %} &rarr;</button>
+            </div>
+            <div id="sq-v-rows" style="overflow:auto;max-height:520px"></div>
+          </div>
+          <div id="sq-v-structure" style="display:none"></div>
         </div>
-        <div id="sq-v-rows" style="overflow:auto;max-height:520px"></div>
         <h3>{% trans "Query" %}</h3>
         <textarea id="sq-v-sql" rows="5" style="width:100%;font-family:monospace" spellcheck="false" placeholder="SELECT TOP 10 * FROM dbo.visits"></textarea>
         <div class="ua-row" style="margin-top:8px">
-          <button class="ua-btn" id="sq-v-run">{% trans "Run (read-only)" %}</button>
-          <span class="ua-muted">{% trans "One SELECT or WITH statement; at most 500 rows, 30 seconds, 2 MB." %}</span>
+          <label><input type="checkbox" id="sq-v-write"> {% trans "Allow changes" %}</label>
+          <button class="ua-btn" id="sq-v-run">{% trans "Run" %}</button>
+          <button class="ua-btn ua-btn-secondary sq-v-export" data-source="query" data-format="csv">CSV</button>
+          <button class="ua-btn ua-btn-secondary sq-v-export" data-source="query" data-format="json">JSON</button>
+          <span class="ua-muted" id="sq-v-mode"></span>
         </div>
         <div id="sq-v-result" style="overflow:auto;max-height:520px"></div>
       </div>
