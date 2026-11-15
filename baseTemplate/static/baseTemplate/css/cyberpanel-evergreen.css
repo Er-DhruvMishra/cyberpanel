@@ -1524,3 +1524,11 @@ html.cp-evergreen #main-content [ng-controller="editPHPConfig"] .config-panel:ha
     html.cp-evergreen #main-content .record-type-tabs { padding: 16px 16px 0; }
     html.cp-evergreen #main-content [ng-controller="addModifyDNSRecords"] .record-type-tabs > ul { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* Checkbox and radio labels: keep a gap between the box and its text everywhere
+   (custom sliding switches - .toggle-switch / .switch - draw their own control and are excluded;
+   page-specific rules above are more specific and still win). */
+html.cp-evergreen label:not(.toggle-switch):not(.switch) > input[type="checkbox"],
+html.cp-evergreen label:not(.toggle-switch):not(.switch) > input[type="radio"] { margin: 0 8px 0 0; vertical-align: middle; }
+html.cp-evergreen input[type="checkbox"]:not(.toggle-switch input) + label,
+html.cp-evergreen input[type="radio"] + label { margin-left: 8px; }

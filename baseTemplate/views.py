@@ -488,6 +488,40 @@ def cpHub(request, section):
     return proc.render()
 
 
+WP_COUNT_CACHE = '/home/cyberpanel/wordpress-installs.json'
+WP_COUNT_TTL = 900
+
+
+def _wordpress_installs(domains, fallback):
+    """WordPress installs that really exist (the WordPress add-on looks for wp-config.php),
+    instead of the WPSites table, which keeps rows for sites that never had or no longer have
+    WordPress. Cached for 15 minutes; falls back to the table count if detection is unavailable."""
+    import time
+    detected = None
+    try:
+        with open(WP_COUNT_CACHE) as handle:
+            cached = json.load(handle)
+        if time.time() - cached.get('at', 0) < WP_COUNT_TTL:
+            detected = cached['domains']
+    except (OSError, ValueError, KeyError, AttributeError):
+        pass
+    if detected is None:
+        try:
+            from universalAddons import privileged
+            result = privileged.call('wordpress', 'list')
+            detected = sorted({item['domain'] for item in result.get('installs', [])})
+            fd = os.open(WP_COUNT_CACHE + '.tmp', os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            with os.fdopen(fd, 'w') as handle:
+                json.dump({'at': time.time(), 'domains': detected}, handle)
+            os.replace(WP_COUNT_CACHE + '.tmp', WP_COUNT_CACHE)
+        except Exception:
+            return fallback
+    if domains is None:
+        return len(detected)
+    wanted = set(domains)
+    return sum(1 for domain in detected if domain in wanted)
+
+
 @ensure_csrf_cookie
 def buildServices(request):
     # Landing page: what we build. Its buttons open buildServicesRequest with the service preselected.
@@ -654,7 +688,7 @@ def getDashboardStats(request):
             # Admin can see all resources
             total_users = Administrator.objects.count()
             total_sites = Websites.objects.count()
-            total_wp_sites = WPSites.objects.count()
+            total_wp_sites = _wordpress_installs(None, WPSites.objects.count())
             total_dbs = Databases.objects.count()
             total_emails = EUsers.objects.count()
             total_ftp_users = FTPUsers.objects.count()
@@ -678,7 +712,8 @@ def getDashboardStats(request):
             
             # Count WP sites associated with user's websites
             if website_names:
-                total_wp_sites = WPSites.objects.filter(owner__domain__in=website_names).count()
+                total_wp_sites = _wordpress_installs(
+                    website_names, WPSites.objects.filter(owner__domain__in=website_names).count())
                 
                 # Count databases associated with user's websites
                 total_dbs = Databases.objects.filter(website__domain__in=website_names).count()
