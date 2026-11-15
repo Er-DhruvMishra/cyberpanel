@@ -968,7 +968,7 @@ def analyzeSSHSecurity(request):
                     'Integration with CSF and Firewalld',
                     'Detailed threat analysis and reporting'
                 ],
-                'addon_url': 'https://cyberpanel.net/cyberpanel-addons'
+                'addon_url': '/addons/'
             }), content_type='application/json')
         
         from plogical.processUtilities import ProcessUtilities
@@ -1621,3 +1621,34 @@ def getTopProcesses(request):
                 
     except Exception as e:
         return HttpResponse(json.dumps({'error': str(e)}), content_type='application/json', status=500)
+
+
+# ---------------------------------------------------------------- Help centre
+# Local replacement for the vendor KnowledgeBase: Markdown articles under baseTemplate/help/,
+# rendered by baseTemplate/helpCentre.py. Any signed-in panel user may read them.
+
+@require_GET
+def helpIndex(request):
+    from baseTemplate import helpCentre
+    if 'userID' not in request.session:
+        return redirect(loadLoginPage)
+    proc = httpProc(request, 'baseTemplate/helpIndex.html', {'categories': helpCentre.index()})
+    return proc.render()
+
+
+@require_GET
+def helpArticle(request, slug):
+    from baseTemplate import helpCentre
+    if 'userID' not in request.session:
+        return redirect(loadLoginPage)
+    article = helpCentre.load_article(slug)
+    if article is None:
+        response = httpProc(request, 'baseTemplate/helpArticle.html', {'article': None}).render()
+        if response.status_code == 200:
+            response.status_code = 404
+        return response
+    data = {'article': article}
+    if slug == 'change-logs':
+        data['commits'] = helpCentre.recent_commits()
+        data['commits_url'] = helpCentre.CHANGELOG_FALLBACK
+    return httpProc(request, 'baseTemplate/helpArticle.html', data).render()

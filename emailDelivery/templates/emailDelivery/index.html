@@ -644,10 +644,10 @@
         Get Started Free <i class="fas fa-arrow-right"></i>
     </button>
     <div style="margin-top:20px; display:flex; gap:24px; justify-content:center; flex-wrap:wrap;">
-        <a href="https://cyberpanel.net/KnowledgeBase/cybermail-setup-guide/" target="_blank" style="color:#4f46e5; font-size:0.88em; font-weight:600; text-decoration:none;">
+        <a href="{% url 'help' 'cybermail-setup' %}" target="_blank" style="color:#4f46e5; font-size:0.88em; font-weight:600; text-decoration:none;">
             <i class="fas fa-book"></i> Setup Guide
         </a>
-        <a href="https://cyberpanel.net/KnowledgeBase/cybermail-user-guide/" target="_blank" style="color:#4f46e5; font-size:0.88em; font-weight:600; text-decoration:none;">
+        <a href="{% url 'help' 'cybermail-guide' %}" target="_blank" style="color:#4f46e5; font-size:0.88em; font-weight:600; text-decoration:none;">
             <i class="fas fa-circle-question"></i> User Guide
         </a>
     </div>
@@ -676,7 +676,7 @@
             </div>
         </div>
         <div class="ed-actions">
-            <a href="https://cyberpanel.net/KnowledgeBase/cybermail-user-guide/" target="_blank" class="ed-btn ed-btn-outline" style="text-decoration:none;"><i class="fas fa-book"></i> Docs</a>
+            <a href="{% url 'help' 'cybermail-guide' %}" target="_blank" class="ed-btn ed-btn-outline" style="text-decoration:none;"><i class="fas fa-book"></i> Docs</a>
             <button class="ed-btn ed-btn-outline" ng-click="refreshDashboard()"><i class="fas fa-arrows-rotate"></i> Refresh</button>
             <button class="ed-btn ed-btn-ghost" data-toggle="modal" data-target="#disconnectModal">Disconnect</button>
         </div>

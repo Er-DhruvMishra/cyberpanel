@@ -435,7 +435,7 @@
         </h1>
         <p class="page-subtitle">{% trans "Set up and manage automatic backups to Google Drive" %}</p>
         <div class="header-actions">
-            <a href="https://cyberpanel.net/KnowledgeBase/home/backup-to-google-drive/"
+            <a href="{% url 'help' 'google-drive-backup' %}"
                target="_blank" 
                rel="noopener"
                class="btn-secondary">
@@ -521,7 +521,7 @@
                     <i class="fas fa-info-circle"></i>
                     <p>
                         {% trans "Backup retention is a" %} 
-                        <a href="https://cyberpanel.net/cyberpanel-addons" target="_blank" rel="noopener">{% trans "paid feature" %}</a>. 
+                        <a href="/addons/" target="_blank" rel="noopener">{% trans "paid feature" %}</a>. 
                         {% trans "Upgrade to manage how long backups are stored." %}
                     </p>
                 </div>

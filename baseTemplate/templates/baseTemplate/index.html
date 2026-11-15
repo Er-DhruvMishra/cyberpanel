@@ -109,8 +109,8 @@
                             <div class="cp-notif-ic ic-accent"><i class="fas fa-paper-plane" aria-hidden="true"></i></div>
                             <div class="cp-notif-body">
                                 <div class="cp-notif-title">{% trans "Reliable email delivery" %}</div>
-                                <div class="cp-notif-desc">{% trans "Land in the inbox, not spam — with CyberPanel's managed Email Delivery service." %}</div>
-                                <a class="cp-notif-action" href="https://cyberpanel.net/email-delivery-service?utm_source=cyberpanel&utm_medium=panel&utm_campaign=email_delivery" target="_blank" rel="noopener">{% trans "Learn more" %}</a>
+                                <div class="cp-notif-desc">{% trans "Land in the inbox, not spam: check SPF, DKIM, DMARC, blocklists and SMTP with the free Email Debugger." %}</div>
+                                <a class="cp-notif-action" href="/addons/email-debugger/">{% trans "Check deliverability" %}</a>
                             </div>
                             <button class="cp-notif-x" type="button" aria-label="{% trans 'Dismiss' %}"><i class="fas fa-times" aria-hidden="true"></i></button>
                         </div>
@@ -137,7 +137,7 @@
                             <div class="cp-notif-body">
                                 <div class="cp-notif-title">{% trans ".htaccess support is now live" %}</div>
                                 <div class="cp-notif-desc">{% trans "Full .htaccess support, PHP configuration works, zero rule rewrites needed." %}</div>
-                                <a class="cp-notif-action" href="https://cyberpanel.net/cyberpanel-htaccess-module" target="_blank" rel="noopener">{% trans "Learn more" %}</a>
+                                <a class="cp-notif-action" href="/addons/htaccess/">{% trans "Learn more" %}</a>
                             </div>
                             <button class="cp-notif-x" type="button" aria-label="{% trans 'Dismiss' %}"><i class="fas fa-times" aria-hidden="true"></i></button>
                         </div>
@@ -284,9 +284,9 @@
             <div class="icon-wrapper"><i class="fas fa-link"></i></div>
             <span>{% trans "Connect" %}</span>
         </a>
-        <a href="https://cyberpanel.net/KnowledgeBase/" class="menu-item" target="_blank" rel="noopener">
-            <div class="icon-wrapper"><i class="fas fa-comments"></i></div>
-            <span>{% trans "Community" %}</span>
+        <a href="{% url 'helpIndex' %}" class="menu-item">
+            <div class="icon-wrapper"><i class="fas fa-circle-question"></i></div>
+            <span>{% trans "Help centre" %}</span>
         </a>
     </nav>
 
@@ -355,16 +355,17 @@
             {% if admin or createEmail %}{l:'{% trans "Create Email Account" %}', h:'{% url "createEmailAccount" %}', i:'fa-circle-plus', g:'{% trans "Quick actions" %}'},{% endif %}
             {% if admin or createDatabase %}{l:'{% trans "Create Database" %}', h:'{% url "createDatabase" %}', i:'fa-circle-plus', g:'{% trans "Quick actions" %}'},{% endif %}
             {l:'{% trans "Build Services" %}', h:'{% url "buildServices" %}', i:'fa-rocket', g:'{% trans "Quick actions" %}'},
-            // Build services (open the marketing pages on cyberpanel.net)
-            {l:'{% trans "Website Development" %}', h:'https://cyberpanel.net/custom-development/web?utm_source=cyberpanel&utm_medium=panel&utm_campaign=build_services', i:'fa-globe', g:'{% trans "Build services" %}', t:'_blank'},
-            {l:'{% trans "WordPress & eCommerce" %}', h:'https://cyberpanel.net/custom-development/wordpress?utm_source=cyberpanel&utm_medium=panel&utm_campaign=build_services', i:'fab fa-wordpress', g:'{% trans "Build services" %}', t:'_blank'},
-            {l:'{% trans "Website Speed Optimization" %}', h:'https://cyberpanel.net/custom-development/speed-optimization?utm_source=cyberpanel&utm_medium=panel&utm_campaign=build_services', i:'fa-gauge-high', g:'{% trans "Build services" %}', t:'_blank'},
-            {l:'{% trans "Android App Development" %}', h:'https://cyberpanel.net/custom-development/android?utm_source=cyberpanel&utm_medium=panel&utm_campaign=build_services', i:'fab fa-android', g:'{% trans "Build services" %}', t:'_blank'},
-            {l:'{% trans "iOS App Development" %}', h:'https://cyberpanel.net/custom-development/ios?utm_source=cyberpanel&utm_medium=panel&utm_campaign=build_services', i:'fab fa-apple', g:'{% trans "Build services" %}', t:'_blank'},
-            {l:'{% trans "Custom Software & APIs" %}', h:'https://cyberpanel.net/custom-development/custom-software?utm_source=cyberpanel&utm_medium=panel&utm_campaign=build_services', i:'fa-code', g:'{% trans "Build services" %}', t:'_blank'},
-            {l:'{% trans "UI / UX Design" %}', h:'https://cyberpanel.net/custom-development/design?utm_source=cyberpanel&utm_medium=panel&utm_campaign=build_services', i:'fa-pen-ruler', g:'{% trans "Build services" %}', t:'_blank'},
-            {l:'{% trans "DevOps & Server Management" %}', h:'https://cyberpanel.net/custom-development/devops?utm_source=cyberpanel&utm_medium=panel&utm_campaign=build_services', i:'fa-server', g:'{% trans "Build services" %}', t:'_blank'},
-            {l:'{% trans "Maintenance & Support" %}', h:'https://cyberpanel.net/custom-development/support?utm_source=cyberpanel&utm_medium=panel&utm_campaign=build_services', i:'fa-life-ring', g:'{% trans "Build services" %}', t:'_blank'},
+            {l:'{% trans "Help centre" %}', h:'{% url "helpIndex" %}', i:'fa-circle-question', g:'{% trans "Quick actions" %}'},
+            // Build services (open the request form on this server)
+            {l:'{% trans "Website Development" %}', h:'{% url "buildServicesRequest" %}?service=Website+Development', i:'fa-globe', g:'{% trans "Build services" %}'},
+            {l:'{% trans "WordPress & eCommerce" %}', h:'{% url "buildServicesRequest" %}?service=WordPress+%26+eCommerce', i:'fab fa-wordpress', g:'{% trans "Build services" %}'},
+            {l:'{% trans "Website Speed Optimization" %}', h:'{% url "buildServicesRequest" %}?service=Website+Speed+Optimization', i:'fa-gauge-high', g:'{% trans "Build services" %}'},
+            {l:'{% trans "Android App Development" %}', h:'{% url "buildServicesRequest" %}?service=Android+App+Development', i:'fab fa-android', g:'{% trans "Build services" %}'},
+            {l:'{% trans "iOS App Development" %}', h:'{% url "buildServicesRequest" %}?service=iOS+App+Development', i:'fab fa-apple', g:'{% trans "Build services" %}'},
+            {l:'{% trans "Custom Software & APIs" %}', h:'{% url "buildServicesRequest" %}?service=Custom+Software+%26+APIs', i:'fa-code', g:'{% trans "Build services" %}'},
+            {l:'{% trans "UI / UX Design" %}', h:'{% url "buildServicesRequest" %}?service=UI+%2F+UX+Design', i:'fa-pen-ruler', g:'{% trans "Build services" %}'},
+            {l:'{% trans "DevOps & Server Management" %}', h:'{% url "buildServicesRequest" %}?service=DevOps+%26+Server+Management', i:'fa-server', g:'{% trans "Build services" %}'},
+            {l:'{% trans "Maintenance & Support" %}', h:'{% url "buildServicesRequest" %}?service=Maintenance+%26+Support', i:'fa-life-ring', g:'{% trans "Build services" %}'},
             // Sites
             {l:'{% trans "Dashboard" %}', h:'{% url "index" %}', i:'fa-gauge-high', g:'{% trans "Sites" %}'},
             {l:'{% trans "Websites" %}', h:'{% url "listWebsites" %}', i:'fa-globe', g:'{% trans "Sites" %}'},

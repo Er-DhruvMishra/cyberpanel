@@ -533,7 +533,7 @@
         <p>{% trans "CyberPanel offers professional development services — websites, web apps, Android & iOS apps, and custom software, delivered and deployed for you." %}</p>
         <div class="cp-build-actions">
             <a class="cp-build-btn primary" href="{% url 'buildServices' %}"><i class="fas fa-arrow-right"></i> {% trans "Explore Build Services" %}</a>
-            <a class="cp-build-btn ghost" href="https://cyberpanel.net/custom-development?utm_source=cyberpanel&utm_medium=panel&utm_campaign=dashboard_card" target="_blank" rel="noopener">{% trans "Get a quote" %}</a>
+            <a class="cp-build-btn ghost" href="{% url 'buildServicesRequest' %}">{% trans "Get a quote" %}</a>
         </div>
     </div>
     <script>

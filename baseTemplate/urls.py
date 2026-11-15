@@ -1,4 +1,4 @@
-from django.urls import re_path
+from django.urls import path, re_path
 from . import views
 
 urlpatterns = [
@@ -16,6 +16,8 @@ urlpatterns = [
     re_path(r'^buildServices/submit$', views.buildServicesSubmit, name='buildServicesSubmit'),
     re_path(r'^buildServices/settings$', views.buildServicesSettings, name='buildServicesSettings'),
     re_path(r'^hub/(?P<section>[\w-]+)$', views.cpHub, name='cpHub'),
+    path('help/', views.helpIndex, name='helpIndex'),
+    path('help/<str:slug>', views.helpArticle, name='help'),
     re_path(r'^RestartCyberPanel$', views.RestartCyberPanel, name='RestartCyberPanel'),
     re_path(r'^runonboarding$', views.runonboarding, name='runonboarding'),
     re_path(r'^UpgradeStatus$', views.upgradeStatus, name='UpgradeStatus'),

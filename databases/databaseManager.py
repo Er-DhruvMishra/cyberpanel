@@ -101,12 +101,12 @@ class DatabaseManager:
         return proc.render()
 
     @premium_entitlement_required('Filemanager', label='MySQL Manager',
-                                  page_redirect='https://cyberpanel.net/cyberpanel-addons')
+                                  page_redirect='/addons/')
     def MySQLManager(self, request=None, userID=None):
         proc = httpProc(request, 'databases/mysqlmanager.html', None, 'admin')
         return proc.render()
     @premium_entitlement_required('Filemanager', label='MySQL Manager',
-                                  page_redirect='https://cyberpanel.net/cyberpanel-addons')
+                                  page_redirect='/addons/')
     def OptimizeMySQL(self, request = None, userID = None):
         from cloudAPI.cloudManager import CloudManager
         cm = CloudManager()
@@ -123,7 +123,7 @@ class DatabaseManager:
         return proc.render()
 
     @premium_entitlement_required('Filemanager', label='MySQL Manager',
-                                  page_redirect='https://cyberpanel.net/cyberpanel-addons')
+                                  page_redirect='/addons/')
     def Upgardemysql(self, request = None, userID = None):
         data={}
         data['mysqlversions']=['10.6','10.11']

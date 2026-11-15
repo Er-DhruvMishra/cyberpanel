@@ -116,7 +116,7 @@ class PremiumEmailTests(unittest.TestCase):
     def test_paid_pages_deny_without_config_or_ip_reads(self):
         for call in (lambda:self.ns['Rspamd'](self.req),lambda:self.ns['EmailDebugger'](self.req),
                      lambda:self.mail_class(self.req).EmailLimits()):
-            self.assertEqual(call().url, 'https://cyberpanel.net/cyberpanel-addons')
+            self.assertEqual(call().url, '/addons/')
             self.assert_no_work()
         self.acl.CheckForPremFeature.side_effect = TimeoutError('unavailable')
         self.assertEqual(self.mail_class(self.req).EmailLimits().status_code, 302)

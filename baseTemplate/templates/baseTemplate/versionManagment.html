@@ -268,7 +268,7 @@
             {% if Notecheck %}
             <div class="alert alert-warning">
                 <i class="fas fa-exclamation-triangle"></i>
-                <span>{% trans "Note: Latest commit does not match, please upgrade CyberPanel." %} <a href="https://cyberpanel.net/KnowledgeBase/home/upgrading-cyberpanel/">Learn how to upgrade CyberPanel.</a></span>
+                <span>{% trans "Note: Latest commit does not match, please upgrade CyberPanel." %} <a href="{% url 'help' 'upgrading' %}">Learn how to upgrade CyberPanel.</a></span>
             </div>
             {% endif %}
 

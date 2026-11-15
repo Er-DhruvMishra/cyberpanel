@@ -1234,7 +1234,7 @@ def installStatusMailScanner(request):
 ###Rspamd
 
 @premium_entitlement_required('email-debugger', label='Email Debugger',
-                              page_redirect='https://cyberpanel.net/cyberpanel-addons')
+                              page_redirect='/addons/')
 def Rspamd(request):
     checkIfRspamdInstalled = 0
 
@@ -1860,7 +1860,7 @@ def RestartRspamd(request):
 ##Email Debugger
 
 @premium_entitlement_required('email-debugger', label='Email Debugger',
-                              page_redirect='https://cyberpanel.net/cyberpanel-addons')
+                              page_redirect='/addons/')
 def EmailDebugger(request):
     userID = request.session['userID']
     currentACL = ACLManager.loadedACL(userID)

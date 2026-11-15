@@ -1,0 +1,42 @@
+{% extends "baseTemplate/index.html" %}
+{% load i18n %}
+{% block title %}{% if article %}{{ article.title }}{% else %}{% trans "Help article not found" %}{% endif %} - CyberPanel{% endblock %}
+
+{# Static help pages: no per-module JS needed #}
+{% block module_scripts %}{% endblock %}
+
+{% block header_scripts %}
+{% include "baseTemplate/helpStyles.html" %}
+{% endblock %}
+
+{% block content %}
+<div class="dashboard-wrapper">
+    <div class="dashboard-container cp-help">
+        <p class="cp-help-crumb"><a href="{% url 'helpIndex' %}"><i class="fas fa-arrow-left" aria-hidden="true"></i> {% trans "Help centre" %}</a></p>
+        {% if article %}
+        <article class="cp-help-article">
+            <h1 class="cp-help-title">{{ article.title }}</h1>
+            {# article.html is produced by baseTemplate/helpCentre.render_markdown, which escapes all source text #}
+            {{ article.html|safe }}
+            {% if article.slug == 'change-logs' %}
+            <h2>{% trans "Recent changes" %}</h2>
+            {% if commits %}
+            <ul class="cp-help-commits">
+                {% for c in commits %}<li><code>{{ c.hash }}</code> <span class="cp-help-date">{{ c.date }}</span> {{ c.subject }}</li>{% endfor %}
+            </ul>
+            <p><a href="{{ commits_url }}" target="_blank" rel="noopener noreferrer">{% trans "Full history on GitHub" %}</a></p>
+            {% else %}
+            <p>{% trans "The commit history of this server's panel checkout is not available." %}
+               <a href="{{ commits_url }}" target="_blank" rel="noopener noreferrer">{% trans "See the change history on GitHub" %}</a>.</p>
+            {% endif %}
+            {% endif %}
+        </article>
+        {% else %}
+        <article class="cp-help-article">
+            <h1 class="cp-help-title">{% trans "Help article not found" %}</h1>
+            <p>{% trans "There is no help article at this address." %} <a href="{% url 'helpIndex' %}">{% trans "Browse all help topics" %}</a>.</p>
+        </article>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

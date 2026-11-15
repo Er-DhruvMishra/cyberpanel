@@ -346,7 +346,7 @@ def editFile(request):
         return redirect(loadLoginPage)
 
 @premium_entitlement_required('Filemanager', label='Root File Manager',
-                              page_redirect='https://cyberpanel.net/cyberpanel-addons')
+                              page_redirect='/addons/')
 def FileManagerRoot(request):
     from plogical.httpProc import httpProc
     proc = httpProc(request, 'baseTemplate/FileManager.html', None, 'admin')

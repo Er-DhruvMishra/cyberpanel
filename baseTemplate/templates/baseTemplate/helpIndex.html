@@ -1,0 +1,32 @@
+{% extends "baseTemplate/index.html" %}
+{% load i18n %}
+{% block title %}{% trans "Help centre" %} - CyberPanel{% endblock %}
+
+{# Static help pages: no per-module JS needed #}
+{% block module_scripts %}{% endblock %}
+
+{% block header_scripts %}
+{% include "baseTemplate/helpStyles.html" %}
+{% endblock %}
+
+{% block content %}
+<div class="dashboard-wrapper">
+    <div class="dashboard-container cp-help">
+        <h1 class="cp-help-title">{% trans "Help centre" %}</h1>
+        <p class="cp-help-lead">{% trans "Short, practical guides for the features of this panel. Free Universal Add-ons are linked where they help." %}</p>
+        {% for category in categories %}
+        <h2 class="section-title">{{ category.name|upper }}</h2>
+        <div class="cp-help-grid">
+            {% for a in category.articles %}
+            <a class="cp-help-card" href="{% url 'help' a.slug %}">
+                <span class="cp-help-card-title">{{ a.title }}</span>
+                <span class="cp-help-card-sub">{{ a.summary|truncatechars:140 }}</span>
+            </a>
+            {% endfor %}
+        </div>
+        {% empty %}
+        <p>{% trans "No help articles are installed." %}</p>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

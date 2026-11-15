@@ -66,6 +66,8 @@ def load_cloud():
         'api_token_matches': mock.Mock(return_value=True),
         'api_two_factor_matches': mock.Mock(return_value=True),
         'csrf_exempt': lambda method: method,
+        # The gates look up a free Universal Add-on alternative; none in these entitlement tests.
+        'request_from': lambda args, kwargs: None, 'alternative_for': lambda path: None,
     }
     for filename in ('plogical/premiumEntitlements.py', 'websiteFunctions/wordpressEntitlements.py',
                      'websiteFunctions/apacheEntitlements.py'):

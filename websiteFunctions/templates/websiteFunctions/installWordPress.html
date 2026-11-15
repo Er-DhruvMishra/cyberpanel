@@ -418,9 +418,9 @@
                 <i class="fab fa-wordpress" style="color: var(--primary-color);"></i>
                 <span id="domainNamePage">{{ domainName }}</span> - {% trans "Installation Details" %}
                 <span style="margin-left: auto;">
-                    <a href="https://cyberpanel.net/KnowledgeBase/home/deploy-a-wordpress-on-cyberpanel/">
-                        <i class="fas fa-tachometer-alt"></i>
-                        Stress Test
+                    <a href="{% url 'help' 'wordpress-deploy' %}" target="_blank">
+                        <i class="fas fa-book"></i>
+                        {% trans "WordPress Docs" %}
                     </a>
                 </span>
                 <img ng-hide="wpInstallLoading" src="{% static 'images/loading.gif' %}" id="wpInstallLoading">
@@ -531,13 +531,7 @@
                                     <a href="{$ installationURL $}" target="_blank" style="font-weight: 600;">
                                         {$ installationURL $}
                                     </a> 
-                                    {% trans "or perform" %} 
-                                    <strong>
-                                        <a href="https://cyberpanel.net/KnowledgeBase/home/deploy-a-wordpress-on-cyberpanel/">
-                                            <i class="fas fa-tachometer-alt"></i>
-                                            stress test
-                                        </a>
-                                    </strong>.
+
                                 </p>
                             </div>
 

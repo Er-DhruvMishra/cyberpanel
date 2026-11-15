@@ -11,7 +11,7 @@
     <div class="container">
         <div id="page-title">
             <h2>{% trans "Not available" %} - <a target="_blank"
-                                              href="https://cyberpanel.net/KnowledgeBase/home/install-and-use-imunify-on-cyberpanel/"
+                                              href="{% url 'help' 'imunify' %}"
                                               style="height: 23px;line-height: 21px;"
                                               class="btn btn-border btn-alt border-red btn-link font-red"
                                               title=""><span>{% trans "Imunify Docs" %}</span></a></h2>
@@ -24,7 +24,7 @@
                 <div class="col-sm-12">
                     <div class="alert alert-danger">
                         <p>{% trans "CloudLinux is not installed on your server." %} <a target="_blank"
-                                                                                        href="https://community.cyberpanel.net/t/1-convert-cyberpanel-to-cloudlinux-os-and-install-cagefs/174">Click
+                                                                                        href="{% url 'help' 'cloudlinux' %}">Click
                             Here</a> {% trans " for conversion details." %}</p>
                     </div>
                 </div>

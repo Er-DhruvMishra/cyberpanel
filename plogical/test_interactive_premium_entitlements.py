@@ -47,7 +47,9 @@ class EntitlementTests(unittest.TestCase):
         self.env = {'ACLManager': self.acl, 'JsonResponse': response,
             'HttpResponse': response, 'json': json,
             'wraps': __import__('functools').wraps,
-            'redirect': lambda name: {'redirect': name}}
+            'redirect': lambda name: {'redirect': name},
+            # The gate looks up a free Universal Add-on alternative; none in these entitlement tests.
+            'request_from': lambda args, kwargs: None, 'alternative_for': lambda path: None}
         actual('plogical/premiumEntitlements.py', ['premium_entitlement_required'], self.env)
         self.env.update(Administrator=SimpleNamespace(objects=SimpleNamespace(get=Mock(return_value='owner'))),
             CPBackupsV2=Mock(side_effect=forbidden),
@@ -142,7 +144,7 @@ class EntitlementTests(unittest.TestCase):
 
     def test_root_file_pages_and_download_deny_before_any_work(self):
         actual('filemanager/views.py', ['FileManagerRoot', 'RootDownloadFile'], self.env)
-        self.assertEqual({'redirect': 'https://cyberpanel.net/cyberpanel-addons'}, self.env['FileManagerRoot'](object()))
+        self.assertEqual({'redirect': '/addons/'}, self.env['FileManagerRoot'](object()))
         self.assertEqual(0, self.env['RootDownloadFile'](object())['status'])
         self.acl.loadedACL.assert_not_called()
 
@@ -154,7 +156,7 @@ class EntitlementTests(unittest.TestCase):
         actual('databases/views.py', actions, self.env)
         for name in pages:
             with self.subTest(page=name):
-                self.assertEqual({'redirect': 'https://cyberpanel.net/cyberpanel-addons'}, self.env[name](object()))
+                self.assertEqual({'redirect': '/addons/'}, self.env[name](object()))
         for name in actions:
             with self.subTest(action=name):
                 result = self.env[name](object())

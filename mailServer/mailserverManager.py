@@ -1908,7 +1908,7 @@ protocol sieve {
     ### emails for sites
 
     @premium_entitlement_required('all', label='Email Limits',
-                                  page_redirect='https://cyberpanel.net/cyberpanel-addons')
+                                  page_redirect='/addons/')
     def EmailLimits(self):
 
         userID = self.request.session['userID']

@@ -123,7 +123,7 @@ class PackagesManager:
             # Check addon access for resource limits feature
             has_addons = self.checkAddonAccess()
             if not has_addons and enforceDiskLimits == 1:
-                data_ret = {'saveStatus': 0, 'error_message': "Resource limits feature requires CyberPanel addons. Please visit https://cyberpanel.net/cyberpanel-addons to purchase."}
+                data_ret = {'saveStatus': 0, 'error_message': "Resource limits feature requires CyberPanel addons. Open Universal Add-ons (/addons/) for the free Resource Limits add-on."}
                 json_data = json.dumps(data_ret)
                 return HttpResponse(json_data)
 
@@ -292,7 +292,7 @@ class PackagesManager:
                 # Check addon access for resource limits feature
                 has_addons = self.checkAddonAccess()
                 if not has_addons and modifyPack.enforceDiskLimits == 1:
-                    data_ret = {'saveStatus': 0, 'error_message': "Resource limits feature requires CyberPanel addons. Please visit https://cyberpanel.net/cyberpanel-addons to purchase."}
+                    data_ret = {'saveStatus': 0, 'error_message': "Resource limits feature requires CyberPanel addons. Open Universal Add-ons (/addons/) for the free Resource Limits add-on."}
                     json_data = json.dumps(data_ret)
                     return HttpResponse(json_data)
 
