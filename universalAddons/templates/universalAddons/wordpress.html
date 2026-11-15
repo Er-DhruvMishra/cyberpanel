@@ -3,12 +3,13 @@
 {% block title %}{% trans "WordPress Manager Pro" %} - CyberPanel{% endblock %}
 {% block addon_scripts %}<script src="{% static 'universalAddons/wordpress.js' %}?v={{ CP_VERSION }}"></script>{% endblock %}
 {% block content %}
-<div class="ua-wrap" id="ua-wordpress" data-base="{% url 'ua-wordpress' %}">
+<div class="ua-wrap" id="ua-wordpress" data-base="{% url 'ua-wordpress' %}" data-admin="{{ is_admin|yesno:'1,0' }}">
   <div class="ua-header">
     <h1><i class="fas fa-blog"></i> {% trans "WordPress Manager Pro" %}</h1>
     <p>{% trans "Every action runs as the site's own user with the site's PHP. Updates take a snapshot, check the site still loads, and roll back automatically if it broke." %}
-      <span class="ua-muted" id="wp-cli-version"></span>
-      <button class="ua-btn ua-btn-secondary" id="wp-cli-update">{% trans "Update WP-CLI" %}</button></p>
+      {% if is_admin %}<span class="ua-muted" id="wp-cli-version"></span>
+      <button class="ua-btn ua-btn-secondary" id="wp-cli-update">{% trans "Update WP-CLI" %}</button>{% else %}
+      {% trans "You see the websites of your account only." %}{% endif %}</p>
   </div>
 
   <div class="ua-card">
@@ -63,7 +64,7 @@
         <span>{% trans "Clone this site into" %}</span><select id="wp-clone-target"></select>
         <button class="ua-btn" id="wp-clone">{% trans "Create staging copy" %}</button>
       </div>
-      <p class="ua-muted">{% trans "The target must be an empty website or child domain created in the panel. It gets its own database and is hidden from search engines." %}</p>
+      <p class="ua-muted">{% trans "The target must be an empty website or child domain created in the panel. It gets its own database and is hidden from search engines." %}{% if not is_admin %} {% trans "The new database counts towards your package's database limit." %}{% endif %}</p>
       <div class="ua-row">
         <span>{% trans "Push this site (staging) over" %}</span><select id="wp-push-target"></select>
         <button class="ua-btn" style="background:#dc2626" id="wp-push">{% trans "Push to production" %}</button>

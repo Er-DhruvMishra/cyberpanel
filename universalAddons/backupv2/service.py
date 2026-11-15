@@ -92,7 +92,9 @@ def validate_repo(spec):
     if not ID_RE.match(repo_id):
         raise BackupError('Repository id: lowercase letters, digits and dashes.')
     kind = spec.get('type')
-    clean = {'id': repo_id, 'type': kind, 'name': str(spec.get('name') or repo_id)[:80]}
+    clean = {'id': repo_id, 'type': kind, 'name': str(spec.get('name') or repo_id)[:80],
+             # Site owners may back up to / restore from this repository (their own sites only).
+             'for_users': spec.get('for_users') is True}
     if kind == 'local':
         path = os.path.normpath(str(spec.get('path', '')))
         if not PATH_RE.match(path) or any(path == p or path.startswith(p + '/') for p in FORBIDDEN_LOCAL) \
@@ -206,14 +208,21 @@ def run(argv, env=None, runner=subprocess.run, timeout=24 * 3600, stdin=None, in
 
 
 @contextlib.contextmanager
-def repo_lock(repo_id, lock_dir=None):
+def repo_lock(repo_id, lock_dir=None, wait=0, sleep=time.sleep):
+    """Exclusive lock per repository. wait: seconds to keep trying (scheduled runs wait for a
+    restore or an owner-started backup to finish instead of failing)."""
     os.makedirs(lock_dir or LOCK_DIR, exist_ok=True)
     handle = open(os.path.join(lock_dir or LOCK_DIR, 'cp-ua-backup-%s.lock' % repo_id), 'w')
     try:
-        try:
-            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError:
-            raise BackupError('Another backup or restore is running on repository %s.' % repo_id)
+        deadline = time.time() + wait
+        while True:
+            try:
+                fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                if time.time() >= deadline:
+                    raise BackupError('Another backup or restore is running on repository %s.' % repo_id)
+                sleep(10)
         yield
     finally:
         handle.close()
@@ -263,12 +272,16 @@ def unit_sources(domain, unit):
 
 
 def backup_site(repo, domain, units, databases, hostname, runner=subprocess.run, log=None, config_dir=None,
-                defaults_file=None, popen=subprocess.Popen):
+                defaults_file=None, popen=subprocess.Popen, extra_tags=()):
     """Back up one site into repo. Returns per-unit results; raises on the first hard failure."""
     if not DOMAIN_RE.match(domain):
         raise BackupError('Invalid domain %r.' % domain)
     argv, env = restic_base(repo, config_dir)
     base_tags = ['--tag', 'site:%s' % domain, '--host', hostname]
+    for tag in extra_tags:
+        if not re.match(r'^[a-z][a-z0-9-]{0,31}$', tag):
+            raise BackupError('Invalid tag %r.' % tag)
+        base_tags += ['--tag', tag]
     results = {}
     for unit in units:
         if unit not in UNITS:
@@ -538,6 +551,127 @@ def restore_database(repo, snapshot, database, runner=subprocess.run, config_dir
         raise BackupError('MySQL import failed (a pre-restore copy was saved): ' +
                           out.decode('utf-8', 'replace').strip()[-500:])
     return {'database': database, 'restored_from': snapshot}
+
+
+# ----------------------------------------------------------------------------- site owners
+
+USER_TAG = 'by-user'      # snapshots a site owner started (kept apart from scheduled ones by retention)
+USER_KEEP_LAST = 5        # how many of those are kept per site and unit
+
+
+def site_home(domain):
+    return os.path.join(SITES_ROOT, domain)
+
+
+def snapshot_for_site(repo, snapshot, domain, kind, database='', runner=subprocess.run, config_dir=None):
+    """The snapshot record, if `snapshot` is one of domain's own file or database backups.
+
+    For site owners: a files snapshot must hold nothing outside the site's home, a database
+    snapshot must be the dump of `database` taken for this site. Mail and configuration
+    snapshots are never offered. Callers use the returned full id, never the id they were given.
+    """
+    if not SNAP_RE.match(snapshot or '') or not DOMAIN_RE.match(domain or ''):
+        raise BackupError('Invalid snapshot.')
+    home = site_home(domain)
+    for item in snapshots(repo, domain, runner, config_dir):
+        full = item.get('full_id') or ''
+        if not full or not (full == snapshot or (len(snapshot) >= 8 and full.startswith(snapshot))):
+            continue
+        if item.get('site') != domain:
+            continue
+        paths = item.get('paths') or []
+        if kind == 'db' and item.get('unit') == 'db' and database and item.get('database') == database:
+            return item
+        if kind == 'files' and item.get('unit') in ('files', '') and paths and \
+                all(p == home or p.startswith(home + '/') for p in paths):
+            return item
+    raise BackupError('Snapshot %s is not a %s backup of %s.' % (snapshot, 'database' if kind == 'db' else 'file',
+                                                                   domain))
+
+
+def site_snapshots(repo, domain, runner=subprocess.run, config_dir=None):
+    """domain's file and database snapshots (what a site owner may see)."""
+    home = site_home(domain)
+    result = []
+    for item in snapshots(repo, domain, runner, config_dir):
+        paths = item.get('paths') or []
+        if item.get('site') != domain:
+            continue
+        if item.get('unit') == 'db' and item.get('database'):
+            result.append(item)
+        elif item.get('unit') in ('files', '') and paths and all(p == home or p.startswith(home + '/') for p in paths):
+            result.append(item)
+    return result
+
+
+def owner_retention(repo, domain, runner=subprocess.run, config_dir=None):
+    """Keep the last few owner-started snapshots of the site (scheduled ones are not touched; no prune)."""
+    argv, env = restic_base(repo, config_dir)
+    code, out = run(argv + ['forget', '--group-by', 'host,tags', '--tag', 'site:%s,%s' % (domain, USER_TAG),
+                            '--keep-last', str(USER_KEEP_LAST)], env, runner)
+    if code != 0:
+        raise BackupError('Retention failed for %s: %s' % (domain, _last_error(out)))
+    return 'kept the last %d backups you started' % USER_KEEP_LAST
+
+
+def restore_files_as_owner(repo, snapshot, domain, owner, include=None, runner=subprocess.run, config_dir=None,
+                           log=None, hostname='localhost', copy=None):
+    """In-place restore for a site owner.
+
+    restic (as root) writes into a fresh private directory, never into the live site; the restored
+    tree is then handed to the site user and copied into place *as that user*. A symlink the owner
+    planted in the live site therefore cannot redirect root's writes outside the site. A safety
+    snapshot of the current files is taken first.
+    """
+    import pwd
+    if not SNAP_RE.match(snapshot or ''):
+        raise BackupError('Invalid snapshot id.')
+    home = site_home(domain)
+    if include:
+        include = os.path.normpath(str(include))
+        if not PATH_RE.match(include) or not include.startswith(home + '/'):
+            raise BackupError('You can only restore paths inside %s.' % home)
+    if os.path.islink(home) or not os.path.isdir(home):
+        raise BackupError('The site home %s is missing.' % home)
+    try:
+        account = pwd.getpwnam(owner or '')
+    except KeyError:
+        raise BackupError('The site user %r does not exist.' % owner)
+    if account.pw_uid == 0:
+        raise BackupError('Refusing to restore as root.')
+    argv, env = restic_base(repo, config_dir)
+    sources = [include] if include and os.path.lexists(include) else ([] if include else [home])
+    if sources:
+        code, out = run(argv + ['backup', '--json', '--tag', 'pre-restore', '--tag', 'site:%s' % domain,
+                                '--host', hostname] + sources, env, runner)
+        if code not in (0, 3):
+            raise BackupError('Safety snapshot failed, restore not started: ' + _last_error(out))
+        if log:
+            log('safety snapshot: ' + _summary(out))
+    staging = tempfile.mkdtemp(prefix='.cp-ua-restore-', dir=SITES_ROOT)
+    try:
+        command = argv + ['restore', snapshot, '--target', staging]
+        if include:
+            command += ['--include', include]
+        code, out = run(command, env, runner)
+        if code != 0:
+            raise BackupError('Restore failed: ' + _last_error(out))
+        source = os.path.join(staging, (include or home).lstrip('/'))
+        if not os.path.lexists(source):
+            raise BackupError('The snapshot has nothing at %s.' % (include or home))
+        code, out = run(['chown', '-R', '--no-dereference', '%d:%d' % (account.pw_uid, account.pw_gid), staging],
+                        None, runner, timeout=3600)
+        if code != 0:
+            raise BackupError('Could not prepare the restored files: ' + out.strip()[-300:])
+        if copy is None:
+            def copy(src, dst):
+                return run(['sudo', '-u', account.pw_name, 'cp', '-a', '-T', src, dst], None, runner)
+        code, out = copy(source, include or home)
+        if code != 0:
+            raise BackupError('Some files could not be restored (a safety snapshot was taken): ' + out.strip()[-500:])
+    finally:
+        shutil.rmtree(staging, ignore_errors=True)
+    return {'restored_to': include or home, 'path': include or '(whole snapshot)'}
 
 
 def ssh_public_key(key_path=None, runner=subprocess.run):

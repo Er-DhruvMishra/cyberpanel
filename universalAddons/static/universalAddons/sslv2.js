@@ -9,7 +9,7 @@
 
     function toggleRows() {
         $('ssl-cf-row').style.display = $('ssl-provider').value === 'cloudflare' ? 'flex' : 'none';
-        $('ssl-email-row').style.display = $('ssl-ca').value === 'zerossl' ? 'flex' : 'none';
+        if ($('ssl-email-row')) { $('ssl-email-row').style.display = $('ssl-ca').value === 'zerossl' ? 'flex' : 'none'; }
     }
     $('ssl-provider').addEventListener('change', toggleRows);
     $('ssl-ca').addEventListener('change', toggleRows);
@@ -63,7 +63,7 @@
         var body = {
             domain: $('ssl-domain').value.trim(), provider: $('ssl-provider').value, wildcard: $('ssl-wildcard').checked,
             aliases: $('ssl-aliases').value.split(/\s+/).filter(Boolean), ca: $('ssl-ca').value, key: $('ssl-key').value,
-            email: $('ssl-email').value.trim(), cfToken: $('ssl-cf-token').value.trim()
+            email: $('ssl-email') ? $('ssl-email').value.trim() : '', cfToken: $('ssl-cf-token').value.trim()
         };
         UA.busy(button, true);
         api('issue', body).then(function (d) { $('ssl-cf-token').value = ''; watch(d.result.job_id); })
@@ -71,12 +71,14 @@
     });
 
     $('ssl-refresh').addEventListener('click', load);
-    api('monitor', {}).then(function (d) { $('ssl-monitor').checked = d.result.enabled; }).catch(function () {});
-    $('ssl-monitor').addEventListener('change', function () {
-        var box = this;
-        api('monitor', {enable: box.checked}).then(function (d) { box.checked = d.result.enabled; })
-            .catch(function (e) { box.checked = !box.checked; UA.showError($('ssl-out'), e); });
-    });
+    if ($('ssl-monitor')) {
+        api('monitor', {}).then(function (d) { $('ssl-monitor').checked = d.result.enabled; }).catch(function () {});
+        $('ssl-monitor').addEventListener('change', function () {
+            var box = this;
+            api('monitor', {enable: box.checked}).then(function (d) { box.checked = d.result.enabled; })
+                .catch(function (e) { box.checked = !box.checked; UA.showError($('ssl-out'), e); });
+        });
+    }
 
     toggleRows();
     load();

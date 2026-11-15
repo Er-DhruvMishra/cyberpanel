@@ -34,12 +34,14 @@
     }).catch(function () {});
 
     $('dns-run').addEventListener('click', function () {
-        var domain = $('dns-domain-other').value.trim() || $('dns-domain').value;
+        var domain = ($('dns-domain-other') && $('dns-domain-other').value.trim()) || $('dns-domain').value;
         run(this, $('dns-out'), 'Dns', {domain: domain}, function (r) {
             return '<h2>' + esc(r.domain) + '</h2>' + table(r.domain_checks) +
                 '<h2 style="margin-top:18px">Sending IP ' + esc(r.server_ip) + '</h2>' + table(r.server_checks);
         });
     });
+
+    if (root.dataset.admin !== '1') { return; }  // the other tabs are for administrators only
 
     $('ports-run').addEventListener('click', function () {
         run(this, $('ports-out'), 'Ports', {target: $('ports-target').value}, function (r) {

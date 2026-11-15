@@ -1,9 +1,8 @@
 import re
 
-from plogical.httpProc import httpProc
 
 from universalAddons import privileged
-from universalAddons.access import admin_api, error, ok
+from universalAddons.access import admin_api, admin_page, error, ok
 
 SETTING_KEYS = ('reject', 'add_header', 'greylist', 'greylisting', 'bayes_autolearn', 'dkim_signing',
                 'arc_signing', 'allow_list', 'deny_list')
@@ -17,7 +16,7 @@ def _call(action, /, **args):
 
 
 def page(request):
-    return httpProc(request, 'universalAddons/rspamd.html', {}, 'admin').render()
+    return admin_page(request, 'universalAddons/rspamd.html')
 
 
 @admin_api

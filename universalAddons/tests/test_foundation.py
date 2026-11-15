@@ -9,6 +9,7 @@ from django.test import RequestFactory, SimpleTestCase
 
 from universalAddons import privileged, registry, runner
 from universalAddons.emaildebug import views as emaildebug_views
+from universalAddons.tests import helpers
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -79,12 +80,7 @@ class EmailDebuggerViews(SimpleTestCase):
         self.factory = RequestFactory()
 
     def post(self, view, body, admin=True, method='post'):
-        request = getattr(self.factory, method)('/addons/email-debugger/ajax/x', data=json.dumps(body),
-                                                content_type='application/json')
-        request.session = {'userID': 1}
-        with mock.patch('universalAddons.access.ACLManager.loadedACL', return_value={'admin': 1 if admin else 0}):
-            response = view(request)
-        return response.status_code, json.loads(response.content)
+        return helpers.post(view, body, admin=admin)[:2]
 
     def test_non_admin_rejected(self):
         status, body = self.post(emaildebug_views.dns, {'domain': 'example.com'}, admin=False)

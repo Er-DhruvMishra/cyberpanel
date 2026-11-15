@@ -7,13 +7,14 @@
      data-url-dns="{% url 'ua-emaildebug-dns' %}" data-url-ports="{% url 'ua-emaildebug-ports' %}"
      data-url-logs="{% url 'ua-emaildebug-logs' %}" data-url-queue="{% url 'ua-emaildebug-queue' %}"
      data-url-spam="{% url 'ua-emaildebug-spam' %}" data-url-send="{% url 'ua-emaildebug-send' %}"
-     data-url-context="{% url 'ua-emaildebug-context' %}">
+     data-url-context="{% url 'ua-emaildebug-context' %}" data-admin="{{ is_admin|yesno:'1,0' }}">
   <div class="ua-header">
     <h1><i class="fas fa-envelope-open-text"></i> {% trans "Email Debugger" %}</h1>
     <p>{% trans "Find out why mail is not delivered: DNS and reputation, ports and certificates, the Postfix log, the queue and spam scores." %}
       <span class="ua-muted" id="ua-ctx"></span></p>
   </div>
 
+  {% if is_admin %}
   <div class="ua-tabs">
     <button class="active" data-pane="dns">{% trans "DNS & reputation" %}</button>
     <button data-pane="ports">{% trans "Ports & TLS" %}</button>
@@ -22,6 +23,7 @@
     <button data-pane="spam">{% trans "Spam score" %}</button>
     <button data-pane="send">{% trans "Send test" %}</button>
   </div>
+  {% endif %}
 
   <div class="ua-pane active" id="pane-dns">
     <div class="ua-card">
@@ -29,13 +31,14 @@
         <select id="dns-domain">
           {% for d in domains %}<option value="{{ d }}">{{ d }}</option>{% empty %}<option value="">{% trans "No mail domains" %}</option>{% endfor %}
         </select>
-        <input id="dns-domain-other" placeholder="{% trans 'or type another domain' %}">
+        {% if is_admin %}<input id="dns-domain-other" placeholder="{% trans 'or type another domain' %}">{% endif %}
         <button class="ua-btn" id="dns-run">{% trans "Check" %}</button>
       </div>
       <div id="dns-out"><p class="ua-muted">{% trans "Checks MX, mail host, SPF, DKIM, DMARC, reverse DNS and major blocklists." %}</p></div>
     </div>
   </div>
 
+  {% if is_admin %}
   <div class="ua-pane" id="pane-ports">
     <div class="ua-card">
       <div class="ua-row">
@@ -92,5 +95,6 @@
       <div id="send-out"><p class="ua-muted">{% trans "Sends one test message through local Postfix and follows it in the log." %}</p></div>
     </div>
   </div>
+  {% endif %}
 </div>
 {% endblock %}

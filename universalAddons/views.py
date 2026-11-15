@@ -2,7 +2,7 @@ from plogical.acl import ACLManager
 from plogical.httpProc import httpProc
 
 from . import privileged
-from .access import USER_FEATURES, admin_api, error, load_policy, ok, user_modules
+from .access import USER_FEATURE_HELP, USER_FEATURES, admin_api, error, load_policy, ok, user_modules
 from .registry import module_status
 
 
@@ -16,9 +16,10 @@ def hub(request):
     modules = module_status()
     switches = dict(USER_FEATURES)
     if is_admin:
-        access = [{'key': m['key'], 'title': m['title'], 'switch': switches[m['key']],
-                   'enabled': policy.get(switches[m['key']]) is True}
-                  for m in modules if m['key'] in switches]
+        titles = {m['key']: m['title'] for m in modules}
+        access = [{'key': key, 'title': titles.get(key, key), 'switch': switch, 'help': USER_FEATURE_HELP.get(key, ''),
+                   'enabled': policy.get(switch) is True}
+                  for key, switch in USER_FEATURES]
     else:
         allowed = set(user_modules(policy))
         modules = [m for m in modules if m['key'] in allowed]

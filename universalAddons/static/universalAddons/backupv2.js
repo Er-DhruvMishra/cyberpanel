@@ -6,6 +6,7 @@
     var esc = UA.esc, base = root.dataset.base.replace(/\/$/, '') + '/ajax/';
     var api = function (name, body) { return UA.api(base + name, body); };
     var state = {overview: null, snapshot: null, path: '/', domain: ''};
+    var admin = root.dataset.admin === '1';
 
     root.querySelectorAll('.ua-tabs button').forEach(function (tab) {
         tab.addEventListener('click', function () {
@@ -20,7 +21,7 @@
         var type = $('repo-type').value;
         root.querySelectorAll('.repo-f').forEach(function (row) { row.style.display = row.dataset.for === type ? 'flex' : 'none'; });
     }
-    $('repo-type').addEventListener('change', repoTypeFields);
+    if (admin) { $('repo-type').addEventListener('change', repoTypeFields); }
 
     function watch(jobId, after) {
         $('bk-job').style.display = 'block';
@@ -44,10 +45,26 @@
         return 'rclone ' + r.remote + ':' + r.path;
     }
 
+    function option(value, label) { return '<option value="' + esc(value) + '">' + esc(label) + '</option>'; }
+
+    function renderUser() {
+        var o = state.overview;
+        $('rs-repo').innerHTML = o.repos.map(function (r) { return option(r.id, r.name || r.id); }).join('');
+        $('rs-site').innerHTML = o.sites.map(function (s) { return option(s, s); }).join('');
+        var ready = o.repos.length && o.sites.length;
+        $('rs-list').disabled = !ready;
+        $('rs-backup-now').disabled = !ready;
+        $('bk-user-note').textContent = !o.repos.length ? 'Your administrator has not made a backup repository available to users yet.'
+            : (!o.sites.length ? 'Your account has no websites.'
+                : 'Backups you start include the site files and databases; the last ' + o.keep_last + ' of them are kept per site, besides any scheduled backups.');
+    }
+
     function render() {
         var o = state.overview;
+        if (!admin) { renderUser(); return; }
         $('bk-repos').innerHTML = o.repos.length ? '<table class="ua-table"><tbody>' + o.repos.map(function (r) {
-            return '<tr><td><strong>' + esc(r.id) + '</strong></td><td>' + esc(r.type) + '</td><td>' + esc(describeRepo(r)) + '</td><td>' +
+            return '<tr><td><strong>' + esc(r.id) + '</strong></td><td>' + esc(r.type) + '</td><td>' + esc(describeRepo(r)) +
+                (r.for_users ? ' <span class="ua-badge ua-badge-info">available to users</span>' : '') + '</td><td>' +
                 '<button class="ua-btn ua-btn-secondary bk-check" data-repo="' + esc(r.id) + '">Verify</button> ' +
                 '<button class="ua-btn ua-btn-secondary bk-key" data-repo="' + esc(r.id) + '">Show encryption key</button></td></tr>';
         }).join('') + '</tbody></table>' : '<p class="ua-muted">No repository yet. Add one below.</p>';
@@ -70,7 +87,7 @@
 
     function load() {
         return api('overview', {}).then(function (d) { state.overview = d.result; render(); })
-            .catch(function (e) { UA.showError($('bk-repos'), e); });
+            .catch(function (e) { UA.showError(admin ? $('bk-repos') : $('rs-snapshots'), e); });
     }
 
     root.addEventListener('click', function (event) {
@@ -91,6 +108,7 @@
         }
     });
 
+    if (admin) {
     $('repo-sshkey').addEventListener('click', function () {
         api('ssh_key', {}).then(function (d) {
             $('repo-out').innerHTML = '<p>Add this key to <code>~/.ssh/authorized_keys</code> of the SFTP account:</p><div class="ua-pre">' + esc(d.result.public_key) + '</div>';
@@ -104,6 +122,7 @@
         if (type === 'sftp') { body.host = $('repo-host').value.trim(); body.user = $('repo-user').value.trim(); body.port = Number($('repo-port').value || 22); body.path = $('repo-path-sftp').value.trim(); }
         if (type === 's3') { body.endpoint = ($('repo-endpoint').value.trim() || 's3.amazonaws.com').replace(/^https?:\/\//, '').replace(/\/$/, ''); body.bucket = $('repo-bucket').value.trim(); body.prefix = $('repo-prefix').value.trim(); body.region = $('repo-region').value.trim(); body.accessKey = $('repo-access').value.trim(); body.secretKey = $('repo-secret').value; }
         if (type === 'rclone') { body.remote = $('repo-remote').value.trim(); body.path = $('repo-path-rclone').value.trim(); }
+        body.for_users = $('repo-for-users').checked;
         UA.busy(button, true);
         api('save_repo', body).then(function (d) {
             $('repo-secret').value = '';
@@ -126,6 +145,15 @@
         api('save_policy', body).then(function () { $('pol-out').innerHTML = '<p><span class="ua-badge ua-badge-pass">Saved</span> The schedule is active.</p>'; load(); })
             .catch(function (e) { UA.showError($('pol-out'), e); }).then(function () { UA.busy(button, false); });
     });
+    } else {
+        $('rs-backup-now').addEventListener('click', function () {
+            var button = this, site = $('rs-site').value;
+            if (!site || !window.confirm('Back up ' + site + ' (files and databases) now?')) { return; }
+            UA.busy(button, true);
+            api('backup_now', {repo: $('rs-repo').value, domain: site}).then(function (d) { watch(d.result.job_id, listSnapshots); })
+                .catch(function (e) { UA.showError($('rs-snapshots'), e); }).then(function () { UA.busy(button, false); });
+        });
+    }
 
     function listSnapshots() {
         return api('snapshots', {repo: $('rs-repo').value, domain: $('rs-site').value}).then(function (d) {
@@ -147,7 +175,7 @@
     function browse(path) {
         state.path = path;
         $('rs-path').textContent = path;
-        return api('ls', {repo: $('rs-repo').value, snapshot: state.snapshot, path: path}).then(function (d) {
+        return api('ls', {repo: $('rs-repo').value, snapshot: state.snapshot, path: path, domain: state.domain}).then(function (d) {
             var entries = d.result.entries.filter(function (e) { return e.path !== path; });
             $('rs-files').innerHTML = '<table class="ua-table"><tbody>' + entries.map(function (e) {
                 return '<tr><td>' + (e.type === 'dir' ? '<a href="#" class="rs-dir" data-path="' + esc(e.path) + '"><i class="fas fa-folder"></i> ' + esc(e.path) + '</a>'
@@ -175,7 +203,7 @@
     $('rs-up').addEventListener('click', function () { if (state.path !== '/') { browse(state.path.replace(/\/[^/]+$/, '') || '/'); } });
 
     function restoreFiles(include) {
-        var target = $('rs-target').value.trim() || 'original';
+        var target = admin ? ($('rs-target').value.trim() || 'original') : 'original';
         var text = target === 'original' ? 'Overwrite live files with ' + (include || 'the whole snapshot') + '? A safety snapshot of the current files is taken first.'
             : 'Restore ' + (include || 'the whole snapshot') + ' into ' + target + '?';
         if (!window.confirm(text)) { return; }
@@ -185,6 +213,6 @@
     $('rs-restore-path').addEventListener('click', function () { restoreFiles(state.path === '/' ? '' : state.path); });
     $('rs-restore-all').addEventListener('click', function () { restoreFiles(''); });
 
-    repoTypeFields();
+    if (admin) { repoTypeFields(); }
     load();
 })();

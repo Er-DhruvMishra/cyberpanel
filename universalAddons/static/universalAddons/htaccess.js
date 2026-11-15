@@ -12,10 +12,10 @@
         return api('overview', {}).then(function (d) {
             var r = d.result;
             $('ht-sites').innerHTML = '<table class="ua-table"><thead><tr><th>Site</th><th>Translation</th><th>Brute-force guard</th><th></th></tr></thead><tbody>' +
-                r.sites.map(function (s) {
+                (r.sites.length ? '' : '<tr><td class="ua-muted">No sites.</td></tr>') + r.sites.map(function (s) {
                     return '<tr><td><strong>' + esc(s.domain) + '</strong></td><td>' + (s.enabled ? '<span class="ua-badge ua-badge-pass">on</span> <span class="ua-muted">applied ' +
                         esc(new Date(s.applied * 1000).toLocaleString()) + '</span>' : '<span class="ua-badge ua-badge-info">off</span>') + '</td><td>' +
-                        (s.bruteforce ? '<span class="ua-badge ua-badge-pass">on</span>' : '') + '</td><td><button class="ua-btn ua-btn-secondary ht-preview" data-domain="' +
+                        (s.bruteforce ? '<span class="ua-badge ua-badge-pass">on</span>' + (s.by_user ? ' <span class="ua-muted">log only</span>' : '') : '') + '</td><td><button class="ua-btn ua-btn-secondary ht-preview" data-domain="' +
                         esc(s.domain) + '">Preview</button></td></tr>';
                 }).join('') + '</tbody></table>';
             $('ht-blocks').innerHTML = r.blocks.length ? '<table class="ua-table"><tbody>' + r.blocks.slice().reverse().map(function (b) {

@@ -1,9 +1,8 @@
 import re
 
-from plogical.httpProc import httpProc
 
 from universalAddons import privileged
-from universalAddons.access import admin_api, error, ok
+from universalAddons.access import admin_api, admin_page, error, ok
 from universalAddons.sshsec import service as sv
 
 
@@ -31,7 +30,7 @@ def _target(data):
 
 
 def page(request):
-    return httpProc(request, 'universalAddons/sshsec.html', {}, 'admin').render()
+    return admin_page(request, 'universalAddons/sshsec.html')
 
 
 @admin_api

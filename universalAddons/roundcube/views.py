@@ -6,7 +6,7 @@ from plogical.acl import ACLManager
 from plogical.httpProc import httpProc
 
 from universalAddons import privileged
-from universalAddons.access import admin_api, error, ok
+from universalAddons.access import admin_api, error, ok, page_refusal
 from universalAddons.roundcube.service import DB_NAME, DOMAIN_RE, URL_PREFIX, VERSION
 
 
@@ -24,6 +24,9 @@ def default_site(sites, hostname=None):
 
 
 def page(request):
+    refusal = page_refusal(request)  # administrators only: 403 for everyone else
+    if refusal is not None:
+        return refusal
     try:
         user_id = request.session['userID']
         acl = ACLManager.loadedACL(user_id)

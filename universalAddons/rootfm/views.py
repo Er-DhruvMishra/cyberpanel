@@ -2,10 +2,8 @@ import os
 
 from django.http import FileResponse, HttpResponse
 
-from plogical.httpProc import httpProc
-
 from universalAddons import privileged
-from universalAddons.access import admin_api, error, is_admin, ok
+from universalAddons.access import admin_api, admin_page, error, is_admin, ok
 
 MAX_UPLOAD_BYTES = 50 * 1024 * 1024
 
@@ -48,7 +46,7 @@ def _unlock(data):
 
 
 def page(request):
-    return httpProc(request, 'universalAddons/rootfm.html', {'start': data_start()}, 'admin').render()
+    return admin_page(request, 'universalAddons/rootfm.html', lambda: {'start': data_start()})
 
 
 def data_start():

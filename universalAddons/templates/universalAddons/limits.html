@@ -3,12 +3,19 @@
 {% block title %}{% trans "Resource Limits" %} - CyberPanel{% endblock %}
 {% block addon_scripts %}<script src="{% static 'universalAddons/limits.js' %}?v={{ CP_VERSION }}"></script>{% endblock %}
 {% block content %}
-<div class="ua-wrap" id="ua-limits" data-base="{% url 'ua-limits' %}">
+<div class="ua-wrap" id="ua-limits" data-base="{% url 'ua-limits' %}" data-admin="{{ is_admin|yesno:'1,0' }}">
   <div class="ua-header">
     <h1><i class="fas fa-gauge-high"></i> {% trans "Resource Limits" %}</h1>
     <p>{% trans "Per-site memory, process and connection limits so one busy site cannot take the server down. They are enforced by OpenLiteSpeed itself on each site's PHP (lsphp) handler, so they work on cgroup v1. Preview every change first; applying restarts OpenLiteSpeed gracefully and rolls back automatically if a site answers differently afterwards." %}</p>
   </div>
 
+  {% if not is_admin %}
+  <div class="ua-card">
+    <h2>{% trans "Your sites" %}</h2>
+    <p class="ua-muted">{% trans "Read-only. Effective = the limits your administrator set for each site; Usage = the site's PHP processes right now. Ask your administrator to change a limit." %}</p>
+    <div id="lim-user-sites" style="overflow-x:auto"><p class="ua-muted">{% trans "Loading…" %}</p></div>
+  </div>
+  {% else %}
   <div class="ua-card">
     <h2>{% trans "This server" %}</h2>
     <div id="lim-host"><p class="ua-muted">{% trans "Loading…" %}</p></div>
@@ -56,5 +63,6 @@
     <div class="ua-row" style="margin-top:12px"><button class="ua-btn ua-btn-secondary" id="lim-du">{% trans "Measure site disk usage (du)" %}</button>
       <span class="ua-muted" id="lim-du-note">{% trans "Runs in the background at idle priority; results are cached." %}</span></div>
   </div>
+  {% endif %}
 </div>
 {% endblock %}

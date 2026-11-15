@@ -12,6 +12,7 @@ from django.test import RequestFactory, SimpleTestCase
 
 from universalAddons.wordpress import service as wp, views
 from universalAddons.wordpress.service import WPError
+from universalAddons.tests import helpers
 
 
 class Recorder:
@@ -239,11 +240,7 @@ class LoginAndInstall(unittest.TestCase):
 
 class WordPressViews(SimpleTestCase):
     def post(self, view, body, is_admin=1):
-        request = RequestFactory().post('/x', data=json.dumps(body), content_type='application/json')
-        request.session = {'userID': 1}
-        with mock.patch('universalAddons.access.ACLManager.loadedACL', return_value={'admin': is_admin}):
-            response = view(request)
-        return response.status_code, json.loads(response.content)
+        return helpers.post(view, body, admin=bool(is_admin))[:2]
 
     def test_admin_only(self):
         for name in ('sites', 'info', 'item', 'flag', 'autoupdates', 'hardening', 'fix', 'performance', 'login',

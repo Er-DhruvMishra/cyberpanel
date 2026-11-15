@@ -42,3 +42,12 @@
 .ua-pane { display: none; } .ua-pane.active { display: block; }
 .ua-pre { white-space: pre-wrap; font-family: monospace; font-size: 12px; max-height: 420px; overflow: auto;
   background: var(--bg-secondary, #f8fafc); padding: 12px; border-radius: 8px; }
+/* Checkboxes and radios are not text fields: no minimum width, and a real gap before the label. */
+.ua-row input[type=checkbox], .ua-row input[type=radio] { min-width: 0; }
+label > input[type=checkbox], label > input[type=radio] { margin-right: 6px; }
+.ua-access-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 10px 20px; }
+.ua-check { display: flex; align-items: flex-start; gap: 10px; margin: 0; padding: 10px 12px; cursor: pointer;
+  font-weight: normal; border: 1px solid var(--border-primary, #e8e9ff); border-radius: 8px; }
+.ua-check input[type=checkbox] { flex: none; width: 16px; height: 16px; margin: 2px 0 0; min-width: 0; }
+.ua-check strong { display: block; color: var(--text-primary, #2f3640); }
+.ua-check-help { display: block; margin-top: 2px; font-size: 13px; color: var(--text-secondary, #64748b); }

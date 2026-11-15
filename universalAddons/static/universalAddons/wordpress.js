@@ -40,7 +40,7 @@
         return api('sites', {}).then(function (d) {
             var r = d.result;
             state.sites = r;
-            $('wp-cli-version').textContent = r.wp_cli ? '(' + r.wp_cli + ')' : '(WP-CLI not found)';
+            if ($('wp-cli-version')) { $('wp-cli-version').textContent = r.wp_cli ? '(' + r.wp_cli + ')' : '(WP-CLI not found)'; }
             $('wp-sites').innerHTML = r.installs.length ? '<table class="ua-table"><thead><tr><th>Site</th><th>Version</th><th>Path</th><th></th></tr></thead><tbody>' +
                 r.installs.map(function (i) {
                     return '<tr><td><strong>' + esc(i.domain) + '</strong></td><td>' + esc(i.version) + '</td><td class="ua-muted">' + esc(i.docroot) +
@@ -192,7 +192,7 @@
             }
         });
     });
-    $('wp-cli-update').addEventListener('click', function () { startJob('wpcli', {}, loadSites); });
+    if ($('wp-cli-update')) { $('wp-cli-update').addEventListener('click', function () { startJob('wpcli', {}, loadSites); }); }
 
     loadSites();
 })();

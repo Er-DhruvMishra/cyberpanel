@@ -42,8 +42,12 @@ def _quick_version(docroot):
         return ''
 
 
-def list_sites():
+def list_sites(domains=None):
+    """Every site, or (for a site owner) only the given domains."""
     rows = _docroots()
+    if domains is not None:
+        wanted = {str(d).lower() for d in domains}
+        rows = [r for r in rows if r[0] in wanted]
     installs = wp.find_installs(rows)
     for item in installs:
         item['version'] = _quick_version(item['docroot'])
@@ -62,16 +66,39 @@ def _wp_cli_version():
         return ''
 
 
-def _create_database_for(domain):
-    """Create an empty DB + user for a site and register it in the panel. Returns (name, user, password)."""
+def _within_quota(website):
+    """The panel's rule: a package allows `dataBases` databases per website, 0 meaning no limit."""
+    allowed = website.package.dataBases
+    return allowed == 0 or allowed > website.databases_set.count()
+
+
+def _website(domain):
+    _django()
+    from websiteFunctions.models import ChildDomains, Websites
+    try:
+        return Websites.objects.get(domain=domain)
+    except Websites.DoesNotExist:
+        return ChildDomains.objects.get(domain=domain).master
+
+
+def _check_quota(domain):
+    website = _website(domain)
+    if not _within_quota(website):
+        raise WPError('Maximum database limit reached for %s (package %s).' % (website.domain,
+                                                                               website.package.packageName))
+
+
+def _create_database_for(domain, quota=False):
+    """Create an empty DB + user for a site and register it in the panel. Returns (name, user, password).
+
+    quota=True (site owners): refuse when the website's package has no database left.
+    """
     _django()
     from databases.models import Databases
-    from websiteFunctions.models import ChildDomains, Websites
     from universalAddons.backupv2.service import mysql_defaults_file
-    try:
-        website = Websites.objects.get(domain=domain)
-    except Websites.DoesNotExist:
-        website = ChildDomains.objects.get(domain=domain).master
+    if quota:
+        _check_quota(domain)
+    website = _website(domain)
     prefix = re.sub(r'[^a-z0-9]', '', website.externalApp.lower())[:8] or 'wp'
     name = '%s_stg%s' % (prefix, secrets.token_hex(3))
     password = secrets.token_urlsafe(24)
@@ -113,10 +140,14 @@ def rollback_run(job_id, domain, snap_id):
     return jobs.run_job(job_id, [('Roll %s back to %s' % (domain, snap_id), lambda job: wp.rollback(site, snap_id))])
 
 
-def clone_run(job_id, source, target):
+def clone_run(job_id, source, target, quota=False):
     src, dst = _site(source), _site(target)
-    return jobs.run_job(job_id, [('Clone %s to %s' % (source, target),
-                                  lambda job: wp.clone(src, dst, lambda: _create_database_for(target), log=job.log))])
+
+    def body(job):
+        if quota:  # refuse before copying anything
+            _check_quota(target)
+        return wp.clone(src, dst, lambda: _create_database_for(target, quota), log=job.log)
+    return jobs.run_job(job_id, [('Clone %s to %s' % (source, target), body)])
 
 
 def push_run(job_id, staging, production):
@@ -125,11 +156,16 @@ def push_run(job_id, staging, production):
                                   lambda job: wp.push(stg, prod, log=job.log))])
 
 
-def install_run(job_id, domain, title, admin_user, admin_email, locale='en_US'):
+def install_run(job_id, domain, title, admin_user, admin_email, locale='en_US', quota=False):
     site = _site(domain)
     wp.validate_install(title, admin_user, admin_email, locale)
-    return jobs.run_job(job_id, [('Install WordPress on %s' % domain, lambda job: wp.install_wordpress(
-        site, title, admin_user, admin_email, lambda: _create_database_for(domain), locale, log=job.log))])
+
+    def body(job):
+        if quota:  # refuse before downloading anything
+            _check_quota(domain)
+        return wp.install_wordpress(site, title, admin_user, admin_email, lambda: _create_database_for(domain, quota),
+                                    locale, log=job.log)
+    return jobs.run_job(job_id, [('Install WordPress on %s' % domain, body)])
 
 
 def wpcli_run(job_id):

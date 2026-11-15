@@ -4,7 +4,7 @@ from plogical.acl import ACLManager
 from plogical.httpProc import httpProc
 
 from universalAddons import privileged
-from universalAddons.access import admin_api, error, load_policy, ok, site_api
+from universalAddons.access import admin_api, error, load_policy, ok, remember_job, require_job, site_api
 
 _ID = re.compile(r'^[a-z][a-z0-9-]{1,30}$')
 _VERSION = re.compile(r'^\d{1,3}(\.\d{1,4}){1,3}(-[a-z0-9.]+)?$')
@@ -102,7 +102,12 @@ def save(request, data, context):
 
 @site_api('apps_for_users')
 def deploy(request, data, context):
-    return _call('deploy', **_app_args(data, context))
+    try:
+        result = privileged.call('apps', 'deploy', **_app_args(data, context))
+    except RuntimeError as exc:
+        return error(str(exc))
+    remember_job(request, 'apps', result)  # only this session may poll the deploy job
+    return ok(result=result)
 
 
 @site_api('apps_for_users')
@@ -127,4 +132,4 @@ def job(request, data, context):
     job_id = str(data.get('job', ''))
     if not re.match(r'^[0-9a-f]{24}$', job_id):
         return error('Invalid job.', status=400)
-    return _call('job', job_id=job_id)
+    return _call('job', job_id=require_job(request, context, 'apps', job_id))

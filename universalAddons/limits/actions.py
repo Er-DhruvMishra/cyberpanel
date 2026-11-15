@@ -90,6 +90,24 @@ def overview():
     }
 
 
+def site_usage(domains):
+    """Read-only view for a site owner: effective limits and current usage of the given websites."""
+    wanted = {str(d).lower() for d in domains or ()}
+    sites = [s for s in _sites() if s['domain'].lower() in wanted]
+    store = sv.load_store()
+    host, defaults = _defaults()
+    usage = sv.usage_by_user(sorted({s['user'] for s in sites if s['user']}))
+    quota = sv.quota_report()
+    du_cache = sv.load_du_cache()
+    rows = []
+    for site in sites:
+        limits, _ = sv.effective(site['package'], site['domain'], store, defaults)
+        rows.append({'domain': site['domain'], 'package': site['package'], 'state': site['state'],
+                     'effective': limits, 'usage': usage.get(site['user']), 'quota': quota['users'].get(site['user']),
+                     'du': du_cache.get(site['domain'])})
+    return {'fields': [{'key': k, 'label': v[3]} for k, v in sv.FIELDS.items()], 'sites': rows}
+
+
 # ----------------------------------------------------------------------------- write profile
 
 def save(scope, name, limits):
@@ -192,6 +210,7 @@ def du_run(job_id):
 
 ACTIONS = {
     'overview': overview,
+    'site_usage': site_usage,
     'save': save,
     'preview': preview,
     'apply': apply,

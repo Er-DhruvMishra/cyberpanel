@@ -4,15 +4,12 @@ from unittest import mock
 from django.test import RequestFactory, SimpleTestCase
 
 from universalAddons.backupv2 import views
+from universalAddons.tests import helpers
 
 
 class BackupViews(SimpleTestCase):
     def post(self, view, body, is_admin=1):
-        request = RequestFactory().post('/x', data=json.dumps(body), content_type='application/json')
-        request.session = {'userID': 1}
-        with mock.patch('universalAddons.access.ACLManager.loadedACL', return_value={'admin': is_admin}):
-            response = view(request)
-        return response.status_code, json.loads(response.content)
+        return helpers.post(view, body, admin=bool(is_admin))[:2]
 
     def test_admin_only(self):
         for name in ('overview', 'save_repo', 'export_key', 'ssh_key', 'save_policy', 'delete_policy', 'run_now',

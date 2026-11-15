@@ -46,6 +46,18 @@
         })();
     }
 
+    if (root.dataset.admin !== '1') {  // site owners: read-only view of their own sites
+        api('overview', {}).then(function (d) {
+            var r = d.result;
+            $('lim-user-sites').innerHTML = r.sites.length ? '<table class="ua-table"><thead><tr><th>Site</th><th>Package</th><th>Effective limits</th><th>Usage now</th><th>Disk</th></tr></thead><tbody>' +
+                r.sites.map(function (s) {
+                    return '<tr><td><strong>' + esc(s.domain) + '</strong>' + (s.state !== 1 ? ' <span class="ua-badge ua-badge-warn">suspended</span>' : '') +
+                        '</td><td>' + esc(s.package) + '</td><td>' + compact(s.effective) + '</td><td>' + usageCell(s.usage) + '</td><td>' + diskCell(s) + '</td></tr>';
+                }).join('') + '</tbody></table>' : '<p class="ua-muted">Your account has no websites.</p>';
+        }).catch(function (e) { UA.showError($('lim-user-sites'), e); });
+        return;
+    }
+
     function renderHost(d) {
         var h = d.host, q = d.quota, c = d.cgroup;
         $('lim-host').innerHTML = '<table class="ua-table"><tbody>' +

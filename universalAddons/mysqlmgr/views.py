@@ -1,9 +1,8 @@
 import re
 
-from plogical.httpProc import httpProc
 
 from universalAddons import privileged
-from universalAddons.access import admin_api, error, ok
+from universalAddons.access import admin_api, admin_page, error, ok
 from universalAddons.mysqlmgr.service import SPEC, MySQLError, thread_id
 
 _SETTING_VALUE = re.compile(r'^[A-Za-z0-9_.]{1,32}$')
@@ -24,7 +23,7 @@ def panel_users():
 
 
 def page(request):
-    return httpProc(request, 'universalAddons/mysqlmgr.html', {}, 'admin').render()
+    return admin_page(request, 'universalAddons/mysqlmgr.html')
 
 
 @admin_api

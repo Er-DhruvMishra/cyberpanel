@@ -11,6 +11,7 @@ from django.test import RequestFactory, SimpleTestCase
 
 from universalAddons.htaccess import service as hs, translator as tr, views
 from universalAddons.htaccess.service import HtaccessError
+from universalAddons.tests import helpers
 
 VHOST = """docRoot                   $VH_ROOT/public_html
 
@@ -171,11 +172,7 @@ class Guard(unittest.TestCase):
 
 class HtaccessViews(SimpleTestCase):
     def post(self, view, body, is_admin=1):
-        request = RequestFactory().post('/x', data=json.dumps(body), content_type='application/json')
-        request.session = {'userID': 1}
-        with mock.patch('universalAddons.access.ACLManager.loadedACL', return_value={'admin': is_admin}):
-            response = view(request)
-        return response.status_code, json.loads(response.content)
+        return helpers.post(view, body, admin=bool(is_admin))[:2]
 
     def test_admin_only_and_validation(self):
         for name in ('overview', 'preview', 'enable', 'disable'):

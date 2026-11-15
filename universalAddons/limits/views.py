@@ -1,12 +1,13 @@
+"""Resource Limits endpoints. Site owners (when the policy allows it) may only read the limits and
+current usage of their own sites; every change stays with administrators."""
 import re
 
-from plogical.httpProc import httpProc
-
 from universalAddons import privileged
-from universalAddons.access import admin_api, error, ok
+from universalAddons.access import admin_api, error, ok, owned_sites, site_api, site_page
 from universalAddons.limits.service import DOMAIN_RE, OVERRIDES, PACKAGE_RE, validate_limits
 
 SCOPES = ('package', 'site')
+FEATURE = 'limits_for_users'
 
 
 def _call(action, /, **args):
@@ -33,12 +34,14 @@ def _target(data):
 
 
 def page(request):
-    return httpProc(request, 'universalAddons/limits.html', {}, 'admin').render()
+    return site_page(request, 'universalAddons/limits.html', FEATURE)
 
 
-@admin_api
-def overview(request, data):
-    return _call('overview')
+@site_api(FEATURE)
+def overview(request, data, context):
+    if context.is_admin:
+        return _call('overview')
+    return _call('site_usage', domains=owned_sites(context))
 
 
 @admin_api

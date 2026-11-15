@@ -27,8 +27,13 @@ def _panel_domains():
     return [n.lower() for n in names if service.valid_domain(n.lower())]
 
 
-def inventory():
-    return {'certificates': service.inventory(_panel_domains()),
+def inventory(domains=None):
+    """Every panel domain, or (for a site owner) only the given ones."""
+    names = _panel_domains()
+    if domains is not None:
+        wanted = {str(d).lower() for d in domains}
+        names = [n for n in names if n in wanted]
+    return {'certificates': service.inventory(names),
             'saved_cloudflare_token': _saved_cf_token()}
 
 

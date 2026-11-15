@@ -1,12 +1,14 @@
 """Access control and request helpers shared by every add-on module.
 
-Every add-on endpoint is administrator-only. JSON endpoints accept POST with a JSON body
-(CSRF-protected by Django's middleware); CyberPanel's secMiddleware still screens the body.
+Add-on endpoints are administrator-only (admin_api) unless the administrator opens a module to
+site owners with a policy switch (site_api): then non-administrators may act on the sites they
+own, and only those. JSON endpoints accept POST with a JSON body (CSRF-protected by Django's
+middleware); CyberPanel's secMiddleware still screens the body.
 """
 import json
 from functools import wraps
 
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
 
 from plogical.acl import ACLManager
 
@@ -71,16 +73,44 @@ DEFAULT_POLICY = {
     'email_limits_for_users': False,   # may non-administrators manage mailbox limits of domains they own?
     'terminal_for_users': False,       # may website owners open a terminal for their own sites?
     'terminal_root_for_admins': False,  # may administrators open a root shell?
+    'wordpress_for_users': False,      # may website owners manage WordPress on their own sites?
+    'backup_for_users': False,         # may website owners back up / restore their own sites?
+    'ssl_for_users': False,            # may website owners issue certificates for their own domains?
+    'htaccess_for_users': False,       # may website owners turn on .htaccess translation for their sites?
+    'email_debug_for_users': False,    # may website owners run DNS checks for their own mail domains?
+    'limits_for_users': False,         # may website owners see the limits and usage of their sites?
 }
 
 # Add-ons that have something for non-administrators, and the policy switch that opens each one
 # to users. Every other add-on is for administrators only and is never shown to users.
 USER_FEATURES = (
+    ('wordpress', 'wordpress_for_users'),
+    ('backupv2', 'backup_for_users'),
+    ('sslv2', 'ssl_for_users'),
+    ('htaccess', 'htaccess_for_users'),
+    ('emaildebug', 'email_debug_for_users'),
+    ('limits', 'limits_for_users'),
     ('apps', 'apps_for_users'),
     ('mssql', 'mssql_for_users'),
     ('emaillimits', 'email_limits_for_users'),
     ('webterm', 'terminal_for_users'),
 )
+
+# What a site owner gets from each switch (shown next to its checkbox on the hub).
+USER_FEATURE_HELP = {
+    'wordpress': 'Manage WordPress on their own sites: updates, plugins, snapshots, staging, hardening, wp-admin login.',
+    'backupv2': 'Back up their own sites now and restore their own files and databases, using repositories you mark '
+                'as available to users.',
+    'sslv2': "Issue Let's Encrypt certificates (wildcard over DNS-01) for domains they own.",
+    'htaccess': 'Preview and turn on .htaccess translation for their own sites (brute-force blocking stays '
+                'administrator-only).',
+    'emaildebug': 'DNS and reputation checks (MX, SPF, DKIM, DMARC, PTR, blocklists) for their own domains.',
+    'limits': 'See, read-only, the resource limits and current usage of their own sites.',
+    'apps': 'Run Node.js, Python, .NET and Java apps on their own sites, within the limits you set.',
+    'mssql': 'Create SQL Server databases for their own sites.',
+    'emaillimits': 'Set mailbox sending limits on their own mail domains.',
+    'webterm': "Open a browser terminal as their website's Linux user.",
+}
 
 
 def user_modules(policy=None):
@@ -146,6 +176,90 @@ class SiteContext:
         if not self.owns(domain):
             raise PermissionError('You do not manage %s.' % domain)
         return domain
+
+
+def owned_sites(context):
+    """Websites and child domains the caller manages (lower case), or None for administrators (all)."""
+    if context.is_admin:
+        return None
+    return sorted({d.lower() for d in ACLManager.findAllSites(context.acl, context.user_id, 1)})
+
+
+# ----------------------------------------------------------------------------- background jobs
+
+JOBS_SESSION_KEY = 'ua_jobs'
+MAX_REMEMBERED_JOBS = 50
+
+
+def remember_job(request, module, result):
+    """Note in the caller's session that it started this job, so only it can poll the job."""
+    job_id = result.get('job_id') if isinstance(result, dict) else None
+    if not job_id:
+        return
+    known = list(request.session.get(JOBS_SESSION_KEY) or [])
+    known.append('%s:%s' % (module, job_id))
+    request.session[JOBS_SESSION_KEY] = known[-MAX_REMEMBERED_JOBS:]
+
+
+def require_job(request, context, module, job_id):
+    """Administrators may poll any job; users only the jobs they started in this session."""
+    if context.is_admin:
+        return job_id
+    if '%s:%s' % (module, job_id) not in (request.session.get(JOBS_SESSION_KEY) or []):
+        raise PermissionError('Unknown job.')
+    return job_id
+
+
+# ----------------------------------------------------------------------------- pages
+
+def forbidden(request, message='Administrator access is required.'):
+    """A 403 page (the panel's error template when it can be rendered)."""
+    try:
+        from django.shortcuts import render
+        return render(request, 'baseTemplate/error.html', {'error_message': message}, status=403)
+    except Exception:
+        return HttpResponse(message, status=403, content_type='text/plain; charset=utf-8')
+
+
+def page_refusal(request, feature=None):
+    """None when the caller may open the page; otherwise a 403 response.
+
+    Administrators may open every add-on page. Others only the pages of add-ons whose `feature`
+    switch is on (feature=None: administrators only). Visitors who are not logged in get None, so
+    httpProc sends them to the login page as usual.
+    """
+    admin = is_admin(request)
+    if admin is None or admin:
+        return None
+    if feature and load_policy().get(feature) is True:
+        return None
+    if feature:
+        return forbidden(request, 'The administrator has not enabled this add-on for your account.')
+    return forbidden(request)
+
+
+def admin_page(request, template, data=None):
+    """Render an administrator-only add-on page; anyone else gets 403."""
+    refusal = page_refusal(request)
+    if refusal is not None:
+        return refusal
+    from plogical.httpProc import httpProc
+    return httpProc(request, template, data() if callable(data) else (data or {}), 'admin').render()
+
+
+def site_page(request, template, feature, data=None):
+    """Render a page opened to site owners by `feature`; `data(is_admin)` adds template values."""
+    refusal = page_refusal(request, feature)
+    if refusal is not None:
+        return refusal
+    admin = is_admin(request) is True
+    values = {'is_admin': admin, 'for_users': load_policy().get(feature) is True}
+    if callable(data):
+        values.update(data(admin) or {})
+    elif data:
+        values.update(data)
+    from plogical.httpProc import httpProc
+    return httpProc(request, template, values).render()
 
 
 def site_api(feature):

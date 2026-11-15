@@ -2,12 +2,14 @@
 import os
 import socket
 import subprocess
+import time
 
 from universalAddons import jobs
 from universalAddons.backupv2 import service as bk
 from universalAddons.backupv2.service import BackupError
 
 CRON_FILE = '/etc/cron.d/cyberpanel-universal-backup'
+USER_RUN_INTERVAL = 15 * 60   # a site owner may start one backup of a site per 15 minutes
 
 
 def _django():
@@ -25,6 +27,12 @@ def _databases(domain):
     _django()
     from databases.models import Databases
     return sorted(Databases.objects.filter(website__domain=domain).values_list('dbName', flat=True))
+
+
+def _site_user(domain):
+    _django()
+    from websiteFunctions.models import Websites
+    return Websites.objects.get(domain=domain).externalApp
 
 
 def _hostname():
@@ -97,7 +105,7 @@ def run_policy(policy_id, job_id=None):
     def body(job):
         defaults = bk.mysql_defaults_file() if 'db' in policy['units'] else None
         try:
-            with bk.repo_lock(repo['id']):
+            with bk.repo_lock(repo['id'], wait=2 * 3600):
                 for domain in sites:
                     try:
                         result = bk.backup_site(repo, domain, policy['units'],
@@ -169,6 +177,107 @@ def check_run(job_id, repo_id):
     return jobs.run_job(job_id, [('Verify repository %s (10%% of data)' % repo_id, body)])
 
 
+# ----------------------------------------------------------------------------- site owners
+# The web layer has already checked that the caller owns `domain`; these re-check everything else:
+# the repository must be open to users, and every snapshot must be the site's own.
+
+def _user_repo(repo_id):
+    repo = bk._load('repos.json').get(repo_id)
+    if not repo or not repo.get('for_users'):
+        raise BackupError('Unknown repository.')
+    return repo
+
+
+def _user_site(domain):
+    domain = (domain or '').strip().lower()
+    if not bk.DOMAIN_RE.match(domain) or domain not in _sites():
+        raise BackupError('Unknown site.')
+    return domain
+
+
+def user_overview(domains):
+    wanted = {str(d).lower() for d in domains or ()}
+    return {'repos': [{'id': r['id'], 'name': r.get('name') or r['id']} for r in bk.list_repos() if r.get('for_users')],
+            'sites': [d for d in _sites() if d in wanted], 'keep_last': bk.USER_KEEP_LAST}
+
+
+def user_snapshots(repo_id, domain):
+    return {'snapshots': bk.site_snapshots(_user_repo(repo_id), _user_site(domain))}
+
+
+def user_ls(repo_id, domain, snapshot, path='/'):
+    repo, domain = _user_repo(repo_id), _user_site(domain)
+    item = bk.snapshot_for_site(repo, snapshot, domain, 'files')
+    return {'entries': bk.list_files(repo, item['full_id'], path)}
+
+
+def user_backup(repo_id, domain):
+    repo, domain = _user_repo(repo_id), _user_site(domain)
+    runs = bk._load('user-runs.json')
+    last = runs.get(domain, 0) if isinstance(runs.get(domain, 0), (int, float)) else 0
+    wait = int(last + USER_RUN_INTERVAL - time.time())
+    if wait > 0:
+        raise BackupError('A backup of %s was started recently; try again in %d minute(s).' % (domain, wait // 60 + 1))
+    runs = {d: t for d, t in runs.items() if isinstance(t, (int, float)) and t > time.time() - 86400}
+    runs[domain] = int(time.time())
+    bk._save('user-runs.json', runs)
+    return jobs.spawn('backupv2', 'user_backup_run', {'repo_id': repo['id'], 'domain': domain})
+
+
+def user_backup_run(job_id, repo_id, domain):
+    repo, domain = _user_repo(repo_id), _user_site(domain)
+
+    def body(job):
+        databases = _databases(domain)
+        defaults = bk.mysql_defaults_file() if databases else None
+        try:
+            with bk.repo_lock(repo['id']):
+                result = bk.backup_site(repo, domain, ['files', 'db'], databases, _hostname(), log=job.log,
+                                        defaults_file=defaults, extra_tags=[bk.USER_TAG])
+                job.log('%s: %s' % (domain, '; '.join('%s %s' % kv for kv in result.items())))
+                job.log(bk.owner_retention(repo, domain))
+        finally:
+            if defaults:
+                os.unlink(defaults)
+        return result
+
+    return jobs.run_job(job_id, [('Back up %s to %s' % (domain, repo['id']), body)])
+
+
+def user_restore(repo_id, snapshot, domain, kind, include='', database=''):
+    """Start an in-place restore of the site's own snapshot (files, or one of its databases)."""
+    repo, domain = _user_repo(repo_id), _user_site(domain)
+    if kind not in ('files', 'db'):
+        raise BackupError('Invalid restore request.')
+    if kind == 'db' and database not in _databases(domain):
+        raise BackupError('Database %s does not belong to %s.' % (database, domain))
+    item = bk.snapshot_for_site(repo, snapshot, domain, kind, database)
+    return jobs.spawn('backupv2', 'user_restore_run', {'repo_id': repo['id'], 'snapshot': item['full_id'],
+                                                        'domain': domain, 'kind': kind, 'include': include or '',
+                                                        'database': database or ''})
+
+
+def user_restore_run(job_id, repo_id, snapshot, domain, kind, include='', database=''):
+    repo, domain = _user_repo(repo_id), _user_site(domain)
+
+    def body(job):
+        with bk.repo_lock(repo['id']):
+            item = bk.snapshot_for_site(repo, snapshot, domain, kind, database)  # re-check under the lock
+            if kind == 'db':
+                if database not in _databases(domain):
+                    raise BackupError('Database %s does not belong to %s.' % (database, domain))
+                defaults = bk.mysql_defaults_file()
+                try:
+                    return bk.restore_database(repo, item['full_id'], database, defaults_file=defaults, log=job.log,
+                                               hostname=_hostname(), site=domain)
+                finally:
+                    os.unlink(defaults)
+            return bk.restore_files_as_owner(repo, item['full_id'], domain, _site_user(domain), include or None,
+                                             log=job.log, hostname=_hostname())
+
+    return jobs.run_job(job_id, [('Restore %s from %s' % (domain, snapshot[:8]), body)])
+
+
 ACTIONS = {
     'overview': overview,
     'save_repo': save_repo,
@@ -185,4 +294,11 @@ ACTIONS = {
     'check': lambda repo_id: jobs.spawn('backupv2', 'check_run', {'repo_id': repo_id}),
     'check_run': check_run,
     'job': lambda job_id: jobs.status(job_id),
+    'user_overview': user_overview,
+    'user_snapshots': user_snapshots,
+    'user_ls': user_ls,
+    'user_backup': user_backup,
+    'user_backup_run': user_backup_run,
+    'user_restore': user_restore,
+    'user_restore_run': user_restore_run,
 }

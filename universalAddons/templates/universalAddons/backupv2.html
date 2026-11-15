@@ -3,12 +3,13 @@
 {% block title %}{% trans "Backup V2" %} - CyberPanel{% endblock %}
 {% block addon_scripts %}<script src="{% static 'universalAddons/backupv2.js' %}?v={{ CP_VERSION }}"></script>{% endblock %}
 {% block content %}
-<div class="ua-wrap" id="ua-backupv2" data-base="{% url 'ua-backupv2' %}">
+<div class="ua-wrap" id="ua-backupv2" data-base="{% url 'ua-backupv2' %}" data-admin="{{ is_admin|yesno:'1,0' }}">
   <div class="ua-header">
     <h1><i class="fas fa-box-archive"></i> {% trans "Backup V2" %}</h1>
-    <p>{% trans "Encrypted, deduplicated incremental backups with restic: site files, databases, mail and configuration. Restores can be previewed, sent to another folder, and in-place restores take a safety snapshot first." %}</p>
+    <p>{% if is_admin %}{% trans "Encrypted, deduplicated incremental backups with restic: site files, databases, mail and configuration. Restores can be previewed, sent to another folder, and in-place restores take a safety snapshot first." %}{% else %}{% trans "Encrypted, incremental backups of your websites' files and databases, to the backup storage your administrator provides. Restores go back into the site and take a safety snapshot of the current files first." %}{% endif %}</p>
   </div>
 
+  {% if is_admin %}
   <div class="ua-tabs">
     <button class="active" data-pane="repos">{% trans "Repositories" %}</button>
     <button data-pane="policies">{% trans "Schedules" %}</button>
@@ -45,6 +46,7 @@
         <input id="repo-remote" placeholder="gdrive"><input id="repo-path-rclone" placeholder="cyberpanel-backups">
         <span class="ua-muted">{% trans "Create the remote first with: rclone config" %}</span>
       </div>
+      <div class="ua-row"><label><input type="checkbox" id="repo-for-users"> {% trans "Available to users: site owners may back up their own sites here and restore their own files and databases (when Backup V2 is opened to users on the Universal Add-ons page)" %}</label></div>
       <div class="ua-row"><button class="ua-btn" id="repo-save">{% trans "Save and initialise" %}</button></div>
       <div id="repo-out"></div>
     </div>
@@ -86,11 +88,15 @@
     </div>
   </div>
 
-  <div class="ua-pane" id="pane-restore">
+  {% endif %}
+
+  <div class="ua-pane{% if not is_admin %} active{% endif %}" id="pane-restore">
     <div class="ua-card">
+      {% if not is_admin %}<p class="ua-muted" id="bk-user-note"></p>{% endif %}
       <div class="ua-row">
-        <select id="rs-repo"></select><select id="rs-site"><option value="">{% trans "all sites" %}</option></select>
+        <select id="rs-repo"></select><select id="rs-site">{% if is_admin %}<option value="">{% trans "all sites" %}</option>{% endif %}</select>
         <button class="ua-btn" id="rs-list">{% trans "List snapshots" %}</button>
+        {% if not is_admin %}<button class="ua-btn ua-btn-secondary" id="rs-backup-now">{% trans "Back up this site now" %}</button>{% endif %}
       </div>
       <div id="rs-snapshots"></div>
     </div>
@@ -99,7 +105,7 @@
       <div class="ua-row"><button class="ua-btn ua-btn-secondary" id="rs-up"><i class="fas fa-arrow-up"></i></button><code id="rs-path"></code></div>
       <div id="rs-files"></div>
       <div class="ua-row" style="margin-top:12px">
-        <input id="rs-target" placeholder="{% trans 'restore to: original, or a folder like /home/restore-example' %}" value="original" style="flex:1">
+        {% if is_admin %}<input id="rs-target" placeholder="{% trans 'restore to: original, or a folder like /home/restore-example' %}" value="original" style="flex:1">{% else %}<span class="ua-muted" style="flex:1">{% trans "Restores into the live site, after a safety snapshot of the current files." %}</span>{% endif %}
         <button class="ua-btn" id="rs-restore-path">{% trans "Restore this folder" %}</button>
         <button class="ua-btn ua-btn-secondary" id="rs-restore-all">{% trans "Restore whole snapshot" %}</button>
       </div>

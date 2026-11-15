@@ -1,9 +1,8 @@
 import re
 
-from plogical.httpProc import httpProc
 
 from universalAddons import privileged
-from universalAddons.access import admin_api, error, ok
+from universalAddons.access import admin_api, admin_page, error, ok
 from universalAddons.apache import service as sv
 
 MODES = ('apache', 'ols', 'tune')
@@ -31,7 +30,7 @@ def _pool(data, mode):
 
 
 def page(request):
-    return httpProc(request, 'universalAddons/apache.html', {}, 'admin').render()
+    return admin_page(request, 'universalAddons/apache.html')
 
 
 @admin_api

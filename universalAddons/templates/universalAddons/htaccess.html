@@ -17,7 +17,7 @@
     <div class="ua-row">
       <button class="ua-btn" id="ht-enable">{% trans "Enable and apply" %}</button>
       <button class="ua-btn ua-btn-secondary" id="ht-disable">{% trans "Disable and remove" %}</button>
-      <span class="ua-muted">{% trans "Applying backs up vhost.conf, restarts OpenLiteSpeed gracefully and rolls back automatically if the site stops answering." %}</span>
+      <span class="ua-muted">{% trans "Applying backs up vhost.conf, restarts OpenLiteSpeed gracefully and rolls back automatically if the site stops answering." %}{% if not is_admin %} {% trans "You can apply a site once every two minutes." %}{% endif %}</span>
     </div>
     <div id="ht-out"></div>
     <h2 style="margin-top:16px">{% trans "Line-by-line report" %}</h2>
@@ -28,7 +28,8 @@
   </div>
   <div class="ua-card">
     <h2>{% trans "Brute-force guard: recent blocks" %}</h2>
-    <p class="ua-muted">{% trans "Enable it in a site's .htaccess with: BruteForceProtection On (optional: BruteForceAllowedAttempts, BruteForceWindow, BruteForceAction block|throttle|log, BruteForceWhitelist, BruteForceProtectPath). Blocks use self-expiring firewall rules." %}</p>
+    <p class="ua-muted">{% trans "Enable it in a site's .htaccess with: BruteForceProtection On (optional: BruteForceAllowedAttempts, BruteForceWindow, BruteForceAction block|throttle|log, BruteForceWhitelist, BruteForceProtectPath). Blocks use self-expiring firewall rules." %}
+      {% if is_admin %}{% trans "For sites a site owner enabled, the guard only logs attempts; enable the site yourself to let it block." %}{% else %}{% trans "On sites you enable yourself the guard only records attempts; ask your administrator to turn on blocking." %}{% endif %}</p>
     <div id="ht-blocks"></div>
   </div>
 </div>
