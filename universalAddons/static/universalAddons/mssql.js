@@ -21,6 +21,7 @@
                 dbs.map(function (db) {
                     return '<tr><td><strong>' + esc(db.name) + '</strong></td><td>' + esc(db.domain) + '</td><td>' + (db.size_mb === null || db.size_mb === undefined ? '' : esc(db.size_mb) + ' MB') +
                         '</td><td>' + esc(new Date(db.created * 1000).toLocaleDateString()) + '</td><td>' +
+                        '<button class="ua-btn ua-btn-secondary sq-browse" data-name="' + esc(db.name) + '" data-domain="' + esc(db.domain) + '">Browse</button> ' +
                         '<button class="ua-btn ua-btn-secondary sq-reset" data-name="' + esc(db.name) + '" data-domain="' + esc(db.domain) + '">New password</button> ' +
                         '<button class="ua-btn sq-drop" style="background:#dc2626" data-name="' + esc(db.name) + '" data-domain="' + esc(db.domain) + '">Delete</button></td></tr>';
                 }).join('') + '</tbody></table>' : '<p class="ua-muted">No SQL Server databases yet.</p>';
@@ -37,6 +38,92 @@
         } else if (window.confirm('Delete database ' + t.dataset.name + ' and its login? This cannot be undone.')) {
             api('drop', {name: t.dataset.name, domain: t.dataset.domain}).then(loadList).catch(function (e) { UA.showError($('sq-list'), e); });
         }
+    });
+
+    // ------------------------------------------------------------------ viewer (read-only)
+    var viewing = null;  // {name, domain, schema, table, page, total}
+
+    function cell(value) {
+        if (value === null || value === undefined) { return '<span class="ua-muted">NULL</span>'; }
+        return esc(typeof value === 'object' ? JSON.stringify(value) : String(value));
+    }
+
+    function grid(columns, rows) {
+        return '<table class="ua-table"><thead><tr>' + columns.map(function (c) { return '<th>' + esc(c) + '</th>'; }).join('') +
+            '</tr></thead><tbody>' + rows.map(function (r) {
+                return '<tr>' + r.map(function (v) { return '<td style="white-space:pre-wrap;max-width:420px;word-break:break-word">' + cell(v) + '</td>'; }).join('') + '</tr>';
+            }).join('') + '</tbody></table>';
+    }
+
+    function target(extra) {
+        var body = {name: viewing.name, domain: viewing.domain};
+        Object.keys(extra || {}).forEach(function (k) { body[k] = extra[k]; });
+        return body;
+    }
+
+    function openViewer(name, domain) {
+        viewing = {name: name, domain: domain};
+        $('sq-viewer').style.display = 'block';
+        $('sq-v-db').textContent = name;
+        ['sq-v-columns', 'sq-v-rows', 'sq-v-result'].forEach(function (id) { $(id).innerHTML = ''; });
+        $('sq-v-pager').style.display = 'none';
+        $('sq-v-tables').innerHTML = '<p class="ua-muted">Loading…</p>';
+        $('sq-viewer').scrollIntoView({behavior: 'smooth'});
+        api('tables', target()).then(function (d) {
+            var list = d.result.tables;
+            $('sq-v-tables').innerHTML = list.length ? '<table class="ua-table"><thead><tr><th>Table</th><th>Rows</th><th>Size</th></tr></thead><tbody>' +
+                list.map(function (t) {
+                    return '<tr><td><a href="#" class="sq-v-table" data-schema="' + esc(t.schema) + '" data-table="' + esc(t.name) + '" data-rows="' + esc(t.rows === null ? '' : t.rows) + '">' +
+                        esc(t.schema) + '.' + esc(t.name) + '</a>' + (t.kind === 'view' ? ' <span class="ua-badge ua-badge-info">view</span>' : '') + '</td><td>' +
+                        (t.rows === null ? '' : esc(t.rows)) + '</td><td>' + (t.size_kb === null ? '' : esc(t.size_kb) + ' KB') + '</td></tr>';
+                }).join('') + '</tbody></table>' : '<p class="ua-muted">No tables or views.</p>';
+        }).catch(function (e) { UA.showError($('sq-v-tables'), e); });
+    }
+
+    function loadRows() {
+        $('sq-v-rows').innerHTML = '<p class="ua-muted">Loading…</p>';
+        return api('rows', target({schema: viewing.schema, table: viewing.table, page: viewing.page})).then(function (d) {
+            var r = d.result, shown = r.rows.length, first = r.page * r.page_size;
+            $('sq-v-rows').innerHTML = shown ? grid(r.columns, r.rows) : '<p class="ua-muted">No rows on this page.</p>';
+            $('sq-v-pager').style.display = 'flex';
+            $('sq-v-page').textContent = shown ? 'Rows ' + (first + 1) + '–' + (first + shown) + (viewing.total ? ' of about ' + viewing.total : '') : '';
+            $('sq-v-prev').disabled = r.page === 0;
+            $('sq-v-next').disabled = shown < r.page_size;
+        }).catch(function (e) { UA.showError($('sq-v-rows'), e); });
+    }
+
+    function openTable(schema, table, total) {
+        viewing.schema = schema; viewing.table = table; viewing.page = 0; viewing.total = total;
+        $('sq-v-columns').innerHTML = '<p class="ua-muted">Loading…</p>';
+        api('columns', target({schema: schema, table: table})).then(function (d) {
+            $('sq-v-columns').innerHTML = '<h3>' + esc(schema) + '.' + esc(table) + '</h3><table class="ua-table"><thead><tr><th>Column</th><th>Type</th><th>Null</th><th>Key</th></tr></thead><tbody>' +
+                d.result.columns.map(function (c) {
+                    return '<tr><td>' + esc(c.name) + '</td><td><code>' + esc(c.type) + '</code></td><td>' + (c.nullable ? 'yes' : 'no') + '</td><td>' +
+                        (c.pk ? '<span class="ua-badge ua-badge-pass">PK</span>' : '') + '</td></tr>';
+                }).join('') + '</tbody></table>';
+        }).catch(function (e) { UA.showError($('sq-v-columns'), e); });
+        loadRows();
+    }
+
+    root.addEventListener('click', function (event) {
+        var t = event.target.closest('.sq-browse, .sq-v-table');
+        if (!t) { return; }
+        event.preventDefault();
+        if (t.classList.contains('sq-browse')) { openViewer(t.dataset.name, t.dataset.domain); } else { openTable(t.dataset.schema, t.dataset.table, t.dataset.rows); }
+    });
+    $('sq-v-close').addEventListener('click', function () { $('sq-viewer').style.display = 'none'; viewing = null; });
+    $('sq-v-prev').addEventListener('click', function () { if (viewing.page > 0) { viewing.page -= 1; loadRows(); } });
+    $('sq-v-next').addEventListener('click', function () { viewing.page += 1; loadRows(); });
+    $('sq-v-run').addEventListener('click', function () {
+        var button = this;
+        UA.busy(button, true);
+        $('sq-v-result').innerHTML = '';
+        // 'content': the key CyberPanel's input filter leaves unscreened, as SQL needs ; ' ( [ etc.
+        api('query', target({content: $('sq-v-sql').value})).then(function (d) {
+            var r = d.result;
+            $('sq-v-result').innerHTML = '<p class="ua-muted">' + esc(r.rows.length) + ' row(s)' + (r.capped ? ' (limit of 500 reached)' : '') + ', read-only and rolled back.</p>' +
+                (r.columns.length ? grid(r.columns, r.rows) : '');
+        }).catch(function (e) { UA.showError($('sq-v-result'), e); }).then(function () { UA.busy(button, false); });
     });
 
     $('sq-create').addEventListener('click', function () {

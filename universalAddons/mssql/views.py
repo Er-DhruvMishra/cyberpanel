@@ -5,6 +5,7 @@ from plogical.httpProc import httpProc
 
 from universalAddons import privileged
 from universalAddons.access import admin_api, error, load_policy, ok, site_api
+from universalAddons.mssql import service as sq
 
 _NAME = re.compile(r'^[a-z][a-z0-9_]{1,30}$')
 _DB = re.compile(r'^[A-Za-z][A-Za-z0-9_]{1,63}$')
@@ -96,3 +97,56 @@ def drop(request, data, context):
     if not _DB.match(name):
         return error('Invalid database.', status=400)
     return _call('drop', name=name, domain=domain)
+
+
+# ----------------------------------------------------------------------------- viewer (read-only)
+
+def _viewed(data, context):
+    """(domain, database) after the site-ownership and name checks shared by every viewer call."""
+    domain = context.require_site(str(data.get('domain', '')).strip().lower())
+    name = str(data.get('name', ''))
+    if not _DB.match(name):
+        raise ValueError('Invalid database.')
+    return domain, name
+
+
+def _object(data):
+    schema, table = data.get('schema'), data.get('table')
+    for value in (schema, table):
+        if not isinstance(value, str) or not sq.OBJECT_RE.match(value):
+            raise ValueError('Invalid schema or table name.')
+    return schema, table
+
+
+@site_api('mssql_for_users')
+def tables(request, data, context):
+    domain, name = _viewed(data, context)
+    return _call('tables', name=name, domain=domain)
+
+
+@site_api('mssql_for_users')
+def columns(request, data, context):
+    domain, name = _viewed(data, context)
+    schema, table = _object(data)
+    return _call('columns', name=name, domain=domain, schema=schema, table=table)
+
+
+@site_api('mssql_for_users')
+def rows(request, data, context):
+    domain, name = _viewed(data, context)
+    schema, table = _object(data)
+    page = data.get('page', 0)
+    if not isinstance(page, int) or isinstance(page, bool) or not 0 <= page <= 10 ** 7:
+        return error('Invalid page.', status=400)
+    return _call('rows', name=name, domain=domain, schema=schema, table=table, page=page)
+
+
+@site_api('mssql_for_users')
+def query(request, data, context):
+    domain, name = _viewed(data, context)
+    # 'content' is a key CyberPanel's input filter leaves unscreened (SQL needs ; ' ( [ and so on).
+    sql = data.get('content', '')
+    if not isinstance(sql, str):
+        return error('Invalid query.', status=400)
+    sq.readonly_query(sql)  # SQLError is a ValueError: a refused query is a 400
+    return _call('query', name=name, domain=domain, sql=sql)

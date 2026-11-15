@@ -188,6 +188,56 @@ def drop(name, domain):
     return {'dropped': name}
 
 
+# ----------------------------------------------------------------------------- viewer (read-only)
+
+def _viewer(name, domain):
+    """(login, sa password) for a database the caller's site owns; the views check site ownership."""
+    if not _installed():
+        raise SQLError('SQL Server is not installed.')
+    entry = _owned(name, domain)
+    return entry.get('login') or name, sq.sa_password()
+
+
+def _columns(name, login, password, schema, table):
+    docs = sq.viewer_run(sq.columns_sql(login, schema, table), password, name)
+    columns = sq.records(docs[0] if docs else None)
+    if not columns:
+        raise SQLError('Unknown table or view.')
+    return columns
+
+
+def tables(name, domain):
+    login, password = _viewer(name, domain)
+    docs = sq.viewer_run(sq.tables_sql(login), password, name)
+    return {'name': name, 'tables': sq.records(docs[0] if docs else None)}
+
+
+def columns(name, domain, schema, table):
+    login, password = _viewer(name, domain)
+    return {'name': name, 'schema': schema, 'table': table,
+            'columns': [{'name': c['name'], 'type': sq.display_type(c), 'nullable': bool(c.get('nullable')),
+                         'pk': bool(c.get('pk'))} for c in _columns(name, login, password, schema, table)]}
+
+
+def rows(name, domain, schema, table, page=0):
+    login, password = _viewer(name, domain)
+    cols = _columns(name, login, password, schema, table)
+    docs = sq.viewer_run(sq.rows_sql(login, schema, table, cols, page), password, name)
+    data = docs[0] if docs else None
+    values = [[sq.display_value(v) for _, v in row] for row in (data or [])]
+    return sq.check_size({'name': name, 'schema': schema, 'table': table, 'page': int(page),
+                          'page_size': sq.PAGE_SIZE, 'columns': [c['name'] for c in cols], 'rows': values})
+
+
+def query(name, domain, sql):
+    sq.readonly_query(sql)  # refuse before touching the server
+    login, password = _viewer(name, domain)
+    docs = sq.viewer_run(sq.query_sql(login, sql), password, name)
+    if len(docs) != 2:
+        raise SQLError('Could not read the result from SQL Server.')
+    return sq.check_size(dict(sq.result_table(docs[0], docs[1]), name=name))
+
+
 def service(action):
     if action not in ('start', 'stop', 'restart'):
         raise SQLError('Invalid action.')
@@ -221,5 +271,9 @@ ACTIONS = {
     'reset_password': reset_password,
     'drop': drop,
     'service': service,
+    'tables': tables,
+    'columns': columns,
+    'rows': rows,
+    'query': query,
     'job': lambda job_id: jobs.status(job_id),
 }

@@ -29,6 +29,32 @@
     <h2>{% trans "Databases" %}</h2>
     <div id="sq-list"><p class="ua-muted">{% trans "Loading…" %}</p></div>
   </div>
+  <div class="ua-card" id="sq-viewer" style="display:none">
+    <div class="ua-row" style="justify-content:space-between">
+      <h2 style="margin:0">{% trans "Browse" %} <code id="sq-v-db"></code></h2>
+      <button class="ua-btn ua-btn-secondary" id="sq-v-close">{% trans "Close" %}</button>
+    </div>
+    <p class="ua-muted">{% trans "Read-only. Everything runs as the database's own login inside a transaction that is always rolled back." %}</p>
+    <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start">
+      <div id="sq-v-tables" style="flex:0 0 260px;max-width:100%;max-height:520px;overflow:auto"></div>
+      <div style="flex:1 1 420px;min-width:0">
+        <div id="sq-v-columns"></div>
+        <div class="ua-row" id="sq-v-pager" style="display:none">
+          <button class="ua-btn ua-btn-secondary" id="sq-v-prev">&larr; {% trans "Previous" %}</button>
+          <span id="sq-v-page" class="ua-muted"></span>
+          <button class="ua-btn ua-btn-secondary" id="sq-v-next">{% trans "Next" %} &rarr;</button>
+        </div>
+        <div id="sq-v-rows" style="overflow:auto;max-height:520px"></div>
+        <h3>{% trans "Query" %}</h3>
+        <textarea id="sq-v-sql" rows="5" style="width:100%;font-family:monospace" spellcheck="false" placeholder="SELECT TOP 10 * FROM dbo.visits"></textarea>
+        <div class="ua-row" style="margin-top:8px">
+          <button class="ua-btn" id="sq-v-run">{% trans "Run (read-only)" %}</button>
+          <span class="ua-muted">{% trans "One SELECT or WITH statement; at most 500 rows, 30 seconds, 2 MB." %}</span>
+        </div>
+        <div id="sq-v-result" style="overflow:auto;max-height:520px"></div>
+      </div>
+    </div>
+  </div>
   <div class="ua-card">
     <h2>{% trans "New database" %}</h2>
     <div class="ua-row">
