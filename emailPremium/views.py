@@ -2041,3 +2041,23 @@ def fixMailSSL(request):
         return res
     except KeyError:
         return redirect(loadLoginPage)
+
+
+def mailwatchSSO(request):
+    """Open MailWatch signed in, for panel administrators (no separate MailWatch password)."""
+    from django.http import HttpResponse
+    from plogical import mailwatchSSO as sso
+    try:
+        user_id = request.session['userID']
+    except KeyError:
+        return redirect(loadLoginPage)
+    if ACLManager.loadedACL(user_id).get('admin') != 1:
+        return HttpResponse('Administrator access is required.', status=403)
+    try:
+        token = sso.issue(Administrator.objects.get(pk=user_id).userName)
+    except (sso.SSOError, OSError) as exc:
+        return HttpResponse(str(exc), status=503)
+    response = HttpResponse(sso.handoff_page(token))
+    response['Cache-Control'] = 'no-store'
+    response['Referrer-Policy'] = 'no-referrer'
+    return response

@@ -30,6 +30,7 @@ urlpatterns = [
     path('flushQueue', views.flushQueue, name='flushQueue'),
     path('delete', views.delete, name='delete'),
     path('MailScanner', views.MailScanner, name='MailScanner'),
+    path('mailwatchSSO', views.mailwatchSSO, name='mailwatchSSO'),
     path('installMailScanner', views.installMailScanner, name='installMailScanner'),
     path('installStatusMailScanner', views.installStatusMailScanner, name='installStatusMailScanner'),
 

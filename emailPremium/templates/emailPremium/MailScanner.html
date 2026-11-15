@@ -404,7 +404,8 @@
                 </div>
                 <h2 class="access-title">{% trans "MailScanner is installed" %}</h2>
                 <p class="access-description">{% trans "Your MailScanner installation is ready. Click below to access the MailWatch interface." %}</p>
-                <a href="/mailwatch/mailscanner/" target="_blank" class="access-btn">
+                {# Signs in with the panel session (plogical/mailwatchSSO.py + mailwatch/cp-sso.php). #}
+                <a href="{% url 'mailwatchSSO' %}" target="_blank" rel="noopener" class="access-btn">
                     <i class="fas fa-external-link-alt"></i>
                     {% trans "Access MailWatch" %}
                 </a>
