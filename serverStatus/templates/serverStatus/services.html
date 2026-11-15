@@ -1,6 +1,6 @@
 {% extends "baseTemplate/index.html" %}
 {% load static %}
-{% block module_scripts %}<script defer src="{% static 'serverStatus/serverStatus.js' %}?v={{ CP_VERSION }}"></script>{% endblock %}
+{% block module_scripts %}<script defer src="{% static 'serverStatus/serverStatus.js' %}?v={{ CP_VERSION }}-20261115"></script>{% endblock %}
 {% load i18n %}
 {% block title %}{% trans "Services Status - CyberPanel" %}{% endblock %}
 
@@ -617,6 +617,28 @@
                     </div>
                 </div>
                 {% endif %}
+            </div>
+
+            <!-- Other services -->
+            <div class="service-card" ng-if="extraServices.length" style="margin-top:24px">
+                <h3 style="margin:0 0 12px">{% trans "Other services" %}</h3>
+                <div style="overflow-x:auto">
+                <table class="table" style="width:100%">
+                    <thead><tr><th>{% trans "Service" %}</th><th>{% trans "Status" %}</th><th>{% trans "Memory" %}</th><th>{% trans "Actions" %}</th></tr></thead>
+                    <tbody>
+                    <tr ng-repeat="s in extraServices track by s.unit">
+                        <td><strong ng-bind="s.label"></strong><div style="font-size:12px;opacity:.7" ng-bind="s.unit"></div></td>
+                        <td><span ng-class="s.running ? 'text-success' : 'text-danger'" ng-bind="s.running ? '{% trans "Running" %}' : s.state"></span></td>
+                        <td ng-bind="s.memText"></td>
+                        <td style="white-space:nowrap">
+                            <button type="button" class="action-btn start" ng-disabled="btnDisable" ng-show="!s.running && s.actions.indexOf('start') > -1" ng-click="serviceAction(s.unit,'start')"><i class="fas fa-play"></i> {% trans "Start" %}</button>
+                            <button type="button" class="action-btn stop" ng-disabled="btnDisable" ng-show="s.running && s.actions.indexOf('stop') > -1" ng-click="serviceAction(s.unit,'stop')"><i class="fas fa-pause"></i> {% trans "Stop" %}</button>
+                            <button type="button" class="action-btn restart" ng-disabled="btnDisable" ng-show="s.actions.indexOf('restart') > -1" ng-click="serviceAction(s.unit,'restart')"><i class="fas fa-sync-alt"></i> {% trans "Restart" %}</button>
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+                </div>
             </div>
 
             <!-- Alert Messages -->

@@ -34,7 +34,53 @@ SERVICE_PROCESS_NAMES = {
 }
 
 
-def get_service_memory_usage(service_names, process_iter=psutil.process_iter):
+# More services an administrator can see and control on the Services page, when installed.
+# (unit, label, allowed actions). The panel itself (lscpd) and sshd are deliberately absent:
+# stopping either from the panel would cut the administrator off.
+EXTRA_SERVICES = (
+    ('dovecot', 'Dovecot (IMAP/POP3)', ('start', 'stop', 'restart')),
+    ('mailscanner', 'MailScanner', ('start', 'stop', 'restart')),
+    ('opendkim', 'OpenDKIM', ('start', 'stop', 'restart')),
+    ('spamassassin', 'SpamAssassin', ('start', 'stop', 'restart')),
+    ('rspamd', 'Rspamd', ('start', 'stop', 'restart')),
+    ('cpecs', 'Email limits policy (cpecs)', ('start', 'stop', 'restart')),
+    ('redis', 'Redis', ('start', 'stop', 'restart')),
+    ('memcached', 'Memcached', ('start', 'stop', 'restart')),
+    ('elasticsearch', 'Elasticsearch', ('start', 'stop', 'restart')),
+    ('mssql-server', 'SQL Server', ('start', 'stop', 'restart')),
+    ('cp-webterm', 'Web Terminal', ('start', 'stop', 'restart')),
+    ('httpd', 'Apache httpd', ('start', 'stop', 'restart')),
+    ('php-fpm', 'PHP-FPM (system)', ('start', 'stop', 'restart')),
+    ('imunify-antivirus', 'ImunifyAV', ('start', 'stop', 'restart')),
+    ('imunify360', 'Imunify360', ('start', 'stop', 'restart')),
+    ('fail2ban', 'Fail2ban', ('start', 'stop', 'restart')),
+    ('firewalld', 'Firewall (firewalld)', ('restart',)),
+    ('crond', 'Cron', ('restart',)),
+)
+EXTRA_ACTIONS = {unit: actions for unit, _, actions in EXTRA_SERVICES}
+
+
+def process_table(executor=None):
+    """[(rss_bytes, unit, command)] for every process, read by root: /proc is mounted with
+    hidepid, so the panel user cannot see other users' processes (memory showed 0)."""
+    executor = executor or ProcessUtilities.outputExecutioner
+    rows = []
+    for line in (executor('ps -eo rss=,unit=,comm=') or '').splitlines():
+        parts = line.split(None, 2)
+        if len(parts) == 3 and parts[0].isdigit():
+            rows.append((int(parts[0]) * 1024, parts[1], parts[2].strip()))
+    return rows
+
+
+def unit_memory(table, unit):
+    name = unit if unit.endswith('.service') else unit + '.service'
+    return sum(rss for rss, owner, _ in table if owner == name)
+
+
+def get_service_memory_usage(service_names, process_iter=psutil.process_iter, table=None):
+    if table is not None:
+        return sum(rss for rss, _, command in table
+                   if any(command == name or command.startswith(name + '-') for name in service_names))
     memory_usage = 0
 
     for process in process_iter(['name', 'memory_info']):
@@ -224,6 +270,7 @@ def servicesStatus(request):
         dockerStatus = []
 
         processlist = ProcessUtilities.outputExecutioner('ps -A')
+        table = process_table()
 
         def getServiceStats(*service_names):
             return int(any(service in processlist for service in service_names))
@@ -231,7 +278,7 @@ def servicesStatus(request):
         ### [1] status [2] mem
         lsStatus.append(getServiceStats(*SERVICE_PROCESS_NAMES['litespeed']))
         if lsStatus[0]:
-            lsStatus.append(get_service_memory_usage(SERVICE_PROCESS_NAMES['litespeed']))
+            lsStatus.append(get_service_memory_usage(SERVICE_PROCESS_NAMES['litespeed'], table=table))
         else:
             lsStatus.append(0)
 
@@ -246,7 +293,7 @@ def servicesStatus(request):
 
             if mysqlResult.find('active (running)') > -1:
                 sqlStatus.append(1)
-                sqlStatus.append(get_service_memory_usage(SERVICE_PROCESS_NAMES['mysql']))
+                sqlStatus.append(get_service_memory_usage(SERVICE_PROCESS_NAMES['mysql'], table=table))
             else:
                 sqlStatus.append(0)
                 sqlStatus.append(0)
@@ -262,27 +309,43 @@ def servicesStatus(request):
                 sqlStatus.append(0)
             s.close()
 
-            sqlStatus.append(get_service_memory_usage(SERVICE_PROCESS_NAMES['mysql']))
+            sqlStatus.append(get_service_memory_usage(SERVICE_PROCESS_NAMES['mysql'], table=table))
 
         dnsStatus.append(getServiceStats(*SERVICE_PROCESS_NAMES['powerdns']))
         if dnsStatus[0]:
-            dnsStatus.append(get_service_memory_usage(SERVICE_PROCESS_NAMES['powerdns']))
+            dnsStatus.append(get_service_memory_usage(SERVICE_PROCESS_NAMES['powerdns'], table=table))
         else:
             dnsStatus.append(0)
 
         ftpStatus.append(getServiceStats(*SERVICE_PROCESS_NAMES['pureftp']))
         if ftpStatus[0]:
-            ftpStatus.append(get_service_memory_usage(SERVICE_PROCESS_NAMES['pureftp']))
+            ftpStatus.append(get_service_memory_usage(SERVICE_PROCESS_NAMES['pureftp'], table=table))
         else:
             ftpStatus.append(0)
 
         mailStatus.append(getServiceStats(*SERVICE_PROCESS_NAMES['postfix']))
         if mailStatus[0]:
-            mailStatus.append(get_service_memory_usage(SERVICE_PROCESS_NAMES['postfix']))
+            mailStatus.append(get_service_memory_usage(SERVICE_PROCESS_NAMES['postfix'], table=table))
         else:
             mailStatus.append(0)
 
-        json_data = {'status':
+        extra = []
+        units = [unit for unit, _, _ in EXTRA_SERVICES]
+        installed = ProcessUtilities.outputExecutioner('systemctl list-unit-files --no-legend %s'
+                                                       % ' '.join(u + '.service' for u in units)) or ''
+        present = {line.split()[0][:-len('.service')] for line in installed.splitlines()
+                   if line.split() and line.split()[0].endswith('.service')}
+        states = (ProcessUtilities.outputExecutioner('systemctl is-active %s' % ' '.join(u for u in units if u in present))
+                  or '').split() if present else []
+        active = dict(zip([u for u in units if u in present], states))
+        for unit, label, actions in EXTRA_SERVICES:
+            if unit in present:
+                state = active.get(unit, 'unknown')
+                extra.append({'unit': unit, 'label': label, 'state': state, 'running': state == 'active',
+                              'mem': unit_memory(table, unit) if state == 'active' else 0, 'actions': list(actions)})
+
+        json_data = {'extra': extra,
+                     'status':
                          {'litespeed': lsStatus[0],
                           'mysql': sqlStatus[0],
                           'powerdns': dnsStatus[0],
@@ -325,12 +388,16 @@ def servicesAction(request):
                 else:
                     pass
 
-                if service not in ["lsws", "mysql", "pdns", "pure-ftpd", "docker"]:
+                if service in EXTRA_ACTIONS:
+                    if action not in EXTRA_ACTIONS[service]:
+                        return HttpResponse(json.dumps({'serviceAction': 0,
+                                                        'error_message': 'That action is not offered for this service.'}))
+                elif service not in ["lsws", "mysql", "pdns", "pure-ftpd", "docker"]:
                     final_dic = {'serviceAction': 0, "error_message": "Invalid Service"}
                     final_json = json.dumps(final_dic)
                     return HttpResponse(final_json)
 
-                else:
+                if True:  # validated above (core services, or an extra service with an allowed action)
                     if service == 'pure-ftpd':
                         if os.path.exists("/etc/lsb-release"):
                             service = 'pure-ftpd-mysql'

@@ -51,3 +51,13 @@ class ProcessMemoryUsageTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class RootProcessTableTests(unittest.TestCase):
+    def test_table_parsing_and_sums(self):
+        from serverStatus.views import process_table, unit_memory
+        out = '  4096 mariadb.service mysqld\n  1024 lshttpd.service litespeed\n   512 lshttpd.service lsphp\n bad line\n'
+        table = process_table(lambda cmd: out)
+        self.assertEqual(len(table), 3)
+        self.assertEqual(get_service_memory_usage(('mariadbd', 'mysqld'), table=table), 4096 * 1024)
+        self.assertEqual(unit_memory(table, 'lshttpd'), 1536 * 1024)

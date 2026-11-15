@@ -113,3 +113,31 @@ class ServiceActionTests(SimpleTestCase):
                 response = json.loads(views.servicesAction(self.request()).content)
                 self.assertEqual(1 if exit_code == 0 else 0, response['serviceAction'])
                 send.assert_called_once_with('sudo systemctl start lsws', None)
+
+
+class ExtraServiceActionTests(SimpleTestCase):
+    def call(self, service, action):
+        import json as _json
+        from unittest import mock
+        from django.test import RequestFactory
+        from serverStatus import views
+        request = RequestFactory().post('/x', data=_json.dumps({'service': service, 'action': action}),
+                                        content_type='application/json')
+        request.session = {'userID': 1}
+        with mock.patch.object(views.ACLManager, 'loadedACL', return_value={'admin': 1}), \
+                mock.patch.object(views.ProcessUtilities, 'outputExecutioner', return_value=(1, '')) as run:
+            response = _json.loads(views.servicesAction(request).content)
+        return response, run
+
+    def test_extra_service_runs_allowed_action(self):
+        response, run = self.call('dovecot', 'restart')
+        self.assertEqual(response['serviceAction'], 1)
+        self.assertEqual(run.call_args[0][0], 'sudo systemctl restart dovecot')
+
+    def test_firewalld_cannot_be_stopped_and_panel_is_not_listed(self):
+        response, run = self.call('firewalld', 'stop')
+        self.assertEqual(response['serviceAction'], 0)
+        run.assert_not_called()
+        response, run = self.call('lscpd', 'stop')
+        self.assertEqual(response['serviceAction'], 0)
+        run.assert_not_called()

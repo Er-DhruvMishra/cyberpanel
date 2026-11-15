@@ -448,6 +448,12 @@ app.controller('servicesManager', function ($scope, $http) {
 
         function ListInitialDatas(response) {
 
+            // Other installed services (status, memory and the actions offered for each).
+            $scope.extraServices = (response.data.extra || []).map(function (s) {
+                s.memText = s.running ? Math.round(parseInt(s.mem, 10) / 1048576) + " MB" : "-";
+                return s;
+            });
+
             if (response.data.status.litespeed) {
                 $scope.olsStatus = "Running";
                 $scope.olsStats = true;
