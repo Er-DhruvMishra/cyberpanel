@@ -212,3 +212,28 @@ class BasePath(SimpleTestCase):
         for key in ('APP_BASE_PATH', 'SCRIPT_NAME'):
             with self.assertRaises(svc.AppError):
                 svc.validate_env({key: '/x'})
+
+
+class ActionKeyword(SimpleTestCase):
+    """start/stop/restart travel as an 'action' argument; it must not collide with the helper's own."""
+
+    def test_control_passes_action_through(self):
+        request = RequestFactory().post('/x', data=json.dumps({'domain': 'shop.example.com', 'app': 'api', 'action': 'restart'}),
+                                        content_type='application/json')
+        request.session = {'userID': 7}
+        with mock.patch('universalAddons.access.ACLManager.loadedACL', return_value={'admin': 1}), \
+                mock.patch('loginSystem.models.Administrator.objects.get', return_value=object()), \
+                mock.patch('universalAddons.privileged.ProcessUtilities', create=True), \
+                mock.patch('plogical.processUtilities.ProcessUtilities.outputExecutioner',
+                           return_value='@@UA-RESULT@@{"ok": true, "result": {"state": "active"}}') as run:
+            response = views.control(request)
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertIn(' apps control ', run.call_args[0][0])
+
+    def test_privileged_call_accepts_action_keyword(self):
+        from universalAddons import privileged
+        seen = {}
+        privileged.call('apps', 'control', executor=lambda cmd, *a, **k: seen.setdefault('cmd', cmd) and
+                        '@@UA-RESULT@@{"ok": true, "result": 1}', action='stop', app_id='api', domain='shop.example.com')
+        token = seen['cmd'].split()[-1]
+        self.assertEqual(privileged.decode_args(token)['action'], 'stop')

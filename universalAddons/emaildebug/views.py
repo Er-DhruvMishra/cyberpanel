@@ -10,7 +10,7 @@ def _hosted_domains():
     return sorted(Domains.objects.values_list('domain', flat=True))
 
 
-def _call(action, **args):
+def _call(action, /, **args):
     try:
         return ok(result=privileged.call('emaildebug', action, **args))
     except RuntimeError as exc:

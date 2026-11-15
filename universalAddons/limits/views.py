@@ -9,7 +9,7 @@ from universalAddons.limits.service import DOMAIN_RE, OVERRIDES, PACKAGE_RE, val
 SCOPES = ('package', 'site')
 
 
-def _call(action, **args):
+def _call(action, /, **args):
     try:
         return ok(result=privileged.call('limits', action, **args))
     except RuntimeError as exc:

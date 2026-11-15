@@ -11,7 +11,7 @@ _VERSION = re.compile(r'^\d{1,3}(\.\d{1,4}){1,3}(-[a-z0-9.]+)?$')
 APP_FIELDS = ('id', 'kind', 'runtime', 'entry', 'mode', 'workers', 'prefix', 'websocket', 'memory_mb', 'cpu_percent')
 
 
-def _call(action, **args):
+def _call(action, /, **args):
     try:
         return ok(result=privileged.call('apps', action, **args))
     except RuntimeError as exc:

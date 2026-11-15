@@ -12,7 +12,7 @@ FLAGS = ('WP_DEBUG', 'DISALLOW_FILE_EDIT', 'DISABLE_WP_CRON', 'indexing', 'maint
 FIXES = ('DISALLOW_FILE_EDIT', 'WP_DEBUG', 'xmlrpc', 'config_perms', 'salts')
 
 
-def _call(action, **args):
+def _call(action, /, **args):
     try:
         return ok(result=privileged.call('wordpress', action, **args))
     except RuntimeError as exc:

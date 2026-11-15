@@ -11,7 +11,7 @@ _SNAP = re.compile(r'^[0-9a-f]{8,64}$')
 REPO_FIELDS = ('id', 'type', 'name', 'path', 'host', 'user', 'port', 'endpoint', 'bucket', 'prefix', 'region', 'remote')
 
 
-def _call(action, **args):
+def _call(action, /, **args):
     try:
         return ok(result=privileged.call('backupv2', action, **args))
     except RuntimeError as exc:

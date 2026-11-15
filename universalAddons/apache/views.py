@@ -9,7 +9,7 @@ from universalAddons.apache import service as sv
 MODES = ('apache', 'ols', 'tune')
 
 
-def _call(action, **args):
+def _call(action, /, **args):
     try:
         return ok(result=privileged.call('apache', action, **args))
     except RuntimeError as exc:

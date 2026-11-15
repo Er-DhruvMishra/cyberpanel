@@ -8,7 +8,7 @@ from universalAddons.access import admin_api, error, ok
 _DOMAIN = re.compile(r'^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$')
 
 
-def _call(action, **args):
+def _call(action, /, **args):
     try:
         return ok(result=privileged.call('htaccess', action, **args))
     except RuntimeError as exc:

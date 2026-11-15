@@ -104,7 +104,7 @@ def parse_output(output):
     raise RuntimeError('No result from the privileged runner: %s' % (output or '').strip()[-300:])
 
 
-def call(module, action, executor=None, **args):
+def call(module, action, /, executor=None, **args):
     if executor is None:
         from plogical.processUtilities import ProcessUtilities
         executor = ProcessUtilities.outputExecutioner

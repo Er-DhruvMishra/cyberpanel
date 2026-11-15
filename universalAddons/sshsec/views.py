@@ -7,7 +7,7 @@ from universalAddons.access import admin_api, error, ok
 from universalAddons.sshsec import service as sv
 
 
-def _call(action, **args):
+def _call(action, /, **args):
     try:
         return ok(result=privileged.call('sshsec', action, **args))
     except RuntimeError as exc:

@@ -9,7 +9,7 @@ SETTING_KEYS = ('reject', 'add_header', 'greylist', 'greylisting', 'bayes_autole
                 'arc_signing', 'allow_list', 'deny_list')
 
 
-def _call(action, **args):
+def _call(action, /, **args):
     try:
         return ok(result=privileged.call('rspamd', action, **args))
     except RuntimeError as exc:

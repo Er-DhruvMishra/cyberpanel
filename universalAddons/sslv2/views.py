@@ -7,7 +7,7 @@ from universalAddons.access import admin_api, error, ok
 from universalAddons.sslv2 import service
 
 
-def _call(action, **args):
+def _call(action, /, **args):
     try:
         return ok(result=privileged.call('sslv2', action, **args))
     except RuntimeError as exc:

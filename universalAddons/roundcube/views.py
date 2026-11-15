@@ -10,7 +10,7 @@ from universalAddons.access import admin_api, error, ok
 from universalAddons.roundcube.service import DB_NAME, DOMAIN_RE, URL_PREFIX, VERSION
 
 
-def _call(action, **args):
+def _call(action, /, **args):
     try:
         return ok(result=privileged.call('roundcube', action, **args))
     except RuntimeError as exc:

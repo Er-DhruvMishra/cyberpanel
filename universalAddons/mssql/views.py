@@ -10,7 +10,7 @@ _NAME = re.compile(r'^[a-z][a-z0-9_]{1,30}$')
 _DB = re.compile(r'^[A-Za-z][A-Za-z0-9_]{1,63}$')
 
 
-def _call(action, **args):
+def _call(action, /, **args):
     try:
         return ok(result=privileged.call('mssql', action, **args))
     except RuntimeError as exc:

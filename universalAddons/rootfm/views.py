@@ -18,7 +18,7 @@ def _actor(request):
         return ''
 
 
-def _call(action, **args):
+def _call(action, /, **args):
     try:
         return ok(result=privileged.call('rootfm', action, **args))
     except RuntimeError as exc:
