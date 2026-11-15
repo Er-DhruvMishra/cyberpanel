@@ -1,6 +1,6 @@
 {% extends "baseTemplate/index.html" %}
 {% load i18n %}
-{% block title %}{% trans "SSH and CageFS - CyberPanel" %}{% endblock %}
+{% block title %}{% trans "SSH and CageFS - IndiansCloud" %}{% endblock %}
 {% block content %}
 
     {% load static %}
@@ -533,7 +533,7 @@
                     <div class="alert alert-danger">
                         <i class="fas fa-exclamation-triangle" style="font-size: 20px;"></i>
                         <div>
-                            <strong>{% trans "Notice:" %}</strong> {% trans "You are accessing CyberPanel via an IP address." %}<br>
+                            <strong>{% trans "Notice:" %}</strong> {% trans "You are accessing IndiansCloud via an IP address." %}<br>
                             {% trans "The Web Terminal will not work when accessed via IP. Please issue a hostname SSL and access the panel using your hostname (with valid SSL) to enable the terminal." %}<br>
                             <a href="{{ ssl_issue_link }}" target="_blank" rel="noopener" class="btn btn-warning" style="margin-top:10px;">
                                 <i class="fas fa-lock"></i>

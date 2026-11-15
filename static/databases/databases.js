@@ -693,7 +693,7 @@ app.controller('phpMyAdmin', function ($scope, $http, $window) {
 
             } else {
                 $scope.phpMyAdminPending = false;
-                $scope.phpMyAdminError = 'Unable to generate phpMyAdmin access. Check your panel session and the CyberPanel error log, then retry. Do not share access tokens or database credentials.';
+                $scope.phpMyAdminError = 'Unable to generate phpMyAdmin access. Check your panel session and the IndiansCloud error log, then retry. Do not share access tokens or database credentials.';
             }
 
         }

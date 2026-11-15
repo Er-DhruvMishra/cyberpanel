@@ -65,5 +65,5 @@ $_SESSION['global_array'] = $filter;
 $_SESSION['token'] = generateToken();
 $_SESSION['formtoken'] = generateToken();
 updateLoginExpiry($myusername);
-audit_log('Signed in from CyberPanel as panel user ' . preg_replace('/[^A-Za-z0-9._@-]/', '', (string)($record['panel_user'] ?? '')), $myusername);
+audit_log('Signed in from IndiansCloud as panel user ' . preg_replace('/[^A-Za-z0-9._@-]/', '', (string)($record['panel_user'] ?? '')), $myusername);
 header('Location: index.php');

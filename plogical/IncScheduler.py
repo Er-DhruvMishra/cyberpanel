@@ -258,7 +258,7 @@ Automatic backup failed for %s on %s.
             diskUsage = math.floor(psutil.disk_usage('/')[3])
 
             from plogical.acl import ACLManager
-            message = '%s - Disk Usage Warning - CyberPanel' % (ACLManager.fetchIP())
+            message = '%s - Disk Usage Warning - IndiansCloud' % (ACLManager.fetchIP())
 
             if diskUsage >= 50 and diskUsage <= 60:
 

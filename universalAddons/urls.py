@@ -22,4 +22,5 @@ urlpatterns = [
     path('limits/', include('universalAddons.limits.urls')),
     path('apache/', include('universalAddons.apache.urls')),
     path('terminal/', include('universalAddons.webterm.urls')),
+    path('applications/', include('universalAddons.appsvc.urls')),
 ]

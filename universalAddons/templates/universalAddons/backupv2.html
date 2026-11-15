@@ -1,6 +1,6 @@
 {% extends "universalAddons/base.html" %}
 {% load i18n static %}
-{% block title %}{% trans "Backup V2" %} - CyberPanel{% endblock %}
+{% block title %}{% trans "Backup V2" %} - IndiansCloud{% endblock %}
 {% block addon_scripts %}<script src="{% static 'universalAddons/backupv2.js' %}?v={{ CP_VERSION }}"></script>{% endblock %}
 {% block content %}
 <div class="ua-wrap" id="ua-backupv2" data-base="{% url 'ua-backupv2' %}" data-admin="{{ is_admin|yesno:'1,0' }}">

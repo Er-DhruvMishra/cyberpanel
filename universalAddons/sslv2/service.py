@@ -292,5 +292,5 @@ def alert_body(rows, hostname, untrusted=0):
                                      ', %d days left' % cert['days_left'] if cert else ''))
     if untrusted:
         lines += ['', '%d site(s) also serve a self-signed or test certificate.' % untrusted]
-    lines += ['', 'Open Universal Add-ons > SSL V2 in CyberPanel to renew.']
+    lines += ['', 'Open Universal Add-ons > SSL V2 in IndiansCloud to renew.']
     return '\n'.join(lines)

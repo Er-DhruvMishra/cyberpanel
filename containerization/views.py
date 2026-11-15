@@ -83,7 +83,7 @@ def fetchWebsiteLimits(request):
             finalContent = ContainerManager.prepConf(website.externalApp, str(cfs_quota_us), str(100000), str(356), 1, 1024, hexValue)
 
             if finalContent == 0:
-                return httpProc.AJAX(0, 'Please check CyberPanel main log file.')
+                return httpProc.AJAX(0, 'Please check IndiansCloud main log file.')
 
 
             writeToFile = open(confPathTemp, 'w')
@@ -190,7 +190,7 @@ def saveWebsiteLimits(request):
                                                      str(memory), IO, IOPS, websiteLimits.networkHexValue)
 
             if finalContent == 0:
-                return httpProc.AJAX(0, 'Please check CyberPanel main log file.')
+                return httpProc.AJAX(0, 'Please check IndiansCloud main log file.')
 
             writeToFile = open(confPathTemp, 'w')
             writeToFile.write(finalContent)

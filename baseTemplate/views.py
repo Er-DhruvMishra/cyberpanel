@@ -85,10 +85,10 @@ def upgrade_cyberpanel(request):
                                     universal_newlines=True)
 
             if result.returncode == 0:
-                response_data = {'success': True, 'message': 'CyberPanel upgrade completed successfully.'}
+                response_data = {'success': True, 'message': 'IndiansCloud upgrade completed successfully.'}
             else:
                 response_data = {'success': False,
-                                 'message': 'CyberPanel upgrade failed. Error output: ' + result.stderr}
+                                 'message': 'IndiansCloud upgrade failed. Error output: ' + result.stderr}
         except Exception as e:
             response_data = {'success': False, 'message': 'An error occurred during the upgrade: ' + str(e)}
 

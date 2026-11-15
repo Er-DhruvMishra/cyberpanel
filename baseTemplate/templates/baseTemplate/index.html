@@ -6,7 +6,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}CyberPanel{% endblock %}</title>
+    <title>{% block title %}IndiansCloud{% endblock %}</title>
     
     {% load static %}
     <link rel="icon" type="image/svg+xml" href="{% static 'baseTemplate/brand/indianscloud-favicon.svg' %}?v={{ CP_VERSION }}">
@@ -301,7 +301,7 @@
         <aside id="cyberedge-panel-promo" style="display:none;margin:0 24px 20px;padding:16px 18px;border:1px solid var(--border-color);border-left:4px solid var(--cp-action);border-radius:8px;background:var(--bg-secondary);align-items:center;gap:16px;justify-content:space-between;" aria-label="{% trans 'CyberEdge Cache' %}">
             <div>
                 <strong>{% trans "Make every WordPress site faster with CyberEdge Cache" %}</strong>
-                <div style="margin-top:4px;color:var(--text-secondary);">{% trans "Install from WordPress Manager, connect your account, and verify the live Edge route without leaving CyberPanel." %}</div>
+                <div style="margin-top:4px;color:var(--text-secondary);">{% trans "Install from WordPress Manager, connect your account, and verify the live Edge route without leaving IndiansCloud." %}</div>
             </div>
             <div style="display:flex;align-items:center;gap:10px;white-space:nowrap;">
                 <a href="https://platform.cyberpersons.com/edge/get-started/" target="_blank" rel="noopener" class="btn btn-primary btn-sm">{% trans "Get CyberEdge" %}</a>
@@ -404,7 +404,7 @@
             {% if admin %}
             // Server (admin)
             {l:'{% trans "Services Status" %}', h:'{% url "services" %}', i:'fa-server', g:'{% trans "Server" %}'},
-            {l:'{% trans "Applications" %}', h:'{% url "manageApplications" %}', i:'fa-cubes', g:'{% trans "Server" %}'},
+            {l:'{% trans "Applications" %}', h:'{% url "ua-appsvc" %}', i:'fa-cubes', g:'{% trans "Server" %}'},
             {l:'{% trans "PHP Extensions" %}', h:'{% url "installExtensions" %}', i:'fa-puzzle-piece', g:'{% trans "Server" %}'},
             {l:'{% trans "PHP Configs" %}', h:'{% url "editPHPConfigs" %}', i:'fa-code', g:'{% trans "Server" %}'},
             {l:'{% trans "LiteSpeed Tuning" %}', h:'{% url "liteSpeedTuning" %}', i:'fa-gauge-high', g:'{% trans "Server" %}'},
@@ -828,7 +828,7 @@
                 groupWrap.hidden = true;
             }
             bc.hidden = false;
-            const base = document.title && document.title.indexOf('CyberPanel') !== -1 ? '' : ' - CyberPanel';
+            const base = document.title && document.title.indexOf('IndiansCloud') !== -1 ? '' : ' - IndiansCloud';
             document.title = label + (group ? ' · ' + group : '') + base;
         }
 

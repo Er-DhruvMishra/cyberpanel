@@ -1,11 +1,11 @@
 {% extends "universalAddons/base.html" %}
 {% load i18n %}
-{% block title %}{% trans "Universal Add-ons" %} - CyberPanel{% endblock %}
+{% block title %}{% trans "Universal Add-ons" %} - IndiansCloud{% endblock %}
 {% block content %}
 <div class="ua-wrap" id="ua-hub" data-access="{% url 'ua-hub-user-access' %}">
   <div class="ua-header">
     <h1>{% trans "Universal Add-ons" %}</h1>
-    <p>{% if is_admin %}{% trans "Open-source modules maintained in this CyberPanel fork. They run locally and need no external licence." %}{% else %}{% trans "Tools your administrator has made available for your websites." %}{% endif %}</p>
+    <p>{% if is_admin %}{% trans "Open-source modules maintained for IndiansCloud, a CyberPanel fork. They run locally and need no external licence." %}{% else %}{% trans "Tools your administrator has made available for your websites." %}{% endif %}</p>
   </div>
   {% if is_admin %}
   <div class="ua-card" id="ua-access-card">

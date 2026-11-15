@@ -1,7 +1,7 @@
 {% extends "baseTemplate/index.html" %}
 {% load i18n %}
 {% load static %}
-{% block title %}{% trans "Issue SSL For Hostname - CyberPanel" %}{% endblock %}
+{% block title %}{% trans "Issue SSL For Hostname - IndiansCloud" %}{% endblock %}
 
 {% block header_scripts %}
 <style>
@@ -261,7 +261,7 @@
                     {% trans "SSL Docs" %}
                 </a>
             </div>
-            <p class="ssl-description">{% trans "Let's Encrypt SSL for hostname to access CyberPanel on verified SSL." %}</p>
+            <p class="ssl-description">{% trans "Let's Encrypt SSL for hostname to access IndiansCloud on verified SSL." %}</p>
             
             <div ng-hide="success" class="deprecation-notice">
                 <i class="fas fa-info-circle" style="margin-right: 8px;"></i>
@@ -310,7 +310,7 @@
                 <div ng-hide="sslIssued" class="alert alert-success">
                     <i class="fas fa-check-circle" style="margin-right: 8px;"></i>
                     <strong>{% trans "SSL Issued Successfully!" %}</strong><br>
-                    {% trans "You can now access CyberPanel at:" %} <strong>https://{$ sslDomain $}:8090</strong>
+                    {% trans "You can now access IndiansCloud at:" %} <strong>https://{$ sslDomain $}:8090</strong>
                 </div>
 
                 <div ng-hide="couldNotConnect" class="alert alert-danger">

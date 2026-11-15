@@ -270,35 +270,22 @@ def saveStatus(request):
         return HttpResponse(json_data)
 
 def manageApplications(request):
-    services = []
-
-    ## ElasticSearch
-
-    esPath = '/home/cyberpanel/elasticsearch'
-    rPath = '/home/cyberpanel/redis'
-
-    if os.path.exists(esPath):
-        installed = 'Installed'
-    else:
-        installed = 'Not-Installed'
-
-    if os.path.exists(rPath):
-        rInstalled = 'Installed'
-    else:
-        rInstalled = 'Not-Installed'
-
-    elasticSearch = {'image': '/static/manageServices/images/elastic-search.png', 'name': 'Elasticsearch',
-                     'installed': installed}
-    redis = {'image': '/static/manageServices/images/redis.png', 'name': 'Redis',
-             'installed': rInstalled}
-    services.append(elasticSearch)
-    services.append(redis)
-
-    proc = httpProc(request, 'manageServices/applications.html',
-                    {'services': services}, 'admin')
+    """Replaced by the Applications add-on (/addons/applications/); administrators are sent there."""
+    try:
+        is_admin = ACLManager.loadedACL(request.session['userID']).get('admin') == 1
+    except Exception:
+        is_admin = False
+    if is_admin:
+        return redirect('/addons/applications/')
+    # Not logged in: httpProc sends the visitor to the login page; other users get its refusal.
+    proc = httpProc(request, 'manageServices/applications.html', {'services': []}, 'admin')
     return proc.render()
 
 def removeInstall(request):
+    """Old API, kept for compatibility: starts the same install/remove job as the Applications add-on.
+
+    Progress still appears in the status file that /serverstatus/switchTOLSWSStatus reads, since the
+    job runs ServiceManager's own installer. Removing through this API keeps the data directory."""
     try:
         userID = request.session['userID']
         currentACL = ACLManager.loadedACL(userID)
@@ -313,18 +300,8 @@ def removeInstall(request):
             status = data['status']
             appName = data['appName']
 
-            if appName == 'Elasticsearch':
-                if status == 'Installing':
-                    command = '/usr/local/CyberCP/bin/python /usr/local/CyberCP/manageServices/serviceManager.py --function InstallElasticSearch'
-                else:
-                    command = '/usr/local/CyberCP/bin/python /usr/local/CyberCP/manageServices/serviceManager.py --function RemoveElasticSearch'
-            elif appName == 'Redis':
-                if status == 'Installing':
-                    command = '/usr/local/CyberCP/bin/python /usr/local/CyberCP/manageServices/serviceManager.py --function InstallRedis'
-                else:
-                    command = '/usr/local/CyberCP/bin/python /usr/local/CyberCP/manageServices/serviceManager.py --function RemoveRedis'
-
-            ProcessUtilities.popenExecutioner(command)
+            from universalAddons.appsvc.views import legacy_remove_install
+            legacy_remove_install(appName, status)
             data_ret = {'status': 1}
             json_data = json.dumps(data_ret)
             return HttpResponse(json_data)

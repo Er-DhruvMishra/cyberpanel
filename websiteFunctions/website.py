@@ -3044,7 +3044,7 @@ Require valid-user
             if not success or not result or result[-1].strip() != '1,None':
                 raise ValueError(output.strip() if output else 'Domain deletion did not complete.')
             if ChildDomains.objects.filter(domain=websiteName).exists():
-                raise ValueError('Domain deletion did not remove the child domain. Please check the CyberPanel log.')
+                raise ValueError('Domain deletion did not remove the child domain. Please check the IndiansCloud log.')
 
             data_ret = {'status': 1, 'websiteDeleteStatus': 1, 'error_message': "None"}
             json_data = json.dumps(data_ret)
@@ -3968,7 +3968,7 @@ context /cyberpanel_suspension_page.html {
         if output.find("1,None") > -1:
             final_json = json.dumps(
                 {'status': 0, 'logstatus': 0,
-                 'error_message': "Not able to fetch logs, see CyberPanel main log file, Error: %s" % (output)})
+                 'error_message': "Not able to fetch logs, see IndiansCloud main log file, Error: %s" % (output)})
             return HttpResponse(final_json)
 
         ## get log ends here.
@@ -4035,7 +4035,7 @@ context /cyberpanel_suspension_page.html {
 
         if output.find("1,None") > -1:
             final_json = json.dumps(
-                {'status': 0, 'logstatus': 0, 'error_message': "Not able to fetch logs, see CyberPanel main log file!"})
+                {'status': 0, 'logstatus': 0, 'error_message': "Not able to fetch logs, see IndiansCloud main log file!"})
             return HttpResponse(final_json)
 
         ## get log ends here.

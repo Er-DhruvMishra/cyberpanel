@@ -83,7 +83,7 @@ def monitor():
     from loginSystem.models import Administrator
     recipients = [a.email for a in Administrator.objects.filter(acl__adminStatus=1) if a.email] or ['root']
     hostname = subprocess.run(['hostname', '-f'], stdout=subprocess.PIPE, universal_newlines=True).stdout.strip()
-    body = 'To: %s\nSubject: [CyberPanel] %d certificate(s) need attention on %s\n\n%s\n' % (
+    body = 'To: %s\nSubject: [IndiansCloud] %d certificate(s) need attention on %s\n\n%s\n' % (
         ', '.join(recipients), len(rows), hostname, service.alert_body(rows, hostname, untrusted))
     subprocess.run(['sendmail', '--'] + recipients, input=body, universal_newlines=True, timeout=60)
     return {'alerts': len(rows), 'recipients': len(recipients)}

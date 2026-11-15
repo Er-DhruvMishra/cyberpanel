@@ -252,7 +252,7 @@ class DatabaseManager:
             res = mysqlUtilities.changePassword(userName, dbPassword, None, host)
 
             if res == 0:
-                data_ret = {'status': 0, 'changePasswordStatus': 0,'error_message': "Please see CyberPanel main log file."}
+                data_ret = {'status': 0, 'changePasswordStatus': 0,'error_message': "Please see IndiansCloud main log file."}
                 json_data = json.dumps(data_ret)
                 return HttpResponse(json_data)
 

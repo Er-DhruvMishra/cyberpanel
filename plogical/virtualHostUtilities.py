@@ -1750,7 +1750,7 @@ class virtualHostUtilities:
 
             numberOfWebsites = Websites.objects.count() + ChildDomains.objects.count()
             if vhost.deleteCoreConf(virtualHostName, numberOfWebsites) == 0:
-                raise ValueError('Could not remove the child domain configuration. Please check the CyberPanel log.')
+                raise ValueError('Could not remove the child domain configuration. Please check the IndiansCloud log.')
             delWebsite = ChildDomains.objects.get(domain=virtualHostName)
 
             if DeleteDocRoot:

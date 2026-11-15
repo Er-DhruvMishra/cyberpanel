@@ -1,12 +1,12 @@
 {% extends "universalAddons/base.html" %}
 {% load i18n static %}
-{% block title %}{% trans "Email Limits" %} - CyberPanel{% endblock %}
+{% block title %}{% trans "Email Limits" %} - IndiansCloud{% endblock %}
 {% block addon_scripts %}<script src="{% static 'universalAddons/emaillimits.js' %}?v={{ CP_VERSION }}"></script>{% endblock %}
 {% block content %}
 <div class="ua-wrap" id="ua-emaillimits" data-base="{% url 'ua-emaillimits' %}" data-admin="{{ is_admin|yesno:'1,0' }}">
   <div class="ua-header">
     <h1><i class="fas fa-paper-plane"></i> {% trans "Email Limits" %}</h1>
-    <p>{% trans "Outbound sending limits per domain and per mailbox, enforced by the CyberPanel policy daemon (cpecs) when Postfix accepts a message. A mailbox is limited only while both its own limit and its domain's limit are on. Counters reset every hour and on the first of each month." %}</p>
+    <p>{% trans "Outbound sending limits per domain and per mailbox, enforced by the IndiansCloud policy daemon (cpecs) when Postfix accepts a message. A mailbox is limited only while both its own limit and its domain's limit are on. Counters reset every hour and on the first of each month." %}</p>
   </div>
   {% if not enabled %}
   <div class="ua-card"><div class="ua-alert">{% trans "The administrator has not enabled email limits for user accounts." %}</div></div>

@@ -1,6 +1,6 @@
 {% extends "baseTemplate/index.html" %}
 {% load i18n %}
-{% block title %}{% trans "Configure Hostname and other default Settings - CyberPanel" %}{% endblock %}
+{% block title %}{% trans "Configure Hostname and other default Settings - IndiansCloud" %}{% endblock %}
 
 {% block header_scripts %}
 <style>
@@ -422,7 +422,7 @@
                 <i class="fas fa-cog"></i>
                 {% trans "Initial Configurations" %}
             </h1>
-            <p>{% trans "Configure Hostname and other default Settings for CyberPanel" %}</p>
+            <p>{% trans "Configure Hostname and other default Settings for IndiansCloud" %}</p>
             <a href="{% url 'help' 'onboarding' %}" target="_blank" rel="noopener" class="learn-more-btn">
                 <i class="fas fa-book"></i>
                 {% trans "Learn More" %}
@@ -486,7 +486,7 @@
                     <button type="button" ng-click="RestartCyberPanel()" 
                             ng-hide="OnboardineDone" class="btn-secondary">
                         <i class="fas fa-sync-alt"></i>
-                        {% trans "Restart CyberPanel" %}
+                        {% trans "Restart IndiansCloud" %}
                     </button>
                 </div>
             </form>
@@ -496,7 +496,7 @@
         <div ng-hide="ExecutionStatus" class="progress-section">
             <div class="progress-info">
                 <i class="fas fa-info-circle"></i>
-                <p>{% trans "Note: Once configurations are completed, click Restart CyberPanel above. After clicking Restart CyberPanel, refresh the page to fetch new SSL from the browser." %}</p>
+                <p>{% trans "Note: Once configurations are completed, click Restart IndiansCloud above. After clicking Restart IndiansCloud, refresh the page to fetch new SSL from the browser." %}</p>
             </div>
             
             <div class="progress-status">

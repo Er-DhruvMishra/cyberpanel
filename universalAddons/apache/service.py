@@ -671,7 +671,7 @@ def docroot_warning(docroot, run_group_gid, stat=os.stat):
     except OSError:
         return 'The document root %s does not exist.' % docroot
     if info.st_gid != run_group_gid and not info.st_mode & 0o005:
-        return ('Apache (group id %d) cannot read %s: static files would answer 403. CyberPanel normally gives '
+        return ('Apache (group id %d) cannot read %s: static files would answer 403. IndiansCloud normally gives '
                 'public_html to the nobody group.' % (run_group_gid, docroot))
     return ''
 

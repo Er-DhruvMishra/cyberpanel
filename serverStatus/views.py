@@ -409,7 +409,7 @@ def servicesAction(request):
                     if not result or result[0] != 1:
                         final_dic = {
                             'serviceAction': 0,
-                            'error_message': 'Service command failed. Please check the service status and CyberPanel main log.'
+                            'error_message': 'Service command failed. Please check the service status and IndiansCloud main log.'
                         }
                         return HttpResponse(json.dumps(final_dic))
                     final_dic = {'serviceAction': 1, "error_message": 0}

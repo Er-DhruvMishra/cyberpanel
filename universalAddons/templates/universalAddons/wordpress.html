@@ -1,6 +1,6 @@
 {% extends "universalAddons/base.html" %}
 {% load i18n static %}
-{% block title %}{% trans "WordPress Manager Pro" %} - CyberPanel{% endblock %}
+{% block title %}{% trans "WordPress Manager Pro" %} - IndiansCloud{% endblock %}
 {% block addon_scripts %}<script src="{% static 'universalAddons/wordpress.js' %}?v={{ CP_VERSION }}"></script>{% endblock %}
 {% block content %}
 <div class="ua-wrap" id="ua-wordpress" data-base="{% url 'ua-wordpress' %}" data-admin="{{ is_admin|yesno:'1,0' }}">

@@ -1230,7 +1230,7 @@ app.controller('changePort', function ($scope, $http, $timeout) {
             if (response.data.status === 1) {
                 new PNotify({
                     title: 'Success!',
-                    text: 'Port changed, open CyberPanel on new port.',
+                    text: 'Port changed, open IndiansCloud on new port.',
                     type: 'success'
                 });
             } else {

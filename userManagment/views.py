@@ -324,7 +324,7 @@ def fetchUserDetails(request):
                     otpauth = ''
                     secretKey = ''
                 else:
-                    otpauth = pyotp.totp.TOTP(user.secretKey).provisioning_uri(email, issuer_name="CyberPanel")
+                    otpauth = pyotp.totp.TOTP(user.secretKey).provisioning_uri(email, issuer_name="IndiansCloud")
                     secretKey = user.secretKey
 
                 userDetails = {

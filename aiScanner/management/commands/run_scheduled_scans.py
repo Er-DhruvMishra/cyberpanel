@@ -396,7 +396,7 @@ Domains Scanned: {', '.join(execution.scanned_domains)}
 
 Scan IDs: {', '.join(execution.scan_id_list)}
 
-View detailed results in your CyberPanel AI Scanner dashboard.
+View detailed results in your IndiansCloud AI Scanner dashboard.
 """
             
             # Send email using CyberPanel's email system
@@ -436,7 +436,7 @@ Time: {timezone.now().strftime('%Y-%m-%d %H:%M:%S UTC')}
 
 Error: {error_message}
 
-Please check your CyberPanel AI Scanner configuration and try again.
+Please check your IndiansCloud AI Scanner configuration and try again.
 """
             
             # Send email using CyberPanel's email system

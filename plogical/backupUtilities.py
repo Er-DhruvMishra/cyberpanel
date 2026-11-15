@@ -1969,7 +1969,7 @@ class backupUtilities:
                 else:
                     dumpOk = dumpResult
                 if dumpOk == 0:
-                    errorMessage = ('Failed to back up database %s. The mysqldump command failed — check the CyberPanel '
+                    errorMessage = ('Failed to back up database %s. The mysqldump command failed — check the IndiansCloud '
                                     'log for the exact error. Common causes: a stale /home/cyberpanel/.my.cnf (delete it '
                                     'and retry) or an orphaned database record whose MySQL database no longer exists.' % (items.dbName))
                     logging.CyberCPLogFileWriter.writeToFile(

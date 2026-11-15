@@ -106,7 +106,7 @@ def rate_limited(session, now=None):
 def render_message(req, meta, recipient, sender):
     msg = EmailMessage()
     msg['Subject'] = 'Build request: %s from %s' % (req['service'], req['name'])
-    msg['From'] = formataddr(('CyberPanel Build Services', sender))
+    msg['From'] = formataddr(('IndiansCloud Build Services', sender))
     msg['To'] = recipient
     msg['Reply-To'] = formataddr((req['name'], req['email']))
     msg['Message-ID'] = make_msgid(domain=sender.split('@')[1])

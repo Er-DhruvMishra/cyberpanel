@@ -477,7 +477,7 @@ def router(request):
         elif controller == 'removeN8NInstallation':
             return cm.removeN8NInstallation()
         else:
-            return cm.ajaxPre(0, 'This function is not available in your version of CyberPanel.')
+            return cm.ajaxPre(0, 'This function is not available in your version of IndiansCloud.')
 
     except BaseException as msg:
         cm = CloudManager(None)

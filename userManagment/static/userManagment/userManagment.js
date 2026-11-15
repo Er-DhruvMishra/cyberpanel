@@ -197,7 +197,7 @@ app.controller('modifyUser', function ($scope, $http) {
         if (!$scope.recoveryCodes.length) {
             return;
         }
-        var content = 'CyberPanel 2FA recovery codes\n\n' + $scope.recoveryCodes.join('\n') +
+        var content = 'IndiansCloud 2FA recovery codes\n\n' + $scope.recoveryCodes.join('\n') +
             '\n\nEach code can be used once.';
         var blob = new Blob([content], {type: 'text/plain;charset=utf-8'});
         var link = document.createElement('a');

@@ -811,7 +811,7 @@ class vhost:
 
         php = PHPManager.getPHPString(phpVersion)
         if not os.path.isfile('/usr/local/lsws/lsphp%s/bin/lsphp' % php):
-            message = 'This PHP version is not available on your CyberPanel.'
+            message = 'This PHP version is not available on your IndiansCloud server.'
             logging.CyberCPLogFileWriter.writeToFile(
                 '%s Requested version: %s [changePHP]' % (message, phpVersion)
             )
@@ -827,8 +827,8 @@ class vhost:
                     php = PHPManager.getPHPString(phpVersion)
 
                     if not os.path.exists("/usr/local/lsws/lsphp" + str(php) + "/bin/lsphp"):
-                        print(0, 'This PHP version is not available on your CyberPanel.')
-                        return [0, "[This PHP version is not available on your CyberPanel. [changePHP]"]
+                        print(0, 'This PHP version is not available on your IndiansCloud server.')
+                        return [0, "[This PHP version is not available on your IndiansCloud server. [changePHP]"]
 
                     writeDataToFile = open(vhFile, "w")
 
@@ -878,8 +878,8 @@ class vhost:
                     php = PHPManager.getPHPString(phpVersion)
 
                     if not os.path.exists("/usr/local/lsws/lsphp" + str(php) + "/bin/lsphp"):
-                        print(0, 'This PHP version is not available on your CyberPanel.')
-                        return [0, "[This PHP version is not available on your CyberPanel. [changePHP]"]
+                        print(0, 'This PHP version is not available on your IndiansCloud server.')
+                        return [0, "[This PHP version is not available on your IndiansCloud server. [changePHP]"]
 
                     writeDataToFile = open(vhFile, "w")
 

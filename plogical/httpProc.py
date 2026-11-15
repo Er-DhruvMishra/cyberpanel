@@ -52,7 +52,7 @@ class httpProc:
                     except:
                         self.data['onboarding'] = 0
                         self.data['onboardingError'] = """
-Please launch the <a href="/base/onboarding">set-up wizard</a> to get maximum out of your CyberPanel installation.
+Please launch the <a href="/base/onboarding">set-up wizard</a> to get maximum out of your IndiansCloud installation.
 """
                 else:
 

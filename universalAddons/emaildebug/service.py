@@ -626,8 +626,8 @@ def send_test_message(sender, recipient, hostname, runner=subprocess.run):
         raise ValueError('Invalid sender or recipient address.')
     message_id = '<cp-debug-%d.%s@%s>' % (int(time.time()), os.urandom(4).hex(), hostname or 'localhost')
     body = (
-        'From: %s\nTo: %s\nSubject: CyberPanel email debugger test\nMessage-ID: %s\n'
-        'Date: %s\n\nThis is a test message sent by the CyberPanel email debugger.\n'
+        'From: %s\nTo: %s\nSubject: IndiansCloud email debugger test\nMessage-ID: %s\n'
+        'Date: %s\n\nThis is a test message sent by the IndiansCloud email debugger.\n'
         % (sender, recipient, message_id, time.strftime('%a, %d %b %Y %H:%M:%S %z'))
     )
     out = runner(['sendmail', '-f', sender, '--', recipient], input=body, stdout=subprocess.PIPE,

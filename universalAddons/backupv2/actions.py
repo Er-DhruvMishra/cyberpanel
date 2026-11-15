@@ -83,7 +83,7 @@ def _notify_failure(policy_id, errors):
         _django()
         from loginSystem.models import Administrator
         recipients = [a.email for a in Administrator.objects.filter(acl__adminStatus=1) if a.email] or ['root']
-        body = 'To: %s\nSubject: [CyberPanel] Backup policy %s had errors on %s\n\n%s\n' % (
+        body = 'To: %s\nSubject: [IndiansCloud] Backup policy %s had errors on %s\n\n%s\n' % (
             ', '.join(recipients), policy_id, _hostname(), '\n'.join(errors))
         subprocess.run(['sendmail', '--'] + recipients, input=body, universal_newlines=True, timeout=60)
     except Exception:

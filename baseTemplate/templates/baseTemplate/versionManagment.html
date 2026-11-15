@@ -1,6 +1,6 @@
 {% extends "baseTemplate/index.html" %}
 {% load i18n %}
-{% block title %}{% trans "Version Management - CyberPanel" %}*{% endblock %}
+{% block title %}{% trans "Version Management - IndiansCloud" %}*{% endblock %}
 
 {% block content %}
 
@@ -263,17 +263,17 @@
         <div class="page-container">
             <div class="page-header">
                 <h1 class="page-title">{% trans "Version Management" %}</h1>
-                <p class="page-subtitle">{% trans "Here you can manage versions and check for updates to CyberPanel" %}</p>
+                <p class="page-subtitle">{% trans "Here you can manage versions and check for updates to IndiansCloud" %}</p>
             </div>
             {% if Notecheck %}
             <div class="alert alert-warning">
                 <i class="fas fa-exclamation-triangle"></i>
-                <span>{% trans "Note: Latest commit does not match, please upgrade CyberPanel." %} <a href="{% url 'help' 'upgrading' %}">Learn how to upgrade CyberPanel.</a></span>
+                <span>{% trans "Note: Latest commit does not match, please upgrade IndiansCloud." %} <a href="{% url 'help' 'upgrading' %}">Learn how to upgrade IndiansCloud.</a></span>
             </div>
             {% endif %}
 
             <div class="content-card">
-                <h2 class="card-title">CyberPanel Version Control</h2>
+                <h2 class="card-title">IndiansCloud Version Control</h2>
                 
                 <div class="form-group">
                     <label for="branchSelect" class="form-label">{% trans "Select Branch" %}</label>
@@ -283,7 +283,7 @@
                 <div class="btn-group">
                     <button type="button" ng-click="upgrade()" class="btn btn-primary">
                         <i class="fas fa-arrow-up"></i>
-                        {% trans "Upgrade CyberPanel to selected branch (Beta)" %}
+                        {% trans "Upgrade IndiansCloud to selected branch (Beta)" %}
                     </button>
                     <button type="button" onclick="refreshPage()" class="btn btn-secondary">
                         <i class="fas fa-sync-alt"></i>

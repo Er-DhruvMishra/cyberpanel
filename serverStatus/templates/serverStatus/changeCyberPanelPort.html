@@ -1,6 +1,6 @@
 {% extends "baseTemplate/index.html" %}
 {% load i18n %}
-{% block title %}{% trans "Change CyberPanel Access Port - CyberPanel" %}{% endblock %}
+{% block title %}{% trans "Change IndiansCloud Access Port - IndiansCloud" %}{% endblock %}
 
 {% block header_scripts %}
 <style>
@@ -451,9 +451,9 @@
     <div class="page-container" ng-controller="changePort">
         <!-- Form Section -->
         <div class="form-section">
-            <h2 class="section-title">{% trans "Change CyberPanel Port" %}</h2>
+            <h2 class="section-title">{% trans "Change IndiansCloud Port" %}</h2>
             <p class="section-description">
-                {% trans "Configure the port used to access your CyberPanel control panel. The default port is 8090." %}
+                {% trans "Configure the port used to access your IndiansCloud control panel. The default port is 8090." %}
             </p>
             
             <!-- Warning Box -->
@@ -463,7 +463,7 @@
                     {% trans "Important Notice" %}
                 </div>
                 <div class="warning-box-content">
-                    {% trans "After changing the port, you will need to access CyberPanel using the new port number. Make sure to update your firewall rules to allow access through the new port." %}
+                    {% trans "After changing the port, you will need to access IndiansCloud using the new port number. Make sure to update your firewall rules to allow access through the new port." %}
                 </div>
             </div>
             
@@ -474,7 +474,7 @@
                     {% trans "Current Configuration" %}
                 </div>
                 <div class="info-box-content">
-                    {% trans "Your CyberPanel is currently accessible on port" %} <strong>{{ port }}</strong>
+                    {% trans "Your IndiansCloud is currently accessible on port" %} <strong>{{ port }}</strong>
                 </div>
             </div>
             

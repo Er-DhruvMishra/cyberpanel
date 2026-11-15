@@ -140,7 +140,7 @@ def php_config():
         'imap_host': '127.0.0.1:143',
         'smtp_host': '127.0.0.1:25',
         'smtp_user': '%u', 'smtp_pass': '%p',
-        'des_key': key, 'product_name': 'Roundcube for CyberPanel',
+        'des_key': key, 'product_name': 'Roundcube for IndiansCloud',
         'temp_dir': str(DATA / 'temp'), 'log_dir': str(DATA / 'logs'),
         'session_name': 'cp_roundcube_session', 'session_auth_name': 'cp_roundcube_auth',
         'session_path': '/roundcube/', 'session_samesite': 'Lax',

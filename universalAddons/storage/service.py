@@ -370,7 +370,7 @@ def run_panel_tmp(dry_run, log, **_):
     count, kb = delete_files(old_files(['/usr/local/CyberCP/tmp'], ROTATED_LOG_AGE_DAYS), dry_run)
     for path in sorted(glob.glob('/usr/local/CyberCP/public/imunifyav.old.*')):
         kb += safe_rm(path, dry_run)
-    log('CyberPanel temporary files and stale copies (%s)' % human(kb))
+    log('IndiansCloud temporary files and stale copies (%s)' % human(kb))
     return kb
 
 
@@ -780,7 +780,7 @@ CATEGORIES = [
     ('rotated_logs', 'Rotated system logs (>%dd)' % ROTATED_LOG_AGE_DAYS, 'safe', probe_rotated_logs, run_rotated_logs, False),
     ('web_logs', 'Rotated web server logs (>%dd)' % ROTATED_LOG_AGE_DAYS, 'safe', probe_web_logs, run_web_logs, False),
     ('big_logs', 'Oversized active logs (>%d MB, truncated)' % ACTIVE_LOG_MAX_MB, 'review', probe_big_logs, run_big_logs, True),
-    ('panel_tmp', 'CyberPanel temporary files and stale copies', 'safe', probe_panel_tmp, run_panel_tmp, False),
+    ('panel_tmp', 'IndiansCloud temporary files and stale copies', 'safe', probe_panel_tmp, run_panel_tmp, False),
     ('av_sigs', 'Superseded antivirus signature sets', 'safe', probe_av_sigs, run_av_sigs, False),
     ('docker', 'Docker: unused data / orphaned /var/lib/docker', 'review', probe_docker, run_docker, False),
     ('dev_caches', 'Build tool caches (npm, pip, composer, yarn...)', 'safe', probe_dev_caches, run_dev_caches, False),

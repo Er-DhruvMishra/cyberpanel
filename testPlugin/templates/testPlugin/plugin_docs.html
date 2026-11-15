@@ -2,7 +2,7 @@
 {% load i18n %}
 {% load static %}
 
-{% block title %}{% trans "Plugin Development Guide - CyberPanel" %}{% endblock %}
+{% block title %}{% trans "Plugin Development Guide - IndiansCloud" %}{% endblock %}
 
 {% block header_scripts %}
 <style>
@@ -258,7 +258,7 @@
                 <i class="fas fa-book" style="margin-right: 12px; color: #5856d6;"></i>
                 {% trans "Plugin Development Documentation" %}
             </h1>
-            <p>{% trans "Complete guide for developing, installing, and managing CyberPanel plugins" %}</p>
+            <p>{% trans "Complete guide for developing, installing, and managing IndiansCloud plugins" %}</p>
         </div>
 
         <!-- Navigation -->
@@ -288,7 +288,7 @@
         <!-- Quick Installation Guide -->
         <div class="docs-section active" id="quick-guide">
             <div class="docs-content">
-                <h1 class="section-title">Quick Installation Guide - CyberPanel Test Plugin</h1>
+                <h1 class="section-title">Quick Installation Guide - IndiansCloud Test Plugin</h1>
                 
                 <div class="feature-list">
                     <div class="feature-item">
@@ -322,7 +322,7 @@ cd testPlugin</code></pre>
                     <li><strong>Access the plugin</strong>
                         <ul>
                             <li>URL: <code>https://your-domain:8090/testPlugin/</code></li>
-                            <li>Login with your CyberPanel admin credentials</li>
+                            <li>Login with your IndiansCloud admin credentials</li>
                         </ul>
                     </li>
                 </ol>
@@ -347,7 +347,7 @@ cd testPlugin</code></pre>
                     </div>
                     <div class="feature-item">
                         <h4>✅ Inline Integration</h4>
-                        <p>Loads within CyberPanel interface</p>
+                        <p>Loads within IndiansCloud interface</p>
                     </div>
                     <div class="feature-item">
                         <h4>✅ Responsive Design</h4>
@@ -362,10 +362,10 @@ cd testPlugin</code></pre>
                 <h2>Troubleshooting</h2>
                 <p>If you encounter any issues:</p>
                 <ol>
-                    <li><strong>Check CyberPanel logs</strong>
+                    <li><strong>Check IndiansCloud logs</strong>
                         <pre><code>tail -f /home/cyberpanel/logs/cyberpanel.log</code></pre>
                     </li>
-                    <li><strong>Restart CyberPanel services</strong>
+                    <li><strong>Restart IndiansCloud services</strong>
                         <pre><code>systemctl restart lscpd
 systemctl restart cyberpanel</code></pre>
                     </li>
@@ -384,7 +384,7 @@ ls -la /usr/local/CyberCP/testPlugin</code></pre>
         <!-- Official CyberPanel Plugin Development Guide -->
         <div class="docs-section" id="official-guide">
             <div class="docs-content">
-                <h1 class="section-title">Getting Started with CyberPanel Plugin Development</h1>
+                <h1 class="section-title">Getting Started with IndiansCloud Plugin Development</h1>
                 
                 <div class="feature-list">
                     <div class="feature-item">
@@ -397,7 +397,7 @@ ls -la /usr/local/CyberCP/testPlugin</code></pre>
                     </div>
                     <div class="feature-item">
                         <h4>🔧 Signal Integration</h4>
-                        <p>Learn how to hook into CyberPanel events and respond to core functionality.</p>
+                        <p>Learn how to hook into IndiansCloud events and respond to core functionality.</p>
                     </div>
                 </div>
 
@@ -413,7 +413,7 @@ ls -la /usr/local/CyberCP/testPlugin</code></pre>
                     <li><strong>CSS (Basic)</strong> - Basic CSS knowledge</li>
                 </ul>
 
-                <p><strong>Note:</strong> You can use plain JavaScript in your plugins or any JavaScript framework. You just have to follow the norms of Django framework, because CyberPanel plugin is just another Django app.</p>
+                <p><strong>Note:</strong> You can use plain JavaScript in your plugins or any JavaScript framework. You just have to follow the norms of Django framework, because IndiansCloud plugin is just another Django app.</p>
 
                 <h2>Step 1: Set up your Development Environment</h2>
                 
@@ -424,7 +424,7 @@ ls -la /usr/local/CyberCP/testPlugin</code></pre>
                 <pre><code>cd v1.7.2-plugin
 django-admin startapp pluginName</code></pre>
 
-                <p>Choose your plugin name wisely as it's of great importance. Once the Django app is created, you need to define a meta file for your plugin so that CyberPanel can read information about your plugin.</p>
+                <p>Choose your plugin name wisely as it's of great importance. Once the Django app is created, you need to define a meta file for your plugin so that IndiansCloud can read information about your plugin.</p>
 
                 <h3>Create Meta File</h3>
                 <pre><code>cd pluginName
@@ -462,7 +462,7 @@ urlpatterns = [
     url(r'^$', views.examplePlugin, name='examplePlugin'),
 ]</code></pre>
 
-                <p><strong>Important:</strong> Replace <code>examplePlugin</code> with your plugin name. This URL definition is very important for CyberPanel to register your plugin page.</p>
+                <p><strong>Important:</strong> Replace <code>examplePlugin</code> with your plugin name. This URL definition is very important for IndiansCloud to register your plugin page.</p>
 
                 <h3>Optional Files</h3>
                 <p>You can create these optional files for database model management:</p>
@@ -476,11 +476,11 @@ urlpatterns = [
 
                 <h2>Step 3: Responding to Events</h2>
 
-                <p>To plug into events fired by CyberPanel core, you can respond to various events happening in the core. Visit the <a href="https://github.com/Er-DhruvMishra/cyberpanel/blob/main/websiteFunctions/signals.py" target="_blank" rel="noopener">signal file documentation</a> for a complete list of events.</p>
+                <p>To plug into events fired by IndiansCloud core, you can respond to various events happening in the core. Visit the <a href="https://github.com/Er-DhruvMishra/cyberpanel/blob/main/websiteFunctions/signals.py" target="_blank" rel="noopener">signal file documentation</a> for a complete list of events.</p>
 
                 <h3>Example Events</h3>
                 <ul>
-                    <li><strong>preWebsiteCreation</strong> - Fired before CyberPanel starts the creation of website</li>
+                    <li><strong>preWebsiteCreation</strong> - Fired before IndiansCloud starts the creation of website</li>
                     <li><strong>postWebsiteDeletion</strong> - Fired after core finished the deletion of website</li>
                 </ul>
 
@@ -499,8 +499,8 @@ def rcvr(sender, **kwargs):
 
                 <h3>Return Values</h3>
                 <ul>
-                    <li><strong>HttpResponse object</strong> - CyberPanel core will stop further processing and return your response to browser</li>
-                    <li><strong>int 200</strong> - CyberPanel core will continue processing, assuming the event was successfully executed</li>
+                    <li><strong>HttpResponse object</strong> - IndiansCloud core will stop further processing and return your response to browser</li>
+                    <li><strong>int 200</strong> - IndiansCloud core will continue processing, assuming the event was successfully executed</li>
                 </ul>
 
                 <h2>Step 4: Packing, Shipping and Installing Plugin</h2>
@@ -518,7 +518,7 @@ python pluginInstaller.py install --pluginName examplePlugin</code></pre>
 python pluginInstaller.py remove --pluginName examplePlugin</code></pre>
 
                 <h2>Beautiful Names Plugin Example</h2>
-                <p>CyberPanel has released an official plugin called <a href="https://github.com/usmannasir/beautiful_names" target="_blank" rel="noopener">Beautiful Names</a> that removes the <code>admin_</code> prefix from Package and FTP account names. This plugin serves as a great example of how to create CyberPanel plugins.</p>
+                <p>CyberPanel has released an official plugin called <a href="https://github.com/usmannasir/beautiful_names" target="_blank" rel="noopener">Beautiful Names</a> that removes the <code>admin_</code> prefix from Package and FTP account names. This plugin serves as a great example of how to create IndiansCloud plugins.</p>
 
                 <h3>Installation of Beautiful Names</h3>
                 <pre><code>cd /usr/local/CyberCP/pluginInstaller
@@ -530,7 +530,7 @@ python pluginInstaller.py install --pluginName beautifulNames</code></pre>
 python pluginInstaller.py remove --pluginName beautifulNames</code></pre>
 
                 <h2>Plugin Installation Facility</h2>
-                <p>The plugin installation facility is in beta and not available with the official install yet. To install plugins, you need to install CyberPanel via the test version:</p>
+                <p>The plugin installation facility is in beta and not available with the official install yet. To install plugins, you need to install IndiansCloud via the test version:</p>
                 <pre><code>sh &lt;(curl https://mirror.cyberpanel.net/install-test.sh || wget -O - https://mirror.cyberpanel.net/install-test.sh)</code></pre>
 
                 <h2>Additional Resources</h2>
@@ -549,7 +549,7 @@ python pluginInstaller.py remove --pluginName beautifulNames</code></pre>
         <!-- Full Development Guide -->
         <div class="docs-section" id="full-guide">
             <div class="docs-content">
-                <h1 class="section-title">CyberPanel Plugin Development Guide</h1>
+                <h1 class="section-title">IndiansCloud Plugin Development Guide</h1>
                 
                 <div class="toc">
                     <h3>Table of Contents</h3>
@@ -1053,22 +1053,22 @@ function updatePluginUI(enabled) {
                 </div>
 
                 <div id="avoid-sidebar-breaking">
-                    <h2>How to Avoid Breaking the CyberPanel Sidebar</h2>
+                    <h2>How to Avoid Breaking the IndiansCloud Sidebar</h2>
                     
-                    <h3>1. Use CyberPanel's Base Template</h3>
+                    <h3>1. Use IndiansCloud's Base Template</h3>
                     <p>Always extend the base template:</p>
                     <pre><code>{% extends "baseTemplate/index.html" %}
 {% load i18n %}
 {% load static %}
 
-{% block title %}{% trans "Your Plugin - CyberPanel" %}{% endblock %}
+{% block title %}{% trans "Your Plugin - IndiansCloud" %}{% endblock %}
 
 {% block content %}
 &lt;!-- Your plugin content here --&gt;
 {% endblock %}</code></pre>
 
                     <h3>2. Don't Modify the Sidebar HTML</h3>
-                    <p>Never directly modify the sidebar HTML. Instead, use CyberPanel's built-in navigation system.</p>
+                    <p>Never directly modify the sidebar HTML. Instead, use IndiansCloud's built-in navigation system.</p>
 
                     <h3>3. Use Proper CSS Scoping</h3>
                     <pre><code>/* Good: Scoped to your plugin */
@@ -1081,7 +1081,7 @@ function updatePluginUI(enabled) {
     /* Don't do this */
 }</code></pre>
 
-                    <h3>4. Use CyberPanel's CSS Variables</h3>
+                    <h3>4. Use IndiansCloud's CSS Variables</h3>
                     <pre><code>.your-plugin-element {
     background: var(--bg-primary, white);
     color: var(--text-primary, #2f3640);
@@ -1102,7 +1102,7 @@ function updatePluginUI(enabled) {
                 <div id="inline-loading">
                     <h2>How to Make Plugins Load Inline</h2>
                     
-                    <h3>1. Use CyberPanel's httpProc</h3>
+                    <h3>1. Use IndiansCloud's httpProc</h3>
                     <pre><code># views.py
 from plogical.httpProc import httpProc
 
@@ -1120,7 +1120,7 @@ def your_view(request):
 {% load i18n %}
 {% load static %}
 
-{% block title %}{% trans "Your Plugin - CyberPanel" %}{% endblock %}
+{% block title %}{% trans "Your Plugin - IndiansCloud" %}{% endblock %}
 
 {% block header_scripts %}
 &lt;style&gt;
@@ -1230,7 +1230,7 @@ urlpatterns = [
 
                     <h3>5. Integration</h3>
                     <ul>
-                        <li>Use CyberPanel's existing components</li>
+                        <li>Use IndiansCloud's existing components</li>
                         <li>Follow the established design patterns</li>
                         <li>Maintain consistency with the UI</li>
                         <li>Test thoroughly before release</li>
@@ -1279,7 +1279,7 @@ urlpatterns = [
 
                     <h3>Debug Steps</h3>
                     
-                    <h4>1. Check CyberPanel logs</h4>
+                    <h4>1. Check IndiansCloud logs</h4>
                     <pre><code>tail -f /home/cyberpanel/logs/cyberpanel.log</code></pre>
 
                     <h4>2. Check Django logs</h4>
@@ -1299,7 +1299,7 @@ systemctl status cyberpanel</code></pre>
                 </div>
 
                 <blockquote>
-                    <strong>Conclusion:</strong> This guide provides comprehensive instructions for developing CyberPanel plugins. Follow the best practices and troubleshooting steps to ensure your plugins integrate seamlessly with CyberPanel while maintaining security and performance standards.
+                    <strong>Conclusion:</strong> This guide provides comprehensive instructions for developing IndiansCloud plugins. Follow the best practices and troubleshooting steps to ensure your plugins integrate seamlessly with IndiansCloud while maintaining security and performance standards.
                 </blockquote>
             </div>
         </div>
@@ -1417,7 +1417,7 @@ chmod +x test_os_compatibility.py
                     <li>✅ Web server configuration</li>
                     <li>✅ File permissions and ownership</li>
                     <li>✅ Network connectivity</li>
-                    <li>✅ CyberPanel integration</li>
+                    <li>✅ IndiansCloud integration</li>
                 </ul>
 
                 <h2>OS-Specific Configurations</h2>
@@ -1559,7 +1559,7 @@ systemctl status httpd    # RHEL-based
 ls -la /home/cyberpanel/plugins/
 ls -la /usr/local/CyberCP/testPlugin/
 
-# Check CyberPanel logs
+# Check IndiansCloud logs
 tail -f /home/cyberpanel/logs/cyberpanel.log
 tail -f /home/cyberpanel/logs/django.log</code></pre>
                 </div>

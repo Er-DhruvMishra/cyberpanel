@@ -1,6 +1,6 @@
 {% extends "universalAddons/base.html" %}
 {% load i18n static %}
-{% block title %}{% trans "Apps" %} - CyberPanel{% endblock %}
+{% block title %}{% trans "Apps" %} - IndiansCloud{% endblock %}
 {% block addon_scripts %}<script src="{% static 'universalAddons/apps.js' %}?v={{ CP_VERSION }}"></script>{% endblock %}
 {% block content %}
 <div class="ua-wrap" id="ua-apps" data-base="{% url 'ua-apps' %}" data-admin="{{ is_admin|yesno:'1,0' }}" data-mssql="{% url 'ua-mssql' %}">

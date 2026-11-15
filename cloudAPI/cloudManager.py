@@ -2080,7 +2080,7 @@ class CloudManager:
                 finalDic['title'] = ProcessUtilities.outputExecutioner(command, website.externalApp).splitlines()[-1]
             except:
                 logging.writeToFile('Error fetching WordPress Title for %s. [404]' % (website.domain))
-                finalDic['title'] = 'CyberPanel'
+                finalDic['title'] = 'IndiansCloud'
 
             ##
 

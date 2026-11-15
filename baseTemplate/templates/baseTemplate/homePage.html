@@ -1,7 +1,7 @@
 {% extends "baseTemplate/index.html" %}
 {% load i18n %}
 {% load static %}
-{% block title %}{% trans "Dashboard - CyberPanel" %}{% endblock %}
+{% block title %}{% trans "Dashboard - IndiansCloud" %}{% endblock %}
 
 {% block header_scripts %}
 <link rel="stylesheet" type="text/css" href="{% static 'baseTemplate/css/dashboard.css' %}?v={{ CP_VERSION }}">
@@ -50,7 +50,7 @@
 
     <!-- Onboarding checklist (shown when there are no websites yet) -->
     <div class="cp-onboarding" ng-if="statsLoaded && (totalSites || 0) == 0">
-        <h3>{% trans "Get started with CyberPanel" %}</h3>
+        <h3>{% trans "Get started with IndiansCloud" %}</h3>
         <p>{% trans "A few quick steps to get your hosting up and running." %}</p>
         <div class="cp-ob-steps">
             {% if admin or createWebsite %}
@@ -530,7 +530,7 @@
         <button class="cp-build-x" type="button" id="cp-build-card-x" aria-label="{% trans 'Dismiss' %}"><i class="fas fa-times"></i></button>
         <i class="fas fa-rocket cp-build-bg" aria-hidden="true"></i>
         <h3>{% trans "Need an app or custom website built?" %}</h3>
-        <p>{% trans "CyberPanel offers professional development services — websites, web apps, Android & iOS apps, and custom software, delivered and deployed for you." %}</p>
+        <p>{% trans "IndiansCloud offers professional development services — websites, web apps, Android & iOS apps, and custom software, delivered and deployed for you." %}</p>
         <div class="cp-build-actions">
             <a class="cp-build-btn primary" href="{% url 'buildServices' %}"><i class="fas fa-arrow-right"></i> {% trans "Explore Build Services" %}</a>
             <a class="cp-build-btn ghost" href="{% url 'buildServicesRequest' %}">{% trans "Get a quote" %}</a>
