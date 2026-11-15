@@ -17,6 +17,7 @@ ALTERNATIVES = (
     (r'^/filemanager/Filemanager/?$', 'rootfm', '/addons/root-file-manager/'),
     (r'^/dataBases/(MysqlManager|OptimizeMySQL|UpgradeMySQL)/?$', 'mysqlmgr', '/addons/mysql/'),
     (r'^/email/EmailLimits/?$', 'emaillimits', '/addons/email-limits/'),
+    (r'^/webmail/roundcube/?$', 'roundcube', '/addons/roundcube/'),
     (r'^/websites/ApacheManager/(?P<domain>[A-Za-z0-9.-]+)/?$', 'apache', '/addons/apache/?site={domain}'),
 )
 

@@ -60,9 +60,17 @@ def runtime_status():
         value.update({key: record.get(key) for key in ('phase', 'message', 'version')})
     except (OSError, ValueError, TypeError):
         pass
-    value['enabled'] = ENABLED.is_file()
+    # /etc/cyberpanel/roundcube is root-only when the free Roundcube add-on keeps its settings
+    # there; an unreadable path means "not enabled here", not a server error.
+    try:
+        value['enabled'] = ENABLED.is_file()
+    except OSError:
+        value['enabled'] = False
     value['available_version'] = VERSION
-    value['running'] = Path(SOCKET).is_socket() if value['enabled'] else False
+    try:
+        value['running'] = Path(SOCKET).is_socket() if value['enabled'] else False
+    except OSError:
+        value['running'] = False
     if value['phase'] == 'ready' and not value['running']:
         value['phase'] = 'error'
         value['message'] = 'The Roundcube runtime is not running. Enable it again or check the service journal.'
@@ -76,6 +84,11 @@ def manage(request):
         return redirect(loadLoginPage)
     if not administrator(request):
         return HttpResponse('Server administrator access is required.', status=403)
+    if not entitled():
+        from plogical.universalAlternatives import alternative_for
+        alternative = alternative_for(request.path)
+        if alternative:
+            return redirect(alternative)
     data = runtime_status()
     data['roundcube_entitled'] = entitled()
     return httpProc(request, 'webmail/roundcube.html', data, 'admin').render()

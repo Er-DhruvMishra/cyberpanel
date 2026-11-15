@@ -20,6 +20,7 @@ class Alternatives(unittest.TestCase):
             '/filemanager/Filemanager': '/addons/root-file-manager/',
             '/dataBases/MysqlManager': '/addons/mysql/',
             '/email/EmailLimits': '/addons/email-limits/',
+            '/webmail/roundcube': '/addons/roundcube/',
             '/websites/ApacheManager/shop.example.com': '/addons/apache/?site=shop.example.com',
         }
         for path, url in cases.items():

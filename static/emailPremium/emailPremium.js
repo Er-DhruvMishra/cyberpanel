@@ -841,7 +841,9 @@ app.controller('SpamAssassin', function ($scope, $http, $timeout, $window) {
 
         $scope.SpamAssassinLoading = false;
 
-        $('#report_safe').bootstrapToggle('off');
+        // The page draws its own CSS switch; bootstrapToggle() would wrap it in a second widget.
+        $('#report_safe').prop('checked', false);
+        report_safe = false;
 
         url = "/emailPremium/fetchSpamAssassinSettings";
 
@@ -866,7 +868,8 @@ app.controller('SpamAssassin', function ($scope, $http, $timeout, $window) {
                 if (response.data.installed === 1) {
 
                     if (response.data.report_safe === 1) {
-                        $('#report_safe').bootstrapToggle('on');
+                        $('#report_safe').prop('checked', true);
+                        report_safe = true;
                     }
 
                     $scope.required_hits = response.data.required_hits;
