@@ -142,11 +142,65 @@ autosecondary=yes
             Supermasters(ip=self.extraArgs['masterServerIP'], nameserver=self.extraArgs['slaveServerNS'], account='').save()
 
     @staticmethod
+    def elasticsearch_heap_mb(meminfo='/proc/meminfo'):
+        """Elasticsearch sizes its heap from total RAM by default (about half), which pushes a
+        small hosting server into swap. Use RAM/6 rounded down to 128 MB, between 256 MB and 1 GB."""
+        try:
+            with open(meminfo) as handle:
+                total_mb = next(int(l.split()[1]) // 1024 for l in handle if l.startswith('MemTotal:'))
+        except (OSError, StopIteration, ValueError):
+            return 512
+        return max(256, min(1024, (total_mb // 6) // 128 * 128))
+
+    @staticmethod
+    def configureElasticSearchJvm(heap_mb=None):
+        """Idempotent JVM settings: private tmp dir (once) and a heap cap in jvm.options.d."""
+        jvmOptions = '/etc/elasticsearch/jvm.options'
+        tmp_line = '-Djava.io.tmpdir=/home/elasticsearch/tmp'
+        try:
+            with open(jvmOptions) as handle:
+                lines = handle.read().splitlines()
+            kept, seen = [], False
+            for line in lines:
+                if line.strip() == tmp_line:
+                    if seen:
+                        continue
+                    seen = True
+                kept.append(line)
+            if not seen:
+                kept.append(tmp_line)
+            with open(jvmOptions, 'w') as handle:
+                handle.write('\n'.join(kept) + '\n')
+        except OSError:
+            pass
+        heap = heap_mb or ServiceManager.elasticsearch_heap_mb()
+        os.makedirs('/etc/elasticsearch/jvm.options.d', exist_ok=True)
+        with open('/etc/elasticsearch/jvm.options.d/cyberpanel-heap.options', 'w') as handle:
+            handle.write('# Set by CyberPanel: heap sized for this server (RAM/6, 256 MB - 1 GB)\n-Xms%dm\n-Xmx%dm\n' % (heap, heap))
+        return heap
+
+    @staticmethod
     def InstallElasticSearch():
+
+        import fcntl
+        lock = open('/home/cyberpanel/.elasticsearch-install.lock', 'w')
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            # A second click must not start a parallel install (its yum run fails with
+            # "already installed" and clobbers the progress shown to the first one).
+            return 0
 
         statusFile = open(ServerStatusUtil.lswsInstallStatusPath, 'w')
 
-        if ProcessUtilities.decideDistro() == ProcessUtilities.centos or ProcessUtilities.decideDistro() == ProcessUtilities.cent8:
+        already = subprocess.call(['rpm', '-q', 'elasticsearch'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL) == 0 \
+            if os.path.exists('/usr/bin/rpm') else \
+            subprocess.call(['dpkg', '-s', 'elasticsearch'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL) == 0
+
+        if already:
+            statusFile.write('Elasticsearch is already installed; applying configuration.\n')
+            statusFile.flush()
+        elif ProcessUtilities.decideDistro() == ProcessUtilities.centos or ProcessUtilities.decideDistro() == ProcessUtilities.cent8:
             command = 'rpm --import https://artifacts.elastic.co/GPG-KEY-elasticsearch'
             ServerStatusUtil.executioner(command, statusFile)
 
@@ -193,11 +247,9 @@ type=rpm-md
         command = 'chown elasticsearch:elasticsearch /home/elasticsearch/tmp'
         ServerStatusUtil.executioner(command, statusFile)
 
-        jvmOptions = '/etc/elasticsearch/jvm.options'
-
-        writeToFile = open(jvmOptions, 'a')
-        writeToFile.write('-Djava.io.tmpdir=/home/elasticsearch/tmp\n')
-        writeToFile.close()
+        heap = ServiceManager.configureElasticSearchJvm()
+        statusFile.write('Elasticsearch heap set to %d MB.\n' % heap)
+        statusFile.flush()
 
         command = 'systemctl enable elasticsearch'
         ServerStatusUtil.executioner(command, statusFile)
