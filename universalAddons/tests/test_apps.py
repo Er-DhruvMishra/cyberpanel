@@ -237,3 +237,17 @@ class ActionKeyword(SimpleTestCase):
                         '@@UA-RESULT@@{"ok": true, "result": 1}', action='stop', app_id='api', domain='shop.example.com')
         token = seen['cmd'].split()[-1]
         self.assertEqual(privileged.decode_args(token)['action'], 'stop')
+
+
+class SystemNode(SimpleTestCase):
+    def test_system_node_detected_with_npm_and_eol_flag(self):
+        from types import SimpleNamespace
+        from universalAddons.apps import runtimes as rt
+        runner = lambda argv, **k: SimpleNamespace(returncode=0, stdout='v16.13.1\n')
+        with mock.patch('universalAddons.apps.runtimes.os.path.exists', return_value=True), \
+                mock.patch('universalAddons.apps.runtimes.os.path.realpath', side_effect=lambda p: p):
+            found = rt.system_nodes(('/usr/bin/node',), runner=runner)
+        self.assertEqual(found[0]['version'], '16.13.1')
+        self.assertEqual(found[0]['npm'], '/usr/bin/npm')
+        self.assertTrue(found[0]['eol'])
+        self.assertIn('end-of-life', found[0]['label'])

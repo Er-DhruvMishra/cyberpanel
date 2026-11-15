@@ -110,6 +110,36 @@ def python_catalogue(sums_text, machine='x86_64'):
     return [dict((k, v) for k, v in best[m].items() if k != 'patch') for m in sorted(best, reverse=True)][:4]
 
 
+SYSTEM_NODES = ('/usr/local/bin/node', '/usr/bin/node')
+NODE_SUPPORTED_MAJOR = 20  # older majors are past end-of-life upstream
+
+
+def system_nodes(candidates=SYSTEM_NODES, runner=subprocess.run):
+    """Node.js installed by the OS or by hand (e.g. AppStream's nodejs module), next to its npm."""
+    found, seen = [], set()
+    for path in candidates:
+        if not os.path.exists(path):
+            continue
+        real = os.path.realpath(path)
+        if real in seen:
+            continue
+        seen.add(real)
+        try:
+            out = runner([path, '--version'], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                         universal_newlines=True, timeout=20)
+        except (OSError, subprocess.SubprocessError):
+            continue
+        version = (out.stdout or '').strip().lstrip('v')
+        if out.returncode != 0 or not VERSION_RE.match(version):
+            continue
+        npm = os.path.join(os.path.dirname(path), 'npm')
+        eol = int(version.split('.')[0]) < NODE_SUPPORTED_MAJOR
+        found.append({'kind': 'node', 'version': version, 'path': path, 'npm': npm if os.path.exists(npm) else '',
+                      'source': 'system', 'eol': eol,
+                      'label': 'Node.js %s (system%s)' % (version, ', end-of-life' if eol else '')})
+    return found
+
+
 def system_pythons(candidates=SYSTEM_PYTHONS, runner=subprocess.run):
     found = []
     for path in candidates:
@@ -157,6 +187,8 @@ def installed(root=RUNTIME_ROOT, runner=subprocess.run):
                 out['node'].append({'kind': 'node', 'version': version, 'path': binary,
                                     'npm': os.path.join(node_root, version, 'bin', 'npm'), 'source': 'nodejs.org',
                                     'size': _du(os.path.join(node_root, version))})
+    managed = {entry['version'] for entry in out['node']}
+    out['node'] += [entry for entry in system_nodes(runner=runner) if entry['version'] not in managed]
     dotnet_root = os.path.join(root, 'dotnet')
     framework = os.path.join(dotnet_root, 'shared', 'Microsoft.AspNetCore.App')
     if os.path.isdir(framework):

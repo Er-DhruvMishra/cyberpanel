@@ -75,6 +75,9 @@ def runtime_install_run(job_id, kind, version):
 
 
 def runtime_uninstall(kind, version):
+    if any(e.get('source') == 'system' and e['version'] == version for e in rt.installed().get(kind, [])) \
+            and not os.path.isdir(os.path.join(rt.RUNTIME_ROOT, kind, version)):
+        raise AppError('%s %s belongs to the operating system; remove it with the package manager.' % (kind, version))
     in_use = [a['id'] for a in svc.load_apps().values() if a['kind'] == kind and a['runtime'] == version]
     return rt.uninstall(kind, version, in_use)
 
