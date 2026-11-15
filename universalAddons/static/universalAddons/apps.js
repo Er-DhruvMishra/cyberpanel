@@ -6,13 +6,15 @@
     var esc = UA.esc, base = root.dataset.base.replace(/\/$/, '') + '/ajax/';
     var api = function (name, body) { return UA.api(base + name, body); };
     var isAdmin = root.dataset.admin === '1';
-    var state = {runtimes: {node: [], python: [], dotnet: []}, apps: []};
+    var state = {runtimes: {node: [], python: [], dotnet: [], java: []}, apps: []};
     var HINT = {
         node: 'Upload your app into the app directory (it is created as ~/apps/<name>). Entry: the file to run (server.js) or "npm-start". Dependencies are installed with npm ci --omit=dev. Listen on process.env.PORT.',
         python: 'WSGI: module:callable (e.g. myproject.wsgi:application). ASGI: module:app (e.g. main:app). requirements.txt is installed into a private virtualenv.',
-        dotnet: 'Upload the output of "dotnet publish -c Release" and name the .dll. The app listens on ASPNETCORE_URLS automatically.'
+        dotnet: 'Upload the output of "dotnet publish -c Release" and name the .dll. The app listens on ASPNETCORE_URLS automatically.',
+        jar: 'Upload the built .jar and name it. Spring Boot jars pick up SERVER_PORT and the context path (URL path) automatically; other apps listen on the PORT variable, on 127.0.0.1. The heap is 3/4 of the memory limit; Spring Boot usually needs 512 MB or more.',
+        war: 'Upload the .war and name it. WARs run on embedded Tomcat 9 (javax.servlet); Jakarta EE 9+ WARs (jakarta.servlet) need Tomcat 10+ and will not start. The URL path becomes the context path.'
     };
-    var PLACEHOLDER = {node: 'server.js', python: 'app:app', dotnet: 'MyApp.dll'};
+    var PLACEHOLDER = {node: 'server.js', python: 'app:app', dotnet: 'MyApp.dll', jar: 'app.jar', war: 'app.war'};
 
     function size(bytes) { return bytes ? (bytes / 1048576).toFixed(0) + ' MB' : ''; }
 
@@ -34,13 +36,19 @@
         var kind = $('app-kind').value;
         $('app-runtime').innerHTML = (state.runtimes[kind] || []).map(function (v) { return '<option>' + esc(v) + '</option>'; }).join('') ||
             '<option value="">(no ' + esc(kind) + ' runtime installed)</option>';
+        var java = kind === 'java', key = java ? $('app-jmode').value : kind;
         $('app-mode').style.display = kind === 'python' ? '' : 'none';
+        $('app-jmode').style.display = $('app-jvm-row').style.display = java ? '' : 'none';
         $('app-workers').style.display = kind === 'python' && $('app-mode').value !== 'script' ? '' : 'none';
-        $('app-entry').placeholder = kind === 'python' && $('app-mode').value === 'script' ? 'main.py' : PLACEHOLDER[kind];
-        $('app-hint').textContent = HINT[kind];
+        $('app-entry').placeholder = kind === 'python' && $('app-mode').value === 'script' ? 'main.py' : PLACEHOLDER[key];
+        $('app-hint').textContent = HINT[key];
     }
-    $('app-kind').addEventListener('change', fillRuntimes);
+    $('app-kind').addEventListener('change', function () {
+        if ($('app-kind').value === 'java' && Number($('app-memory').value) === 256) { $('app-memory').value = 512; }
+        fillRuntimes();
+    });
     $('app-mode').addEventListener('change', fillRuntimes);
+    $('app-jmode').addEventListener('change', fillRuntimes);
 
     function badge(s) {
         var cls = s.state === 'active' ? 'pass' : (s.state === 'failed' ? 'fail' : 'info');
@@ -57,7 +65,7 @@
                     var s = a.status;
                     return '<tr><td><strong>' + esc(a.id) + '</strong><div class="ua-fix">' + esc(a.dir) + '</div></td><td>' + esc(a.domain) + esc(a.prefix) +
                         (a.websocket ? '<div class="ua-fix">ws: ' + esc(a.websocket) + '</div>' : '') + '</td><td>' + esc(a.kind) + ' ' + esc(a.runtime) +
-                        (a.kind === 'python' ? '<div class="ua-fix">' + esc(a.mode) + ' ' + esc(a.entry) + '</div>' : '<div class="ua-fix">' + esc(a.entry) + '</div>') + '</td><td>' +
+                        (a.kind === 'python' || a.kind === 'java' ? '<div class="ua-fix">' + esc(a.mode) + ' ' + esc(a.entry) + '</div>' : '<div class="ua-fix">' + esc(a.entry) + '</div>') + '</td><td>' +
                         badge(s) + (s.memory_mb !== null && s.state === 'active' ? '<div class="ua-fix">' + esc(s.memory_mb) + ' MB used, restarts ' + esc(s.restarts) + '</div>' : '') +
                         '</td><td>' + esc(a.memory_mb) + ' MB · ' + esc(a.cpu_percent) + '% CPU · port ' + esc(a.port) + '</td><td>' +
                         '<button class="ua-btn app-act" data-i="' + i + '" data-act="deploy">Deploy</button> ' +
@@ -78,6 +86,7 @@
         $('app-runtime').value = a.runtime; $('app-entry').value = a.entry; $('app-prefix').value = a.prefix;
         $('app-websocket').value = a.websocket || ''; $('app-memory').value = a.memory_mb; $('app-cpu').value = a.cpu_percent;
         if (a.kind === 'python') { $('app-mode').value = a.mode; $('app-workers').value = a.workers; fillRuntimes(); }
+        if (a.kind === 'java') { $('app-jmode').value = a.mode; $('app-jvm').value = (a.jvm_opts || []).join(' '); fillRuntimes(); }
         $('app-env').value = '';
         $('app-env').placeholder = a.env_keys.length ? 'Current variables: ' + a.env_keys.join(', ') + ' (type all of them again to change)' : 'KEY=value';
         $('app-form-title').scrollIntoView({behavior: 'smooth'});
@@ -125,6 +134,7 @@
             entry: $('app-entry').value.trim() || $('app-entry').placeholder, prefix: $('app-prefix').value.trim() || '/',
             websocket: $('app-websocket').value.trim(), memory_mb: Number($('app-memory').value), cpu_percent: Number($('app-cpu').value)};
         if (kind === 'python') { body.mode = $('app-mode').value; body.workers = Number($('app-workers').value); }
+        if (kind === 'java') { body.mode = $('app-jmode').value; body.jvm_opts = $('app-jvm').value.trim().split(/\s+/).filter(Boolean); }
         if ($('app-env').value.trim()) { body.env = parseEnv($('app-env').value); }
         UA.busy(button, true);
         api('save', body).then(function (d) {
@@ -135,7 +145,7 @@
         }).catch(function (e) { UA.showError($('app-out'), e); }).then(function () { UA.busy(button, false); });
     });
     $('app-reset').addEventListener('click', function () {
-        ['app-id', 'app-entry', 'app-websocket', 'app-env'].forEach(function (id) { $(id).value = ''; });
+        ['app-id', 'app-entry', 'app-websocket', 'app-env', 'app-jvm'].forEach(function (id) { $(id).value = ''; });
         $('app-prefix').value = '/'; $('app-form-title').textContent = 'New app';
     });
 
@@ -144,7 +154,7 @@
         return api('runtimes', {}).then(function (d) {
             var r = d.result, rows = [];
             $('rt-disk').textContent = '(' + (r.disk_free_mb / 1024).toFixed(1) + ' GB free)';
-            ['node', 'python', 'dotnet'].forEach(function (kind) {
+            ['node', 'python', 'dotnet', 'java'].forEach(function (kind) {
                 (r.installed[kind] || []).forEach(function (e) {
                     rows.push('<tr><td>' + esc(kind) + '</td><td><strong>' + esc(e.version) + '</strong></td><td>' + esc(e.source) + '</td><td>' + esc(size(e.size)) +
                         '</td><td>' + esc((e.used_by || []).join(', ')) + '</td><td>' + (e.source === 'system' ? '' :
@@ -167,7 +177,7 @@
             UA.busy(button, true);
             api('runtimes', {catalogue: true}).then(function (d) {
                 var c = d.result.catalogue, html = '';
-                ['node', 'python', 'dotnet'].forEach(function (kind) {
+                ['node', 'python', 'dotnet', 'java'].forEach(function (kind) {
                     html += '<div class="ua-row"><strong style="min-width:70px">' + esc(kind) + '</strong>' + (c[kind] || []).map(function (e) {
                         return '<button class="ua-btn ua-btn-secondary rt-install" data-kind="' + esc(kind) + '" data-version="' + esc(e.version) + '">' + esc(e.label) + '</button>';
                     }).join(' ') + (c.errors[kind] ? ' <span class="ua-muted">unavailable: ' + esc(c.errors[kind]) + '</span>' : '') + '</div>';

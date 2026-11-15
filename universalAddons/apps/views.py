@@ -8,7 +8,9 @@ from universalAddons.access import admin_api, error, load_policy, ok, site_api
 
 _ID = re.compile(r'^[a-z][a-z0-9-]{1,30}$')
 _VERSION = re.compile(r'^\d{1,3}(\.\d{1,4}){1,3}(-[a-z0-9.]+)?$')
-APP_FIELDS = ('id', 'kind', 'runtime', 'entry', 'mode', 'workers', 'prefix', 'websocket', 'memory_mb', 'cpu_percent')
+APP_FIELDS = ('id', 'kind', 'runtime', 'entry', 'mode', 'workers', 'jvm_opts', 'prefix', 'websocket', 'memory_mb',
+              'cpu_percent')
+RUNTIME_KINDS = ('node', 'dotnet', 'python', 'java')
 
 
 def _call(action, /, **args):
@@ -53,7 +55,7 @@ def runtimes(request, data):
 @admin_api
 def runtime_install(request, data):
     kind, version = data.get('kind'), str(data.get('version', ''))
-    if kind not in ('node', 'dotnet', 'python') or not _VERSION.match(version):
+    if kind not in RUNTIME_KINDS or not _VERSION.match(version):
         return error('Invalid runtime.', status=400)
     return _call('runtime_install', kind=kind, version=version)
 
@@ -61,7 +63,7 @@ def runtime_install(request, data):
 @admin_api
 def runtime_uninstall(request, data):
     kind, version = data.get('kind'), str(data.get('version', ''))
-    if kind not in ('node', 'dotnet', 'python') or not _VERSION.match(version):
+    if kind not in RUNTIME_KINDS or not _VERSION.match(version):
         return error('Invalid runtime.', status=400)
     return _call('runtime_uninstall', kind=kind, version=version)
 

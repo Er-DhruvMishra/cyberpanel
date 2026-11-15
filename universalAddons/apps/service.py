@@ -1,4 +1,4 @@
-"""Hosted applications (Node.js, Python, .NET) behind OpenLiteSpeed.
+"""Hosted applications (Node.js, Python, .NET, Java) behind OpenLiteSpeed.
 
 Each app is a systemd service running as the *site's own Linux user* with a hardened sandbox,
 listening on a private 127.0.0.1 port; OpenLiteSpeed reverse-proxies a URL prefix of the site to
@@ -14,6 +14,22 @@ Security model
 - Inputs: app ids, paths, module names and env keys are validated against strict patterns;
   nothing user-supplied reaches a shell, and ExecStart only contains validated tokens.
 - Secrets: environment variables live in a root-only EnvironmentFile read by systemd.
+
+Java
+- `jar`: an executable (e.g. Spring Boot) JAR, `java -jar`. Spring Boot picks up SERVER_PORT,
+  SERVER_ADDRESS=127.0.0.1 and, under a sub-path, SERVER_SERVLET_CONTEXT_PATH from the environment.
+- `war`: a WAR on embedded Tomcat 9 (Heroku webapp-runner; javax.servlet, so Jakarta EE 9+ WARs
+  need Tomcat 10+ and are not supported). It binds 127.0.0.1 only (-Aaddress=, Tomcat's connector
+  `address` attribute), takes the context path from --path, and expands the WAR under the
+  service's private /tmp (--temp-directory), so the app directory stays as uploaded.
+- The heap is capped at 3/4 of the memory limit (-Xmx) to leave room for metaspace, code cache and
+  thread stacks inside the cgroup limit; SerialGC keeps the footprint small.
+- Extra JVM options are limited to -X..., -XX:... and -D<key>=<value> tokens from a small character
+  set; agents (-javaagent, -agentlib, -Xrun), boot class path changes, option files and
+  OnError/OnOutOfMemoryError commands are refused, as are -D overrides of the port/address/path.
+- /tmp is noexec on some hosts. Libraries that unpack native code into java.io.tmpdir and load it
+  from there (e.g. snappy-java, netty-tcnative) then fail; point -Djava.io.tmpdir at a directory
+  inside the app directory for those.
 """
 import json
 import os
@@ -27,8 +43,10 @@ UNIT_DIR = '/etc/systemd/system'
 PORT_RANGE = (20000, 29999)
 MARK_BEGIN = '# BEGIN cp-ua-apps (managed by CyberPanel; do not edit)'
 MARK_END = '# END cp-ua-apps'
-KINDS = ('node', 'python', 'dotnet')
+KINDS = ('node', 'python', 'dotnet', 'java')
 PY_MODES = ('wsgi', 'asgi', 'script')
+JAVA_MODES = ('jar', 'war')
+MAX_JVM_OPTS = 10
 
 APP_ID_RE = re.compile(r'^[a-z][a-z0-9-]{1,30}$')
 DOMAIN_RE = re.compile(r'^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$')
@@ -39,7 +57,17 @@ PREFIX_RE = re.compile(r'^/([A-Za-z0-9._-]+/)*$')
 ENV_KEY_RE = re.compile(r'^[A-Z_][A-Z0-9_]{0,63}$')
 VERSION_RE = re.compile(r'^\d{1,3}(\.\d{1,4}){1,3}$')
 RESERVED_ENV = {'PORT', 'HOST', 'APP_BASE_PATH', 'SCRIPT_NAME', 'ASPNETCORE_URLS', 'PATH', 'HOME', 'USER', 'LD_PRELOAD', 'LD_LIBRARY_PATH',
-                'PYTHONPATH', 'NODE_OPTIONS', 'DOTNET_ROOT'}
+                'PYTHONPATH', 'NODE_OPTIONS', 'DOTNET_ROOT', 'SERVER_PORT', 'SERVER_ADDRESS',
+                'SERVER_SERVLET_CONTEXT_PATH', 'JAVA_TOOL_OPTIONS', 'JDK_JAVA_OPTIONS', '_JAVA_OPTIONS'}
+JVM_VALUE = r'[A-Za-z0-9._:/=-]'
+JVM_OPT_RES = (
+    re.compile(r'^-X[a-z][A-Za-z0-9]*(:%s+)?$' % JVM_VALUE),                      # -Xss512k, -Xmx384m, -Xlog:gc
+    re.compile(r'^-XX:([+-][A-Za-z][A-Za-z0-9]{1,80}|[A-Za-z][A-Za-z0-9]{1,80}=%s+)$' % JVM_VALUE),  # -XX:+UseG1GC
+    re.compile(r'^-D[A-Za-z0-9_][A-Za-z0-9._-]{0,100}=%s{0,500}$' % JVM_VALUE),  # -Dspring.profiles.active=prod
+)
+# Loading code into the JVM, or changing what the panel sets, is not an "option".
+JVM_DENY_RE = re.compile(r'^(-Xrun|-Xbootclasspath|-Xdebug|-XX:[+-]?(OnError|OnOutOfMemoryError|Flags|VMOptionsFile)\b'
+                         r'|-D(server\.port|server\.address|server\.servlet\.context-path)=)', re.I)
 
 
 class AppError(ValueError):
@@ -93,7 +121,7 @@ def validate(spec, site, policy, existing_apps, runtimes_installed):
             raise AppError('This site already has the maximum of %d apps.' % policy['max_apps_per_site'])
     kind = spec.get('kind')
     if kind not in KINDS:
-        raise AppError('Choose Node.js, Python or .NET.')
+        raise AppError('Choose Node.js, Python, .NET or Java.')
     version = str(spec.get('runtime', ''))
     if not any(r['version'] == version for r in runtimes_installed.get(kind, [])):
         raise AppError('Runtime %s %s is not installed. Ask the administrator to install it.' % (kind, version))
@@ -124,6 +152,15 @@ def validate(spec, site, policy, existing_apps, runtimes_installed):
         if not 1 <= workers <= 8:
             raise AppError('Workers must be between 1 and 8.')
         record.update(mode=mode, entry=target, workers=workers)
+    elif kind == 'java':
+        mode = spec.get('mode') or 'jar'
+        if mode not in JAVA_MODES:
+            raise AppError('Java apps run as an executable JAR or a WAR.')
+        entry = str(spec.get('entry') or 'app.' + mode)
+        if not REL_PATH_RE.match(entry) or not entry.endswith('.' + mode):
+            raise AppError('Name the .%s to run as a relative path, e.g. app.%s.' % (mode, mode))
+        options = spec.get('jvm_opts', current.get('jvm_opts', []) if current else [])
+        record.update(mode=mode, entry=entry, jvm_opts=validate_jvm_opts(options))
     else:
         entry = str(spec.get('entry') or '')
         if not REL_PATH_RE.match(entry) or not entry.endswith('.dll'):
@@ -169,6 +206,24 @@ def validate_env(env):
             raise AppError('Environment value for %s must be one line, up to 4096 characters.' % key)
         clean[key] = value
     return clean
+
+
+def validate_jvm_opts(options):
+    """Extra JVM options: a whitespace-separated string or a list of single tokens."""
+    if options is None:
+        return []
+    if isinstance(options, str):
+        options = options.split()
+    if not isinstance(options, (list, tuple)):
+        raise AppError('JVM options must be a list.')
+    options = [str(o) for o in options]
+    if len(options) > MAX_JVM_OPTS:
+        raise AppError('Up to %d JVM options are allowed.' % MAX_JVM_OPTS)
+    for option in options:
+        if not any(r.match(option) for r in JVM_OPT_RES) or JVM_DENY_RE.match(option):
+            raise AppError('JVM option %r is not allowed. Use -X..., -XX:... or -Dkey=value without spaces '
+                           '(no agents or command hooks).' % option[:80])
+    return options
 
 
 def allocate_port(apps, is_free=None):
@@ -217,7 +272,28 @@ def exec_argv(app, runtime):
                 argv += ['--root-path', base_path(app)]
             return argv + [app['entry']]
         return [os.path.join(venv, 'python'), os.path.join(directory, app['entry'])]
+    if app['kind'] == 'java':
+        return java_argv(app, runtime)
     return [runtime['path'], os.path.join(directory, app['entry'])]
+
+
+def java_argv(app, runtime):
+    from universalAddons.apps import runtimes as rt
+    options = list(app.get('jvm_opts') or [])
+    argv = [runtime['path']]
+    if not any(o.startswith('-Xmx') for o in options):
+        argv.append('-Xmx%dm' % (app['memory_mb'] * 3 // 4))
+    if not any(re.match(r'^-XX:\+Use\w*GC$', o) for o in options):
+        argv.append('-XX:+UseSerialGC')
+    argv += ['-Djava.io.tmpdir=/tmp'] + options
+    target = os.path.join(app['dir'], app['entry'])
+    if app.get('mode') == 'war':
+        argv += ['-jar', rt.webapp_runner_path(), '--port', str(app['port']), '-Aaddress=127.0.0.1',
+                 '--temp-directory', '/tmp/webapp-runner']
+        if base_path(app):
+            argv += ['--path', base_path(app)]
+        return argv + [target]
+    return argv + ['-jar', target]
 
 
 def systemd_version(runner=subprocess.run):
@@ -236,8 +312,11 @@ def unit_name(app_id):
 
 def render_unit(app, runtime, version=239, unified=False):
     argv = exec_argv(app, runtime)
+    # '+' is needed by -XX:+Flag; the absolute first token keeps systemd's '+', '!', '-', '@' prefixes out.
+    if not argv[0].startswith('/'):
+        raise AppError('Unsafe command-line token %r.' % argv[0])
     for token in argv:
-        if not re.match(r'^[A-Za-z0-9._:/=-]+$', token):
+        if not re.match(r'^[A-Za-z0-9._:/=+-]+$', token):
             raise AppError('Unsafe command-line token %r.' % token)
     # OpenLiteSpeed forwards the full path, prefix included; APP_BASE_PATH tells the app its prefix
     # (ASP.NET Core: app.UsePathBase(...); Express: mount routes under it). gunicorn and uvicorn
@@ -257,6 +336,12 @@ def render_unit(app, runtime, version=239, unified=False):
         environment['PYTHONUNBUFFERED'] = '1'
         if app.get('mode') == 'wsgi' and base_path(app):
             environment['SCRIPT_NAME'] = base_path(app)
+    if app['kind'] == 'java' and app.get('mode', 'jar') == 'jar':
+        # Spring Boot binds server.port/server.address from these; X-Forwarded-* from OpenLiteSpeed (127.0.0.1).
+        environment.update(SERVER_PORT=str(app['port']), SERVER_ADDRESS='127.0.0.1',
+                           SERVER_FORWARD_HEADERS_STRATEGY='native')
+        if base_path(app):
+            environment['SERVER_SERVLET_CONTEXT_PATH'] = base_path(app)
     lines = [
         '# Managed by CyberPanel Universal (Apps). Changes are overwritten.',
         '[Unit]',
@@ -307,7 +392,11 @@ def render_unit(app, runtime, version=239, unified=False):
         lines.append('MemoryMax=%dM' % app['memory_mb'])
     else:
         lines.append('MemoryLimit=%dM' % app['memory_mb'])
-    lines += ['CPUQuota=%d%%' % app['cpu_percent'], 'TasksMax=256', 'LimitNOFILE=8192', '',
+    # A JVM runs ~20 internal threads besides Tomcat's 200 request threads.
+    if app['kind'] == 'java':
+        lines.append('SuccessExitStatus=143')  # the JVM exits 128+SIGTERM on a normal stop
+    lines += ['CPUQuota=%d%%' % app['cpu_percent'], 'TasksMax=%d' % (512 if app['kind'] == 'java' else 256),
+              'LimitNOFILE=8192', '',
               '[Install]', 'WantedBy=multi-user.target', '']
     return '\n'.join(lines)
 
@@ -365,7 +454,7 @@ def as_user(app, argv, extra_env=None):
 
 
 def install_dependencies(app, runtime, runner=subprocess.run, log=None):
-    """Prepare the app directory as the site user (venv + pip, npm ci, or .dll check)."""
+    """Prepare the app directory as the site user (venv + pip, npm ci, or .dll/.jar/.war check)."""
     say = log or (lambda text: None)
     directory = app['dir']
     if app['kind'] == 'python':
@@ -387,6 +476,16 @@ def install_dependencies(app, runtime, runner=subprocess.run, log=None):
             say(out[-2000:])
             if code != 0:
                 raise AppError('Could not install %s.' % ', '.join(packages))
+    elif app['kind'] == 'java':
+        # Nothing to install: the JAR/WAR is self-contained. It must be readable by the site user.
+        entry = os.path.join(directory, app['entry'])
+        if not os.path.isfile(entry):
+            raise AppError('%s was not found. Upload the app files first.' % app['entry'])
+        code, out = run(['sudo', '-u', app['user'], '--', 'test', '-r', entry], runner, timeout=30)
+        if code != 0:
+            raise AppError('%s is not readable by %s; fix its owner or permissions.' % (app['entry'], app['user']))
+        say('%s is present (%d KB).' % (app['entry'], os.path.getsize(entry) // 1024))
+        return True
     elif app['kind'] == 'node':
         if os.path.exists(os.path.join(directory, 'package.json')):
             cache = os.path.join(directory, '.npm-cache')

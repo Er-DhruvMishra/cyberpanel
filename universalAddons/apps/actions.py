@@ -185,6 +185,8 @@ def deploy_run(job_id, app_id, domain):
     app = _app(app_id, domain)
 
     def dependencies(job):
+        if app['kind'] == 'java' and app.get('mode') == 'war':
+            job.log('Embedded Tomcat: %s' % rt.ensure_webapp_runner(log=job.log))  # pinned, downloaded once
         return svc.install_dependencies(app, _runtime(app), log=job.log)
 
     def start(job):
@@ -231,6 +233,7 @@ def delete(app_id, domain, remove_files=False):
         if os.path.exists(path):
             os.unlink(path)
     svc.run(['systemctl', 'daemon-reload'])
+    svc.run(['systemctl', 'reset-failed', svc.unit_name(app_id)])  # forget the stopped unit entirely
     apps = svc.load_apps()
     apps.pop(app_id, None)
     svc.save_apps(apps)

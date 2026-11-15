@@ -5,7 +5,7 @@
 {% block content %}
 <div class="ua-wrap" id="ua-apps" data-base="{% url 'ua-apps' %}" data-admin="{{ is_admin|yesno:'1,0' }}" data-mssql="{% url 'ua-mssql' %}">
   <div class="ua-header">
-    <h1><i class="fas fa-cubes"></i> {% trans "Node.js, Python & .NET apps" %}</h1>
+    <h1><i class="fas fa-cubes"></i> {% trans "Node.js, Python, .NET & Java apps" %}</h1>
     <p>{% trans "Each app runs as a sandboxed service under your site's own user, on a private port, with memory and CPU limits. OpenLiteSpeed forwards a URL path of your site to it." %}
       <a href="{% url 'ua-mssql' %}">{% trans "SQL Server databases" %} &rarr;</a></p>
   </div>
@@ -18,7 +18,7 @@
     <h2>{% trans "Runtimes" %} <span class="ua-muted" id="rt-disk"></span></h2>
     <div id="rt-installed"></div>
     <div class="ua-row"><button class="ua-btn ua-btn-secondary" id="rt-catalogue">{% trans "Show installable versions" %}</button>
-      <span class="ua-muted">{% trans "Smallest variants: Node.js official build, ASP.NET Core runtime without the SDK, stripped standalone Python. Every download is checksum-verified." %}</span></div>
+      <span class="ua-muted">{% trans "Smallest variants: Node.js official build, ASP.NET Core runtime without the SDK, stripped standalone Python, Eclipse Temurin JRE (no JDK). Every download is checksum-verified." %}</span></div>
     <div id="rt-available"></div>
   </div>
   <div class="ua-card">
@@ -49,11 +49,12 @@
     <div class="ua-row">
       <select id="app-domain">{% for s in sites %}<option value="{{ s }}">{{ s }}</option>{% endfor %}</select>
       <input id="app-id" placeholder="{% trans 'app name, e.g. api' %}" style="min-width:150px">
-      <select id="app-kind"><option value="node">Node.js</option><option value="python">Python</option><option value="dotnet">.NET (ASP.NET Core)</option></select>
+      <select id="app-kind"><option value="node">Node.js</option><option value="python">Python</option><option value="dotnet">.NET (ASP.NET Core)</option><option value="java">Java</option></select>
       <select id="app-runtime"></select>
     </div>
     <div class="ua-row">
       <select id="app-mode" style="display:none"><option value="wsgi">WSGI (gunicorn)</option><option value="asgi">ASGI (uvicorn)</option><option value="script">{% trans "plain script" %}</option></select>
+      <select id="app-jmode" style="display:none"><option value="jar">{% trans "JAR (executable / Spring Boot)" %}</option><option value="war">{% trans "WAR (embedded Tomcat 9)" %}</option></select>
       <input id="app-entry" placeholder="server.js" style="min-width:220px">
       <input id="app-workers" type="number" min="1" max="8" value="2" style="min-width:70px;display:none" title="{% trans 'workers' %}">
       <label>{% trans "URL path" %} <input id="app-prefix" value="/" style="min-width:100px"></label>
@@ -62,6 +63,7 @@
     <div class="ua-row">
       <label>{% trans "Memory (MB)" %} <input id="app-memory" type="number" min="64" value="256" style="min-width:80px"></label>
       <label>{% trans "CPU (%)" %} <input id="app-cpu" type="number" min="5" value="100" style="min-width:80px"></label>
+      <label id="app-jvm-row" style="display:none">{% trans "JVM options" %} <input id="app-jvm" placeholder="-Xss512k -Dspring.profiles.active=prod" style="min-width:320px" title="{% trans 'Up to 10 options: -X..., -XX:... or -Dkey=value, separated by spaces' %}"></label>
     </div>
     <p class="ua-muted" id="app-hint"></p>
     <p class="ua-muted">{% trans "Served under a URL path other than /? The app receives the full path; its prefix is in the APP_BASE_PATH variable. ASP.NET Core: app.UsePathBase(Environment.GetEnvironmentVariable(\"APP_BASE_PATH\")); Express: app.use(process.env.APP_BASE_PATH || '/', router). Python WSGI (gunicorn) and ASGI (uvicorn) apps get it applied automatically." %}</p>
