@@ -54,7 +54,7 @@ USER_RE = re.compile(r'^[a-z_][a-z0-9_-]{0,31}$')
 REL_PATH_RE = re.compile(r'^(?!.*\.\.)[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*$')
 MODULE_RE = re.compile(r'^[A-Za-z_][A-Za-z0-9_.]{0,100}:[A-Za-z_][A-Za-z0-9_]{0,60}$')
 PREFIX_RE = re.compile(r'^/([A-Za-z0-9._-]+/)*$')
-ENV_KEY_RE = re.compile(r'^[A-Z_][A-Z0-9_]{0,63}$')
+ENV_KEY_RE = re.compile(r'^[A-Za-z_][A-Za-z0-9_]{0,127}$')  # .NET uses Section__Key names
 VERSION_RE = re.compile(r'^\d{1,3}(\.\d{1,4}){1,3}$')
 RESERVED_ENV = {'PORT', 'HOST', 'APP_BASE_PATH', 'SCRIPT_NAME', 'ASPNETCORE_URLS', 'PATH', 'HOME', 'USER', 'LD_PRELOAD', 'LD_LIBRARY_PATH',
                 'PYTHONPATH', 'NODE_OPTIONS', 'DOTNET_ROOT', 'SERVER_PORT', 'SERVER_ADDRESS',
@@ -199,7 +199,7 @@ def validate_env(env):
         raise AppError('Environment must be up to 100 KEY=value pairs.')
     clean = {}
     for key, value in env.items():
-        if not ENV_KEY_RE.match(str(key)) or key in RESERVED_ENV:
+        if not ENV_KEY_RE.match(str(key)) or str(key).upper() in RESERVED_ENV:
             raise AppError('Environment variable name %r is not allowed.' % key)
         value = str(value)
         if len(value) > 4096 or any(c in value for c in '\x00\r\n'):

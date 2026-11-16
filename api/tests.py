@@ -36,7 +36,7 @@ class TestAPI(TestCase):
 
         ## Login
 
-        data_ret = {'adminUser': 'admin', 'adminPass': '1234567', 'domainName': 'api.cyberpanel.xyz', 'ownerEmail': 'usman@cyberpersons.com' , 'phpSelection': 'PHP 7.1',
+        data_ret = {'adminUser': 'admin', 'adminPass': '1234567', 'domainName': 'api.cyberpanel.xyz', 'ownerEmail': 'admin@example.com' , 'phpSelection': 'PHP 7.1',
                     'packageName': 'Default', 'websiteOwner': 'apiuser','ownerPassword':'helloworld'}
 
         response = self.MakeRequest('createWebsite', data_ret)
@@ -155,7 +155,7 @@ class TestAPI(TestCase):
             "adminPass": "1234567",
             "firstName": "Usman",
             "lastName": "Nasir",
-            "email": "usman@cyberpersons.com",
+            "email": "admin@example.com",
             "userName": "usman",
             "password": "helloworld123",
             "websitesLimit": 50,

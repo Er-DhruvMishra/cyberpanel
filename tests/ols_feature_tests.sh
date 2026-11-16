@@ -153,7 +153,7 @@ echo "============================================================"
 echo ""
 
 SERVER_IP="95.217.127.172"
-DOMAINS="apacheols-2.cyberpersons.com apacheols-3.cyberpersons.com apacheols-5.cyberpersons.com"
+DOMAINS="apacheols-2.example.com apacheols-3.example.com apacheols-5.example.com"
 
 # ============================================================
 echo "=== TEST GROUP 18: Binary Integrity ==="
@@ -330,7 +330,7 @@ for DOMAIN in $DOMAINS; do
 done
 
 # Test .htaccess rewrite works - WP site should respond
-WP_DOMAIN="apacheols-5.cyberpersons.com"
+WP_DOMAIN="apacheols-5.example.com"
 WP_CODE=$(curl -sk -o /dev/null -w "%{http_code}" "https://$WP_DOMAIN/" 2>/dev/null)
 if [ "$WP_CODE" = "200" ] || [ "$WP_CODE" = "301" ] || [ "$WP_CODE" = "302" ]; then
     pass "T25.4: WP site with .htaccess responds (HTTP $WP_CODE)"

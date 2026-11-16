@@ -1703,7 +1703,7 @@ def Main():
                 "blogTitle": 'docker site',
                 "adminUser": 'testdbwp',
                 "adminPassword": 'testdbwp',
-                "adminEmail": 'usman@cyberpersons.com',
+                "adminEmail": 'admin@indianscloud.com',
                 "htaccessPath": '/home/docker.cyberpanel.net/public_html/.htaccess',
                 "externalApp": 'docke8463',
                 "docRoot": "/home/docker.cyberpanel.net"

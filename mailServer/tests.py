@@ -72,7 +72,7 @@ class TestMailServer(TestCase):
             message['reply-to'] = 'helloworld@cyberpanel.xyz'
             html = MIMEText('Hello World', 'html')
             message.attach(html)
-            smtpServer.sendmail(message['From'], 'usman@cyberpersons.com', message.as_string())
+            smtpServer.sendmail(message['From'], 'admin@example.com', message.as_string())
         except BaseException:
             ok = 0
 
@@ -97,7 +97,7 @@ class TestMailServer(TestCase):
             message['reply-to'] = 'helloworld@cyberpanel.xyz'
             html = MIMEText('Hello World', 'html')
             message.attach(html)
-            smtpServer.sendmail(message['From'], 'usman@cyberpersons.com', message.as_string())
+            smtpServer.sendmail(message['From'], 'admin@example.com', message.as_string())
         except BaseException:
             ok = 0
 

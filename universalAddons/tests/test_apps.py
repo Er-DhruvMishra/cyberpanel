@@ -53,7 +53,9 @@ class Validation(SimpleTestCase):
 
     def test_env_validation(self):
         self.assertEqual(svc.validate_env({'DATABASE_URL': 'mssql://u:p@x;y=$z'}), {'DATABASE_URL': 'mssql://u:p@x;y=$z'})
-        for bad in ({'PORT': '1'}, {'LD_PRELOAD': '/x.so'}, {'lower': 'x'}, {'A': 'line\nbreak'}):
+        self.assertEqual(svc.validate_env({'JwtSettings__SecretKey': ''}), {'JwtSettings__SecretKey': ''})
+        for bad in ({'PORT': '1'}, {'LD_PRELOAD': '/x.so'}, {'ld_preload': '/x.so'}, {'1BAD': 'x'}, {'A-B': 'x'},
+                    {'A': 'line\nbreak'}):
             with self.assertRaises(svc.AppError, msg=bad):
                 svc.validate_env(bad)
 

@@ -49,7 +49,7 @@ class TestUserManagement(TestCase):
 
         ## Login
 
-        data_ret = {'firstName': 'Usman', 'lastName': 'Nasir', 'email': 'usman@cyberpersons.com', 'userName': 'usman',
+        data_ret = {'firstName': 'Usman', 'lastName': 'Nasir', 'email': 'admin@example.com', 'userName': 'usman',
                     'password': '1234567', 'websitesLimit': 50, 'selectedACL':'user', 'securityLevel': 'HIGH'}
         json_data = json.dumps(data_ret)
 
@@ -79,7 +79,7 @@ class TestUserManagement(TestCase):
     def test_saveModifications(self):
         self.test_submitUserCreation()
 
-        data_ret = {'accountUsername': 'usman','firstName': 'Rehan', 'lastName': 'Nasir', 'email': 'usman@cyberpersons.com',
+        data_ret = {'accountUsername': 'usman','firstName': 'Rehan', 'lastName': 'Nasir', 'email': 'admin@example.com',
                     'securityLevel': "LOW", 'password': '1234567'}
         json_data = json.dumps(data_ret)
 

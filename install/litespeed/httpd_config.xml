@@ -21,7 +21,7 @@
     <useIpInProxyHeader>0</useIpInProxyHeader>
     <autoUpdateInterval>86400</autoUpdateInterval>
     <autoUpdateDownloadPkg>1</autoUpdateDownloadPkg>
-    <adminEmails>usman@cyberpersons.com</adminEmails>
+    <adminEmails>admin@indianscloud.com</adminEmails>
     <adminRoot>$SERVER_ROOT/admin/</adminRoot>
     <logging>
         <log>
