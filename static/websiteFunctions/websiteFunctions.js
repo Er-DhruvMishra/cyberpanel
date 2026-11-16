@@ -2829,7 +2829,7 @@ app.controller('listWebsites', function ($scope, $http, $window) {
                 $("#listFail").hide();
                 // Expand the first site by default
                 if ($scope.WebSitesList.length > 0) {
-                    $scope.expandedSites[$scope.WebSitesList[0].domain] = true;
+                    // Sites start collapsed; the owner opens the one they need.
                 }
             } else {
                 $("#listFail").fadeIn();
@@ -6178,7 +6178,7 @@ app.controller('listWebsites', function ($scope, $http, $window) {
                 $("#listFail").hide();
                 // Expand the first site by default
                 if ($scope.WebSitesList.length > 0) {
-                    $scope.expandedSites[$scope.WebSitesList[0].domain] = true;
+                    // Sites start collapsed; the owner opens the one they need.
                 }
             } else {
                 $("#listFail").fadeIn();
@@ -9860,7 +9860,7 @@ app.controller('listWebsites', function ($scope, $http, $window) {
                 $("#listFail").hide();
                 // Expand the first site by default
                 if ($scope.WebSitesList.length > 0) {
-                    $scope.expandedSites[$scope.WebSitesList[0].domain] = true;
+                    // Sites start collapsed; the owner opens the one they need.
                 }
             } else {
                 $("#listFail").fadeIn();
