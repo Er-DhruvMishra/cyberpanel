@@ -40,6 +40,7 @@ MODULES = {
     'cloudflare': 'universalAddons.cloudflare.actions',
     'laravel': 'universalAddons.laravel.actions',
     'gitdeploy': 'universalAddons.gitdeploy.actions',
+    'sitetools': 'universalAddons.sitetools.actions',
     'hub': 'universalAddons.hub_actions',
 }
 

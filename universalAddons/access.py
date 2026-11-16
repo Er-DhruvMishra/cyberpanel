@@ -82,6 +82,7 @@ DEFAULT_POLICY = {
     'cloudflare_for_users': False,     # may resellers and users manage Cloudflare with their own token?
     'laravel_for_users': False,        # may website owners use the Laravel Toolkit on their own sites?
     'gitdeploy_for_users': False,      # may website owners deploy their own sites from Git (with webhooks)?
+    'sitetools_for_users': False,      # may resellers/website owners use Site Tools (staging, redirects...) on their sites?
 }
 
 # Add-ons that have something for non-administrators, and the policy switch that opens each one
@@ -100,6 +101,7 @@ USER_FEATURES = (
     ('cloudflare', 'cloudflare_for_users'),
     ('laravel', 'laravel_for_users'),
     ('gitdeploy', 'gitdeploy_for_users'),
+    ('sitetools', 'sitetools_for_users'),
 )
 
 # What a site owner gets from each switch (shown next to its checkbox on the hub).
@@ -122,6 +124,8 @@ USER_FEATURE_HELP = {
                'queue worker, .env editing and logs, as the site user.',
     'gitdeploy': 'Deploy their own sites from GitHub, GitLab, Bitbucket or Gitea (deploy key or token, signed '
                  'webhooks, releases with rollback), as the site user.',
+    'sitetools': 'Site Tools on their own sites: staging copies of any site with push back, password-protected '
+                 'directories, redirects, custom error pages and hotlink protection.',
 }
 
 

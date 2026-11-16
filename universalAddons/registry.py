@@ -81,6 +81,10 @@ MODULES = (
            'Deploy a site from GitHub, GitLab, Bitbucket or Gitea: deploy keys, signed webhooks, build steps, '
            'releases with rollback.',
            'ua-gitdeploy', 'ready'),
+    Module('sitetools', 'Site Tools', 'fa-screwdriver-wrench',
+           'Staging copies of any site (files and databases) with push back, password-protected directories, '
+           'a redirect editor, custom error pages and hotlink protection.',
+           'ua-sitetools', 'ready'),
 )
 
 
@@ -121,6 +125,11 @@ def requirement_problems(key, which=shutil.which, exists=os.path.exists):
         problems.append('This server does not run OpenLiteSpeed.')
     if key == 'apps' and not exists('/usr/local/lsws/bin/openlitespeed'):
         problems.append('Apps are proxied by OpenLiteSpeed, which is not installed.')
+    if key == 'sitetools':
+        if not exists('/usr/local/lsws/bin/openlitespeed'):
+            problems.append('Site Tools writes OpenLiteSpeed configuration, which is not installed.')
+        if not which('rsync'):
+            problems.append('rsync is not installed (dnf/apt install rsync).')
     if key == 'gitdeploy' and not which('git'):
         problems.append('git is not installed (dnf/apt install git).')
     if key == 'emaildebug':

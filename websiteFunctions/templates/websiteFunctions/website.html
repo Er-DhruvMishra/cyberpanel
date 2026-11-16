@@ -2497,6 +2497,19 @@
                     <div class="install-btn"><i class="fas fa-toolbox"></i> {% trans "Open toolkit" %}</div>
                 </a>
 
+                <!-- Site Tools add-on card (IndiansCloud) -->
+                <a href="/addons/site-tools/?site={{ domain|urlencode }}" class="app-card sitetools">
+                    <div class="app-icon-wrapper"><i class="fas fa-screwdriver-wrench app-icon" style="font-size:40px;line-height:64px;"></i></div>
+                    <h3 class="app-name">{% trans "Site Tools" %}</h3>
+                    <p class="app-description">{% trans "Staging copy and push back for any site, protected directories, redirects, error pages and hotlink protection" %}</p>
+                    <div class="app-features">
+                        <span class="feature-tag">Staging</span>
+                        <span class="feature-tag">Redirects</span>
+                        <span class="feature-tag">Password</span>
+                    </div>
+                    <div class="install-btn"><i class="fas fa-screwdriver-wrench"></i> {% trans "Open Site Tools" %}</div>
+                </a>
+
                 <!-- PrestaShop Card -->
                 <a href="{$ installPrestaURL $}" class="app-card prestashop">
                     <div class="quick-badge">E-Commerce</div>

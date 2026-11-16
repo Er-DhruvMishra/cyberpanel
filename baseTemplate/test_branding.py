@@ -58,6 +58,22 @@ class BrandingGuard(SimpleTestCase):
         self.assertFalse(offences('<h2><!-- CyberPanel --><a href="{% url \'CyberPanelPort\' %}">Port</a></h2>'))
 
     def test_base_title_suffix_is_indianscloud(self):
+        # The suffix comes from the branding context: " - IndiansCloud" unless a reseller's
+        # white-label branding applies (resellerBranding/service.py).
         base = (ROOT / 'baseTemplate/templates/baseTemplate/index.html').read_text(encoding='utf-8')
-        self.assertIn("' - IndiansCloud'", base)
+        self.assertIn('panel_brand.title_suffix', base)
+        self.assertIn('{% brandtitle %}{% block title %}IndiansCloud{% endblock %}{% endbrandtitle %}', base)
+        self.assertIn('title_suffix|default:" - IndiansCloud"', base)
         self.assertNotIn("' - CyberPanel'", base)
+        from resellerBranding.service import default_brand
+        self.assertEqual(default_brand()['title_suffix'], ' - IndiansCloud')
+        self.assertEqual(default_brand()['name'], 'IndiansCloud')
+
+    def test_default_title_renders_indianscloud(self):
+        from django.template import Context, Template
+        from resellerBranding.service import default_brand
+        template = Template('{% load panel_branding %}{% brandtitle %}Users - IndiansCloud{% endbrandtitle %}')
+        self.assertEqual(template.render(Context({'panel_brand': default_brand()})), 'Users - IndiansCloud')
+        self.assertEqual(template.render(Context({})), 'Users - IndiansCloud')   # no context processor
+        reseller = dict(default_brand(), name='Acme <Host>', is_default=False)
+        self.assertEqual(template.render(Context({'panel_brand': reseller})), 'Users - Acme &lt;Host&gt;')

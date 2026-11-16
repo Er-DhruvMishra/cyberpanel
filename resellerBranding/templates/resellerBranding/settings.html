@@ -1,0 +1,73 @@
+{% extends "baseTemplate/index.html" %}
+{% load i18n static %}
+{% block title %}{% trans "Branding" %} - IndiansCloud{% endblock %}
+{% block header_scripts %}<link rel="stylesheet" href="{% static 'universalAddons/addons.css' %}?v={{ CP_VERSION }}">{% endblock %}
+{% block content %}
+<div class="ua-wrap" id="ic-branding" data-fetch="{% url 'icBrandingFetch' %}" data-save="{% url 'icBrandingSave' %}"
+     data-upload="{% url 'icBrandingLogoUpload' %}" data-remove="{% url 'icBrandingLogoRemove' %}" data-reset="{% url 'icBrandingReset' %}">
+  <div class="ua-header">
+    <h1><i class="fas fa-palette"></i> {% trans "White-label branding" %}</h1>
+    <p>{% trans "Your accounts see this name, logo and colour in the panel header and page titles. The login page uses it when opened through the mapped hostname. Administrator accounts always see IndiansCloud." %}</p>
+  </div>
+  <div class="ua-card">
+    {% if is_admin_view %}
+    <label>{% trans "Reseller" %}<br><select id="br-reseller" class="form-control">
+      {% for name in resellers %}<option value="{{ name }}">{{ name }}</option>{% empty %}<option value="">{% trans "No reseller accounts" %}</option>{% endfor %}
+    </select></label>
+    {% else %}<input type="hidden" id="br-reseller" value="{{ resellers.0 }}">{% endif %}
+    <div class="ua-row" style="flex-wrap:wrap;gap:12px;margin-top:10px">
+      <label>{% trans "Brand name" %}<br><input type="text" id="br-name" maxlength="60" class="form-control"></label>
+      <label>{% trans "Primary colour" %}<br><input type="color" id="br-color" value="#194b33"> <label><input type="checkbox" id="br-color-on"> {% trans "use" %}</label></label>
+      <label>{% trans "Support URL" %}<br><input type="url" id="br-url" maxlength="200" class="form-control" placeholder="https://"></label>
+      <label>{% trans "Support email" %}<br><input type="email" id="br-email" maxlength="100" class="form-control"></label>
+      <label>{% trans "Login hostname" %}<br><input type="text" id="br-host" maxlength="253" class="form-control" placeholder="panel.example.com" {% if not is_admin_view %}disabled{% endif %}>
+        {% if not is_admin_view %}<small class="ua-muted">{% trans "Set by your provider." %}</small>{% endif %}</label>
+    </div>
+    <div class="ua-row" style="margin-top:12px"><button class="ua-btn" id="br-save">{% trans "Save" %}</button>
+      <button class="ua-btn ua-btn-secondary" id="br-reset">{% trans "Remove branding" %}</button></div>
+  </div>
+  <div class="ua-card">
+    <h2>{% trans "Logo" %}</h2>
+    <p class="ua-muted">{% blocktrans %}PNG, JPG or SVG, at most {{ max_kb }} KB. SVG files must be plain drawings: scripts, links, embedded files and DOCTYPEs are refused.{% endblocktrans %}</p>
+    <p><img id="br-logo" alt="" style="max-height:48px;display:none"></p>
+    <input type="file" id="br-file" accept=".png,.jpg,.jpeg,.svg,image/png,image/jpeg,image/svg+xml">
+    <div class="ua-row" style="margin-top:12px"><button class="ua-btn" id="br-upload">{% trans "Upload logo" %}</button>
+      <button class="ua-btn ua-btn-secondary" id="br-remove-logo">{% trans "Remove logo" %}</button></div>
+  </div>
+</div>
+<script>
+(function () {
+  var root = document.getElementById('ic-branding');
+  function $(id) { return document.getElementById(id); }
+  function cookie(n) { var m = document.cookie.match('(?:^|; )' + n + '=([^;]*)'); return m ? decodeURIComponent(m[1]) : ''; }
+  function say(msg, type) { if (window.cpToast) { window.cpToast(msg, type || 'info'); } else { alert(msg); } }
+  function send(url, body, isForm) {
+    var headers = {'X-CSRFToken': cookie('csrftoken')};
+    if (!isForm) { headers['Content-Type'] = 'application/json'; body = JSON.stringify({payload: body}); }
+    return fetch(url, {method: 'POST', credentials: 'same-origin', headers: headers, body: body}).then(function (r) { return r.json(); });
+  }
+  function show(d) {
+    if (d.status !== 1) { say(d.error_message, 'error'); return; }
+    $('br-name').value = d.name || ''; $('br-url').value = d.support_url || ''; $('br-email').value = d.support_email || '';
+    $('br-host').value = d.hostname || ''; $('br-color-on').checked = !!d.primary_color; if (d.primary_color) { $('br-color').value = d.primary_color; }
+    if (d.logo_url) { $('br-logo').src = d.logo_url; $('br-logo').style.display = ''; } else { $('br-logo').style.display = 'none'; }
+  }
+  function reseller() { return $('br-reseller').value; }
+  function load() { if (reseller()) { send(root.dataset.fetch, {reseller: reseller()}).then(show); } }
+  $('br-save').onclick = function () {
+    send(root.dataset.save, {reseller: reseller(), name: $('br-name').value, support_url: $('br-url').value,
+      support_email: $('br-email').value, hostname: $('br-host').value,
+      primary_color: $('br-color-on').checked ? $('br-color').value : ''}).then(function (d) { show(d); if (d.status === 1) { say('{% trans "Saved." %}', 'success'); } });
+  };
+  $('br-reset').onclick = function () { if (confirm('{% trans "Remove this branding? Accounts will see IndiansCloud again." %}')) { send(root.dataset.reset, {reseller: reseller()}).then(function (d) { show(d); $('br-name').value = ''; }); } };
+  $('br-remove-logo').onclick = function () { send(root.dataset.remove, {reseller: reseller()}).then(show); };
+  $('br-upload').onclick = function () {
+    var f = $('br-file').files[0]; if (!f) { say('{% trans "Choose a logo file." %}', 'error'); return; }
+    var form = new FormData(); form.append('logo', f); form.append('reseller', reseller());
+    send(root.dataset.upload, form, true).then(function (d) { show(d); if (d.status === 1) { say('{% trans "Logo uploaded." %}', 'success'); } });
+  };
+  if ($('br-reseller').tagName === 'SELECT') { $('br-reseller').onchange = load; }
+  load();
+})();
+</script>
+{% endblock %}

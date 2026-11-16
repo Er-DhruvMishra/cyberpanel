@@ -149,7 +149,7 @@ class PagesRender(SimpleTestCase):
         context = {'request': request, 'admin': 1, 'modules': module_status(), 'domains': ['a.com'], 'sites': ['a.com'],
                    'is_admin': True, 'enabled': True, 'start': '/home',
                    'default_site': 'a.com', 'version': '1.6.21', 'prefix': '/webmail-rc/', 'db_name': 'cp_roundcube'}
-        pages = ['hub', 'emaildebug', 'rootfm', 'rspamd', 'sslv2', 'backupv2', 'wordpress', 'htaccess', 'apps', 'mssql', 'storage', 'emaillimits', 'sshsec', 'smtprelay', 'mysqlmgr', 'roundcube', 'limits', 'apache', 'webterm', 'appsvc', 'cloudflare', 'laravel', 'gitdeploy']
+        pages = ['hub', 'emaildebug', 'rootfm', 'rspamd', 'sslv2', 'backupv2', 'wordpress', 'htaccess', 'apps', 'mssql', 'storage', 'emaillimits', 'sshsec', 'smtprelay', 'mysqlmgr', 'roundcube', 'limits', 'apache', 'webterm', 'appsvc', 'cloudflare', 'laravel', 'gitdeploy', 'sitetools']
         for page in pages:
             # No request: the panel's context processors query the database, which unit tests do not have.
             html = render_to_string('universalAddons/%s.html' % page, context)

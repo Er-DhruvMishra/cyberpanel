@@ -29,4 +29,5 @@ urlpatterns = [
     path('cloudflare/', include('universalAddons.cloudflare.urls')),
     path('laravel/', include('universalAddons.laravel.urls')),
     path('git-deploy/', include('universalAddons.gitdeploy.urls')),
+    path('site-tools/', include('universalAddons.sitetools.urls')),
 ]

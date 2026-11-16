@@ -1,0 +1,96 @@
+{% extends "baseTemplate/index.html" %}
+{% load i18n static %}
+{% block title %}{% trans "API Tokens" %} - IndiansCloud{% endblock %}
+{% block header_scripts %}<link rel="stylesheet" href="{% static 'universalAddons/addons.css' %}?v={{ CP_VERSION }}">{% endblock %}
+{% block content %}
+<div class="ua-wrap" id="ic-tokens" data-list="{% url 'icApiTokensList' %}" data-create="{% url 'icApiTokensCreate' %}" data-revoke="{% url 'icApiTokensRevoke' %}">
+  <div class="ua-header">
+    <h1><i class="fas fa-key"></i> {% trans "API tokens" %}</h1>
+    <p>{% trans "Named tokens for billing systems such as WHMCS and for scripts. Send one as" %} <code>Authorization: Bearer ictk_…</code>. {% trans "A token replaces the password and the two-factor code, so limit it by scope, expiry and IP address, and revoke it when it is no longer needed." %}</p>
+  </div>
+  {% if not api_enabled %}
+  <div class="ua-card" style="border-left:4px solid var(--warning-color)">
+    <p>{% trans "API access is not enabled for this account. Tokens can be created now but are refused until an administrator enables API access under Users > API Access." %}</p>
+  </div>
+  {% endif %}
+  <div class="ua-card">
+    <h2>{% trans "Create a token" %}</h2>
+    <div class="ua-row" style="flex-wrap:wrap;gap:12px">
+      <label>{% trans "Name" %}<br><input type="text" id="tk-name" maxlength="64" placeholder="WHMCS" class="form-control"></label>
+      <label>{% trans "Expires after (days, empty = never)" %}<br><input type="number" id="tk-days" min="1" max="{{ max_days }}" class="form-control"></label>
+    </div>
+    <p style="margin-top:10px"><strong>{% trans "Scopes" %}</strong><br>
+      <label><input type="radio" name="tk-scope" value="read" checked> {% trans "Read-only: accounts, usage, packages" %}</label><br>
+      <label><input type="radio" name="tk-scope" value="provisioning"> {% trans "Provisioning: also create, suspend, terminate, passwords, packages and single sign-on" %}</label></p>
+    <label style="display:block">{% trans "Allowed IP addresses or CIDR ranges (one per line; empty = any)" %}<br>
+      <textarea id="tk-ips" rows="3" class="form-control" placeholder="203.0.113.10"></textarea></label>
+    <div class="ua-row" style="margin-top:12px"><button class="ua-btn" id="tk-create">{% trans "Create token" %}</button></div>
+    <div id="tk-new" class="ua-card" style="display:none;margin-top:12px">
+      <p><strong>{% trans "Copy this token now. It is shown only once and cannot be recovered." %}</strong></p>
+      <input type="text" id="tk-secret" readonly class="form-control" style="font-family:monospace" onclick="this.select()">
+    </div>
+  </div>
+  <div class="ua-card">
+    <h2>{% trans "Tokens" %}</h2>
+    {% if is_admin_view %}<p><label><input type="checkbox" id="tk-all"> {% trans "Show tokens of all accounts" %}</label></p>{% endif %}
+    <table class="ua-table" id="tk-table"><thead><tr>
+      <th>{% trans "Name" %}</th><th>{% trans "Account" %}</th><th>{% trans "Token" %}</th><th>{% trans "Scopes" %}</th>
+      <th>{% trans "IP allowlist" %}</th><th>{% trans "Expires" %}</th><th>{% trans "Last used" %}</th><th>{% trans "Status" %}</th><th></th>
+    </tr></thead><tbody></tbody></table>
+  </div>
+</div>
+<script>
+(function () {
+  var root = document.getElementById('ic-tokens');
+  function cookie(n) { var m = document.cookie.match('(?:^|; )' + n + '=([^;]*)'); return m ? decodeURIComponent(m[1]) : ''; }
+  function post(url, payload) {
+    return fetch(url, {method: 'POST', credentials: 'same-origin',
+      headers: {'Content-Type': 'application/json', 'X-CSRFToken': cookie('csrftoken')},
+      body: JSON.stringify({payload: payload || {}})}).then(function (r) { return r.json(); });
+  }
+  function say(msg, type) { if (window.cpToast) { window.cpToast(msg, type || 'info'); } else { alert(msg); } }
+  function cell(text) { var td = document.createElement('td'); td.textContent = text == null ? '' : text; return td; }
+  function when(v) { return v ? new Date(v).toLocaleString() : '—'; }
+  function render(list) {
+    var body = root.querySelector('#tk-table tbody'); body.innerHTML = '';
+    if (!list.length) { var tr = document.createElement('tr'); var td = cell('{% trans "No tokens yet." %}'); td.colSpan = 9; tr.appendChild(td); body.appendChild(tr); }
+    list.forEach(function (t) {
+      var tr = document.createElement('tr');
+      [t.name, t.owner, t.prefix, t.scopes.join(', '), t.allowed_ips.join(', ') || '{% trans "any" %}',
+       t.expires_at ? when(t.expires_at) : '{% trans "never" %}', t.last_used_at ? when(t.last_used_at) + ' ' + (t.last_used_ip || '') : '—',
+       t.status].forEach(function (v) { tr.appendChild(cell(v)); });
+      var td = document.createElement('td');
+      if (t.status === 'active') {
+        var b = document.createElement('button'); b.className = 'ua-btn ua-btn-secondary'; b.textContent = '{% trans "Revoke" %}';
+        b.onclick = function () {
+          if (!confirm('{% trans "Revoke this token? Anything using it stops working immediately." %}')) { return; }
+          post(root.dataset.revoke, {id: t.id}).then(function (d) { if (d.status === 1) { load(); } else { say(d.error_message, 'error'); } });
+        };
+        td.appendChild(b);
+      }
+      tr.appendChild(td); body.appendChild(tr);
+    });
+  }
+  function load() {
+    var all = document.getElementById('tk-all');
+    post(root.dataset.list, {all: !!(all && all.checked)}).then(function (d) {
+      if (d.status === 1) { render(d.tokens); } else { say(d.error_message, 'error'); }
+    });
+  }
+  document.getElementById('tk-create').onclick = function () {
+    var scope = root.querySelector('input[name="tk-scope"]:checked').value;
+    post(root.dataset.create, {name: document.getElementById('tk-name').value,
+      expires_days: document.getElementById('tk-days').value || null, scopes: [scope],
+      allowed_ips: document.getElementById('tk-ips').value}).then(function (d) {
+      if (d.status !== 1) { say(d.error_message, 'error'); return; }
+      document.getElementById('tk-new').style.display = '';
+      document.getElementById('tk-secret').value = d.token;
+      document.getElementById('tk-name').value = '';
+      load();
+    });
+  };
+  var all = document.getElementById('tk-all'); if (all) { all.onchange = load; }
+  load();
+})();
+</script>
+{% endblock %}

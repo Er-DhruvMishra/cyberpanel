@@ -21,7 +21,8 @@ class CustomCSSRenderingTests(unittest.TestCase):
         root = Path(__file__).resolve().parents[1]
         self.engine = Engine(
             dirs=[str(root / 'baseTemplate/templates'), str(root / 'loginSystem/templates')],
-            libraries={'i18n': 'django.templatetags.i18n', 'static': 'django.templatetags.static'})
+            libraries={'i18n': 'django.templatetags.i18n', 'static': 'django.templatetags.static',
+                       'panel_branding': 'resellerBranding.templatetags.panel_branding'})
         # Routes are irrelevant to stylesheet order; keep the real inheritance,
         # blocks, includes, static tags and escaping behavior.
         routes = Library()

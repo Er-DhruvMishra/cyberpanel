@@ -1,0 +1,126 @@
+{% extends "universalAddons/base.html" %}
+{% load i18n static %}
+{% block title %}{% trans "Site Tools" %} - IndiansCloud{% endblock %}
+{% block addon_scripts %}<script src="{% static 'universalAddons/sitetools.js' %}?v={{ CP_VERSION }}"></script>{% endblock %}
+{% block content %}
+<div class="ua-wrap" id="ua-sitetools" data-base="{% url 'ua-sitetools' %}" data-admin="{{ is_admin|yesno:'1,0' }}" data-site="{{ site }}">
+  <div class="ua-header">
+    <h1><i class="fas fa-screwdriver-wrench"></i> {% trans "Site Tools" %}</h1>
+    <p>{% trans "Staging copies, password-protected directories, redirects, custom error pages and hotlink protection for any site. IndiansCloud backs up every file it changes, works as the site's own Linux user and restarts OpenLiteSpeed gracefully, rolling back if the site stops answering." %}
+      {% if not is_admin %}{% trans "You see the websites of your account only." %}{% endif %}</p>
+  </div>
+
+  <div class="ua-card">
+    <div class="ua-row">
+      <label>{% trans "Site" %} <select id="stt-site"><option value="">{% trans "Loading…" %}</option></select></label>
+      <span class="ua-muted" id="stt-docroot"></span>
+    </div>
+    <div id="stt-wp"></div>
+  </div>
+
+  <div class="ua-card" id="stt-main" style="display:none">
+    <div class="ua-tabs">
+      <button class="active" data-pane="staging">{% trans "Staging" %}</button>
+      <button data-pane="auth">{% trans "Protected directories" %}</button>
+      <button data-pane="redirects">{% trans "Redirects" %}</button>
+      <button data-pane="errors">{% trans "Error pages" %}</button>
+      <button data-pane="hotlink">{% trans "Hotlink protection" %}</button>
+    </div>
+
+    <div class="ua-pane active" id="stt-pane-staging">
+      <div id="stt-staging-info"></div>
+      <h3>{% trans "Copy this site" %}</h3>
+      <p class="ua-muted">{% trans "Copies the files and the databases you tick (from the panel's database list) into a staging subdomain created with the panel's child-domain code, or into another empty site you own. .env and wp-config.php database settings and URLs are rewritten for the copy, and the database URLs are search-replaced safely (PHP serialized data keeps correct lengths)." %}</p>
+      <div class="ua-row">
+        <label><input type="radio" name="stt-mode" value="subdomain" checked> {% trans "Staging subdomain" %}</label>
+        <input id="stt-label" value="staging" maxlength="42" style="min-width:120px"> <span class="ua-muted" id="stt-label-domain"></span>
+      </div>
+      <div class="ua-row">
+        <label><input type="radio" name="stt-mode" value="site"> {% trans "Another site" %}</label>
+        <select id="stt-target"></select>
+      </div>
+      <div class="ua-row" id="stt-dbs"></div>
+      <div class="ua-row">
+        <label><input type="checkbox" id="stt-clone-cache" checked> {% trans "Skip cache directories" %}</label>
+        <input id="stt-clone-excludes" placeholder="{% trans 'extra excludes, comma separated (e.g. /backups/)' %}">
+      </div>
+      <div class="ua-row"><button class="ua-btn" id="stt-clone">{% trans "Create / refresh copy" %}</button></div>
+
+      <div id="stt-push-box" style="display:none">
+        <h3>{% trans "Push this staging copy to the live site" %}</h3>
+        <p class="ua-muted">{% trans "The live site's .env, wp-config.php, .user.ini and .well-known are never overwritten. Excluded paths are kept on the live site." %}</p>
+        <div class="ua-row">
+          <label><input type="checkbox" id="stt-push-files" checked> {% trans "Push files" %}</label>
+          <label><input type="checkbox" id="stt-push-db" checked> {% trans "Push databases" %}</label>
+        </div>
+        <div class="ua-row">
+          <label><input type="checkbox" id="stt-backup-files" checked> {% trans "Back up live files first" %}</label>
+          <label><input type="checkbox" id="stt-backup-db" checked> {% trans "Back up live databases first" %}</label>
+        </div>
+        <div class="ua-row">
+          <label><input type="checkbox" id="stt-push-cache" checked> {% trans "Skip cache directories" %}</label>
+          <label><input type="checkbox" id="stt-push-uploads"> {% trans "Skip uploads (keep the live uploads)" %}</label>
+          <input id="stt-push-excludes" placeholder="{% trans 'extra excludes, comma separated' %}">
+        </div>
+        <div class="ua-row"><button class="ua-btn" id="stt-push">{% trans "Push to live" %}</button></div>
+      </div>
+      <h3>{% trans "Backups taken before a push" %}</h3>
+      <div id="stt-backups"></div>
+    </div>
+
+    <div class="ua-pane" id="stt-pane-auth">
+      <p class="ua-muted">{% trans "OpenLiteSpeed does not read AuthType from .htaccess, so IndiansCloud writes a realm and a context for each directory into the site's OpenLiteSpeed configuration. Passwords are stored as bcrypt (or apr1) in a file outside the document root." %}</p>
+      <div id="stt-auth-list"></div>
+      <h3>{% trans "Protect a directory" %}</h3>
+      <div class="ua-row">
+        <input id="stt-auth-path" placeholder="{% trans 'directory, e.g. /private (empty = whole site)' %}">
+        <input id="stt-auth-name" placeholder="{% trans 'prompt text' %}" value="Restricted area" maxlength="60">
+      </div>
+      <div class="ua-row">
+        <input id="stt-auth-user" placeholder="{% trans 'user name' %}" maxlength="64" autocomplete="off">
+        <input id="stt-auth-pass" type="password" placeholder="{% trans 'password (8+ characters)' %}" maxlength="128" autocomplete="new-password">
+        <select id="stt-auth-scheme"><option value="bcrypt">bcrypt</option><option value="apr1">apr1 (MD5)</option></select>
+        <button class="ua-btn" id="stt-auth-add">{% trans "Protect" %}</button>
+      </div>
+    </div>
+
+    <div class="ua-pane" id="stt-pane-redirects">
+      <p class="ua-muted">{% trans "Kept in a marked block at the top of the site's .htaccess (the file of the panel's Rewrite Rules page); your other rules are left untouched. A path matches exactly; a regular expression is matched against the path without its leading slash and may use $1 in the target." %}</p>
+      <table class="ua-table"><thead><tr><th>{% trans "Type" %}</th><th>{% trans "Match" %}</th><th>{% trans "Source" %}</th><th>{% trans "Target" %}</th><th></th></tr></thead><tbody id="stt-redirect-rows"></tbody></table>
+      <div class="ua-row" style="margin-top:10px">
+        <button class="ua-btn ua-btn-secondary" id="stt-redirect-add">{% trans "Add redirect" %}</button>
+        <button class="ua-btn" id="stt-redirect-save">{% trans "Save redirects" %}</button>
+      </div>
+    </div>
+
+    <div class="ua-pane" id="stt-pane-errors">
+      <p class="ua-muted">{% trans "Pages are saved in /error-pages/ in the document root and set as OpenLiteSpeed errorpage entries for the site (vhost.conf is backed up first)." %}</p>
+      <div id="stt-errors-list"></div>
+      <div id="stt-error-edit" style="display:none">
+        <h3 id="stt-error-title"></h3>
+        <div class="ua-row"><input type="file" id="stt-error-file" accept=".html,.htm,text/html"></div>
+        <textarea id="stt-error-html" spellcheck="false"></textarea>
+        <div class="ua-row" style="margin-top:10px"><button class="ua-btn" id="stt-error-save">{% trans "Save and use this page" %}</button></div>
+      </div>
+    </div>
+
+    <div class="ua-pane" id="stt-pane-hotlink">
+      <p class="ua-muted">{% trans "Other sites may not embed these files. Kept as a marked rewrite block in the site's .htaccess; this site's own domain is always allowed." %}</p>
+      <div class="ua-row"><label><input type="checkbox" id="stt-hl-enabled"> {% trans "Enable hotlink protection" %}</label></div>
+      <div class="ua-row"><input id="stt-hl-domains" style="min-width:420px" placeholder="{% trans 'other allowed domains, comma separated' %}"></div>
+      <div class="ua-row"><input id="stt-hl-ext" style="min-width:420px" placeholder="{% trans 'protected extensions, comma separated' %}"></div>
+      <div class="ua-row">
+        <label><input type="checkbox" id="stt-hl-empty" checked> {% trans "Allow requests without a referrer" %}</label>
+        <input id="stt-hl-redirect" placeholder="{% trans 'optional replacement image, e.g. /hotlink.png' %}">
+      </div>
+      <div class="ua-row"><button class="ua-btn" id="stt-hl-save">{% trans "Save" %}</button></div>
+    </div>
+    <div id="stt-out"></div>
+  </div>
+
+  <div class="ua-card" id="stt-job" style="display:none">
+    <h2>{% trans "Job" %}</h2>
+    <div id="stt-job-out"></div>
+  </div>
+</div>
+{% endblock %}

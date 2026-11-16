@@ -183,9 +183,10 @@
     <meta charset="UTF-8">
     <!--[if IE]>
     <meta http-equiv='X-UA-Compatible' content='IE=edge,chrome=1'><![endif]-->
-    <title> Login - IndiansCloud </title>
+    <title> Login - {{ panel_brand.name|default:'IndiansCloud' }} </title>
     {% load static %}<link rel="icon" type="image/svg+xml" href="{% static 'baseTemplate/brand/indianscloud-favicon.svg' %}">
-    <meta name="description" content="Login to your IndiansCloud Account">
+    <meta name="description" content="Login to your {{ panel_brand.name|default:'IndiansCloud' }} Account">
+    {% if panel_brand.primary_color %}<style id="ic-reseller-brand">html.cp-evergreen:root{--accent-color:{{ panel_brand.primary_color }};--primary-color:{{ panel_brand.primary_color }};--focus-ring:{{ panel_brand.primary_color }};}</style>{% endif %}
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 
     <!-- Favicons -->
@@ -252,12 +253,14 @@
                     Reliability.</h4>
             </div>
             <div class="col-lg-6 col-md-12 text-center panel-body">
-                <img class="" src="{% static 'baseTemplate/brand/indianscloud-logo-reverse.svg' %}" alt="IndiansCloud" width="90%" style="max-width:420px">
+                {% if panel_brand.logo_url %}<img src="{{ panel_brand.logo_url }}" alt="{{ panel_brand.name }}" style="max-width:420px;max-height:160px;width:auto;height:auto">
+                {% elif panel_brand.is_default or not panel_brand %}<img class="" src="{% static 'baseTemplate/brand/indianscloud-logo-reverse.svg' %}" alt="IndiansCloud" width="90%" style="max-width:420px">
+                {% else %}<div class="text-white text-bold" style="font-size:2.5rem">{{ panel_brand.name }}</div>{% endif %}
             </div>
         </div>
         <div class="row panel-body">
             <div class="row panel-body">
-                <a class=" login-changelogs" href="https://github.com/Er-DhruvMishra/cyberpanel/commits/main" rel="noopener noreferrer" target='_blank'>
+                {% if panel_brand.is_default or not panel_brand %}<a class=" login-changelogs" href="https://github.com/Er-DhruvMishra/cyberpanel/commits/main" rel="noopener noreferrer" target='_blank'>
                     <div class="card mb-3" style="max-width: 540px;">
                         <div class="row g-0">
                             <div class="col-md-3">
@@ -284,7 +287,7 @@
                             </div>
                         </div>
                     </div>
-                </a>
+                </a>{% endif %}
             </div>
         </div>
     </div>
@@ -294,8 +297,9 @@
             <form id="loginForm" action="/" class="col-md-8 col-md-offset-2">
                 <h1 class="text-transform-upr text-center panel-body text-bold"
                     style="padding-bottom: 0px; color: #33CCCC;">
-                    <img class="center-block text-center my-20" src="{% static 'baseTemplate/brand/indianscloud-symbol.svg' %}" alt="" width="120" height="84">
-                    IndiansCloud
+                    {% if panel_brand.logo_url %}<img class="center-block text-center my-20" src="{{ panel_brand.logo_url }}" alt="" style="max-width:240px;max-height:84px;width:auto;height:auto">
+                    {% elif panel_brand.is_default or not panel_brand %}<img class="center-block text-center my-20" src="{% static 'baseTemplate/brand/indianscloud-symbol.svg' %}" alt="" width="120" height="84">{% endif %}
+                    {{ panel_brand.name|default:'IndiansCloud' }}
                 </h1>
                 <h4 class="text-muted text-center mb-10">Web Hosting Control Panel</h4>
                 <div class="">
@@ -373,6 +377,11 @@
                     </div>
                 </div>
             </form>
+            {% if panel_brand.support_url or panel_brand.support_email %}
+            <p class="text-center text-muted" style="clear:both;padding-top:12px">{% trans "Need help?" %}
+                {% if panel_brand.support_url %}<a href="{{ panel_brand.support_url }}" target="_blank" rel="noopener noreferrer">{% trans "Contact support" %}</a>{% endif %}
+                {% if panel_brand.support_email %}<a href="mailto:{{ panel_brand.support_email }}">{{ panel_brand.support_email }}</a>{% endif %}</p>
+            {% endif %}
             <div id="loginFailed" class="alert alert-danger">
                 <p>Could Not Login, Error message: <span ng-bind="errorMessage"></span></p>
             </div>

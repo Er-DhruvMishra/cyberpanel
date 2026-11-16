@@ -63,7 +63,22 @@ def api_error(status_key, message, http_status=200):
     return HttpResponse(json.dumps({status_key: 0, 'error_message': message}), status=http_status)
 
 
-def get_api_admin(request, data, username_key='adminUser', password_key='adminPass', allow_token=True):
+def get_api_admin(request, data, username_key='adminUser', password_key='adminPass', allow_token=True,
+                  token_scope=None):
+    # Personal API tokens (Authorization: Bearer ictk_...) are accepted where token_scope is
+    # given. They replace the password and the OTP: see provisioning/tokens.py.
+    if token_scope is not None:
+        from provisioning import tokens as personal_tokens
+        if personal_tokens.has_personal_token(request):
+            try:
+                admin, _token = personal_tokens.authenticate(request, token_scope)
+            except personal_tokens.TokenError as error:
+                return None, api_error('status', error.message, error.status)
+            admin_user = data.get(username_key)
+            if admin_user and admin_user != admin.userName:
+                return None, api_error('status', 'Could not authorize access to API.', 401)
+            return admin, None
+
     admin_user = data.get(username_key)
     if not admin_user:
         return None, api_error('status', 'Missing API username.', 400)
@@ -191,7 +206,8 @@ def createWebsite(request):
 
         try:
             data = json.loads(request.body)
-            adminUser = data['adminUser']
+            from provisioning.tokens import has_personal_token
+            adminUser = data.get('adminUser', '') if has_personal_token(request) else data['adminUser']
             
             # Additional security: validate critical fields for dangerous characters
             is_valid, error_msg = validate_api_input(adminUser, "adminUser")
@@ -214,7 +230,7 @@ def createWebsite(request):
             json_data = json.dumps(data_ret)
             return HttpResponse(json_data, status=400)
 
-        admin, auth_error = get_api_admin(request, data, allow_token=False)
+        admin, auth_error = get_api_admin(request, data, allow_token=False, token_scope='provisioning')
         if auth_error:
             error_message = json.loads(auth_error.content.decode()).get('error_message')
             data_ret = {"existsStatus": 0, 'createWebSiteStatus': 0,
@@ -224,6 +240,11 @@ def createWebsite(request):
 
         if os.path.exists(ProcessUtilities.debugPath):
             logging.writeToFile('Create website request received through API.')
+
+        if getattr(admin, '_ic_api_token', None) is not None:
+            # createWebsiteAPI re-checks adminPass; a token-authenticated call has none.
+            from provisioning.accounts import legacy_create_website
+            return HttpResponse(json.dumps(legacy_create_website(admin, data)))
 
         wm = WebsiteManager()
         return wm.createWebsiteAPI(data)
@@ -237,9 +258,10 @@ def createWebsite(request):
 @csrf_exempt
 def getPackagesListAPI(request):
     data = json.loads(request.body)
-    admin, auth_error = get_api_admin(request, data)
+    admin, auth_error = get_api_admin(request, data, token_scope='read')
     if auth_error:
         return api_auth_response(auth_error, 'existsStatus', {'status': 0, 'listPackages': []})
+    data['adminUser'] = admin.userName
 
     pm = PackagesManager()
     return pm.listPackagesAPI(data)
@@ -253,12 +275,16 @@ def getUserInfo(request):
 
             username = data['username']
 
-            admin, auth_error = get_api_admin(request, data, allow_token=False)
+            admin, auth_error = get_api_admin(request, data, allow_token=False, token_scope='read')
             if auth_error:
                 return api_auth_response(auth_error, 'status')
 
             try:
                 user = Administrator.objects.get(userName=username)
+                if getattr(admin, '_ic_api_token', None) is not None:
+                    from provisioning.accounts import can_manage
+                    if not can_manage(admin, user):
+                        raise Administrator.DoesNotExist()
                 data_ret = {'status': 1,
                             'firstName': user.firstName,
                             'lastName': user.lastName,
@@ -288,7 +314,7 @@ def changeUserPassAPI(request):
             websiteOwner = data['websiteOwner']
             ownerPassword = data['ownerPassword']
 
-            admin, auth_error = get_api_admin(request, data, allow_token=False)
+            admin, auth_error = get_api_admin(request, data, allow_token=False, token_scope='provisioning')
             if auth_error:
                 return api_auth_response(auth_error, 'changeStatus')
 
@@ -318,7 +344,7 @@ def submitUserDeletion(request):
 
             data = json.loads(request.body)
 
-            admin, auth_error = get_api_admin(request, data, allow_token=False)
+            admin, auth_error = get_api_admin(request, data, allow_token=False, token_scope='provisioning')
             if auth_error:
                 return api_auth_response(auth_error, 'status')
 
@@ -340,7 +366,7 @@ def changePackageAPI(request):
 
             websiteName = data['websiteName']
             packageName = data['packageName']
-            admin, auth_error = get_api_admin(request, data, allow_token=False)
+            admin, auth_error = get_api_admin(request, data, allow_token=False, token_scope='provisioning')
             if auth_error:
                 return api_auth_response(auth_error, 'changePackage')
 
@@ -371,7 +397,7 @@ def deleteWebsite(request):
 
             data['websiteName'] = data['domainName']
 
-            admin, auth_error = get_api_admin(request, data, allow_token=False)
+            admin, auth_error = get_api_admin(request, data, allow_token=False, token_scope='provisioning')
             if auth_error:
                 return api_auth_response(auth_error, 'websiteDeleteStatus')
 
@@ -401,7 +427,7 @@ def submitWebsiteStatus(request):
         if request.method == 'POST':
             data = json.loads(request.body)
 
-            admin, auth_error = get_api_admin(request, data, allow_token=False)
+            admin, auth_error = get_api_admin(request, data, allow_token=False, token_scope='provisioning')
             if auth_error:
                 return api_auth_response(auth_error, 'websiteStatus')
 
@@ -698,7 +724,7 @@ def submitUserCreation(request):
 
             data = json.loads(request.body)
 
-            admin, auth_error = get_api_admin(request, data, allow_token=False)
+            admin, auth_error = get_api_admin(request, data, allow_token=False, token_scope='provisioning')
             if auth_error:
                 return api_auth_response(auth_error, 'status')
 
