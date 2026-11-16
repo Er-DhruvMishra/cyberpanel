@@ -1,0 +1,64 @@
+{% extends "universalAddons/base.html" %}
+{% load i18n static %}
+{% block title %}{% trans "Notifications" %} - IndiansCloud{% endblock %}
+{% block addon_scripts %}<script src="{% static 'universalAddons/notify.js' %}?v={{ CP_VERSION }}"></script>{% endblock %}
+{% block content %}
+<div class="ua-wrap" id="ua-notify" data-base="{% url 'ua-notify' %}" data-admin="{{ is_admin|yesno:'1,0' }}">
+  <div class="ua-header">
+    <h1><i class="fas fa-bell"></i> {% trans "Notifications" %}</h1>
+    <p>{% trans "Choose where IndiansCloud sends your alerts (uptime, failed backups, expiring certificates, disk quota, new sign-ins) and which ones you want. Until you add a channel, alerts go by e-mail to the address on your account. The same alert is sent at most once every 30 minutes unless its state changes." %}</p>
+  </div>
+
+  <div class="ua-card">
+    <h2>{% trans "Channels" %}</h2>
+    <p class="ua-muted">{% trans "Tokens, webhook URLs and signing secrets are stored privately on the server and never shown again; leave a secret field empty when editing to keep the saved one." %}</p>
+    <div id="nt-channels"><p class="ua-muted">{% trans "Loading…" %}</p></div>
+  </div>
+
+  <div class="ua-card">
+    <h2 id="nt-form-title">{% trans "Add a channel" %}</h2>
+    <div class="ua-row">
+      <label>{% trans "Type" %} <select id="nt-type">
+        <option value="email">{% trans "E-mail" %}</option>
+        <option value="telegram">Telegram</option>
+        <option value="slack">Slack</option>
+        <option value="discord">Discord</option>
+        <option value="webhook">{% trans "Webhook (JSON, signed)" %}</option>
+      </select></label>
+      <label>{% trans "Name" %} <input type="text" id="nt-name" maxlength="60" placeholder="{% trans 'e.g. Ops team' %}"></label>
+      <label><input type="checkbox" id="nt-enabled" checked> {% trans "Enabled" %}</label>
+    </div>
+    <div class="ua-row" data-for="email"><label>{% trans "E-mail address" %} <input type="email" id="nt-address" maxlength="254"></label></div>
+    <div class="ua-row" data-for="telegram">
+      <label>{% trans "Bot token" %} <input type="password" id="nt-token" autocomplete="off" placeholder="123456:ABC…"></label>
+      <label>{% trans "Chat id" %} <input type="text" id="nt-chat" placeholder="-1001234567890 / @channel"></label>
+    </div>
+    <div class="ua-row" data-for="slack discord"><label>{% trans "Webhook URL" %} <input type="password" id="nt-hook" autocomplete="off" size="60"></label></div>
+    <div class="ua-row" data-for="webhook">
+      <label>{% trans "URL" %} <input type="url" id="nt-url" size="50" placeholder="https://example.com/hooks/indianscloud"></label>
+      <label>{% trans "Signing secret" %} <input type="password" id="nt-secret" autocomplete="off" placeholder="{% trans 'at least 16 characters' %}"></label>
+    </div>
+    <p class="ua-muted" data-for="webhook">{% trans "IndiansCloud POSTs JSON with the headers X-IndiansCloud-Timestamp and X-IndiansCloud-Signature: sha256= followed by the hex HMAC-SHA256 of timestamp + '.' + body, keyed with your signing secret." %}</p>
+    <div class="ua-row">
+      <button class="ua-btn" id="nt-save">{% trans "Save channel" %}</button>
+      <button class="ua-btn ua-btn-secondary" id="nt-cancel" style="display:none">{% trans "Cancel" %}</button>
+      <span class="ua-muted" id="nt-form-note"></span>
+    </div>
+  </div>
+
+  <div class="ua-card">
+    <h2>{% trans "Alerts I want" %}</h2>
+    <div id="nt-events"></div>
+    <div id="nt-thresholds" class="ua-row" style="display:none">
+      <label>{% trans "Disk alert at" %} <input type="number" id="nt-th-disk" min="50" max="99" style="width:80px"> %</label>
+      <label>{% trans "Swap alert at" %} <input type="number" id="nt-th-swap" min="50" max="99" style="width:80px"> %</label>
+    </div>
+    <div class="ua-row"><button class="ua-btn" id="nt-prefs">{% trans "Save preferences" %}</button><span class="ua-muted" id="nt-prefs-note"></span></div>
+  </div>
+
+  <div class="ua-card">
+    <h2>{% trans "Recent notifications" %}</h2>
+    <div id="nt-log"></div>
+  </div>
+</div>
+{% endblock %}

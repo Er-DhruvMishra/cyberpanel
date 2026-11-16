@@ -85,6 +85,26 @@ MODULES = (
            'Staging copies of any site (files and databases) with push back, password-protected directories, '
            'a redirect editor, custom error pages and hotlink protection.',
            'ua-sitetools', 'ready'),
+    Module('autoresponder', 'Autoresponders & Spam Rules', 'fa-reply-all',
+           'Per-mailbox out-of-office replies, move-to-Junk, spam score threshold and sender allow/block lists, '
+           'as a managed Sieve script that runs before Roundcube filters.',
+           'ua-autoresponder', 'ready'),
+    Module('appcatalog', 'App Catalogue', 'fa-store',
+           'One page of installable apps per site: the panel installers plus verified Drupal, Nextcloud, phpBB, '
+           'MediaWiki, Matomo, Grav and Ghost installs.',
+           'ua-appcatalog', 'ready'),
+    Module('notify', 'Notifications', 'fa-bell',
+           'Alerts by e-mail, Telegram, Slack, Discord or signed webhook: uptime, failed backups, expiring '
+           'certificates, disk quota, new sign-ins and server health.',
+           'ua-notify', 'ready'),
+    Module('uptime', 'Uptime Monitoring', 'fa-heart-pulse',
+           'HTTP(S), keyword, response-time, TLS-expiry and TCP checks every 1, 5 or 15 minutes, with 30 days of '
+           'history, uptime percentages and incidents.',
+           'ua-uptime', 'ready'),
+    Module('visitstats', 'Visitor Statistics', 'fa-chart-line',
+           'GoAccess reports per site from its access log (nightly and on demand), served privately to the '
+           'site owner, with optional IP anonymisation.',
+           'ua-visitstats', 'ready'),
 )
 
 
@@ -130,6 +150,10 @@ def requirement_problems(key, which=shutil.which, exists=os.path.exists):
             problems.append('Site Tools writes OpenLiteSpeed configuration, which is not installed.')
         if not which('rsync'):
             problems.append('rsync is not installed (dnf/apt install rsync).')
+    if key == 'autoresponder':
+        if not which('sievec') and not exists('/usr/bin/sievec'):
+            problems.append('Pigeonhole (Dovecot Sieve) is not installed, so the managed scripts are saved but not '
+                            'run. See the drop-in on the add-on page.')
     if key == 'gitdeploy' and not which('git'):
         problems.append('git is not installed (dnf/apt install git).')
     if key == 'emaildebug':

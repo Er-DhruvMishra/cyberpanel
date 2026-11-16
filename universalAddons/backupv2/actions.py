@@ -79,13 +79,20 @@ def _write_cron(policies):
 
 
 def _notify_failure(policy_id, errors):
+    """Administrators with notification settings get this through their channels (Notifications
+    add-on); everyone else gets the same plain e-mail as before."""
     try:
         _django()
-        from loginSystem.models import Administrator
-        recipients = [a.email for a in Administrator.objects.filter(acl__adminStatus=1) if a.email] or ['root']
-        body = 'To: %s\nSubject: [IndiansCloud] Backup policy %s had errors on %s\n\n%s\n' % (
-            ', '.join(recipients), policy_id, _hostname(), '\n'.join(errors))
-        subprocess.run(['sendmail', '--'] + recipients, input=body, universal_newlines=True, timeout=60)
+        host = _hostname()
+
+        def legacy(recipients):
+            body = 'To: %s\nSubject: [IndiansCloud] Backup policy %s had errors on %s\n\n%s\n' % (
+                ', '.join(recipients), policy_id, host, '\n'.join(errors))
+            subprocess.run(['sendmail', '--'] + recipients, input=body, universal_newlines=True, timeout=60)
+
+        from universalAddons import notify
+        notify.notify_admins('backup_failure', 'Backup policy %s had errors on %s' % (policy_id, host),
+                             '\n'.join(errors), 'error', key='backup:%s' % policy_id, state='failed', fallback=legacy)
     except Exception:
         pass
 

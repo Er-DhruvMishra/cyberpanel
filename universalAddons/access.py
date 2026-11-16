@@ -83,6 +83,11 @@ DEFAULT_POLICY = {
     'laravel_for_users': False,        # may website owners use the Laravel Toolkit on their own sites?
     'gitdeploy_for_users': False,      # may website owners deploy their own sites from Git (with webhooks)?
     'sitetools_for_users': False,      # may resellers/website owners use Site Tools (staging, redirects...) on their sites?
+    'appcatalog_for_users': False,     # may resellers/website owners install catalogue apps on their own sites?
+    'notify_for_users': True,          # may every account set up its own notification channels? (on: all accounts)
+    'uptime_for_users': True,          # may every account monitor its sites and URLs? (on: all accounts)
+    'uptime_max_monitors': 10,         # uptime monitors per non-administrator account
+    'visitstats_for_users': False,     # may website owners see visitor statistics (GoAccess) of their own sites?
 }
 
 # Add-ons that have something for non-administrators, and the policy switch that opens each one
@@ -102,6 +107,10 @@ USER_FEATURES = (
     ('laravel', 'laravel_for_users'),
     ('gitdeploy', 'gitdeploy_for_users'),
     ('sitetools', 'sitetools_for_users'),
+    ('appcatalog', 'appcatalog_for_users'),
+    ('notify', 'notify_for_users'),
+    ('uptime', 'uptime_for_users'),
+    ('visitstats', 'visitstats_for_users'),
 )
 
 # What a site owner gets from each switch (shown next to its checkbox on the hub).
@@ -126,6 +135,13 @@ USER_FEATURE_HELP = {
                  'webhooks, releases with rollback), as the site user.',
     'sitetools': 'Site Tools on their own sites: staging copies of any site with push back, password-protected '
                  'directories, redirects, custom error pages and hotlink protection.',
+    'appcatalog': 'Install Drupal, Nextcloud, phpBB, MediaWiki, Matomo, Grav and Ghost on their own sites: '
+                  'verified official releases, databases within their package quota, run as the site user.',
+    'notify': 'Their own notification channels (e-mail, Telegram, Slack, Discord, signed webhooks) and alert '
+              'subscriptions. On by default: every account can choose where its alerts go.',
+    'uptime': 'Uptime monitors for their own sites and any public URL (HTTP status, keyword, response time, TLS '
+              'expiry, TCP port), within the per-account limit. On by default.',
+    'visitstats': 'Visitor statistics (GoAccess reports) of their own sites, with an option to anonymise IPs.',
 }
 
 

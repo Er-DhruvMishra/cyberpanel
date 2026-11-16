@@ -1,0 +1,48 @@
+{% extends "universalAddons/base.html" %}
+{% load i18n static %}
+{% block title %}{% trans "Uptime Monitoring" %} - IndiansCloud{% endblock %}
+{% block addon_scripts %}<script src="{% static 'universalAddons/uptime.js' %}?v={{ CP_VERSION }}"></script>{% endblock %}
+{% block content %}
+<div class="ua-wrap" id="ua-uptime" data-base="{% url 'ua-uptime' %}" data-admin="{{ is_admin|yesno:'1,0' }}" data-site="{{ site }}">
+  <div class="ua-header">
+    <h1><i class="fas fa-heart-pulse"></i> {% trans "Uptime Monitoring" %}</h1>
+    <p>{% trans "IndiansCloud checks your sites (or any public URL) every 1, 5 or 15 minutes: HTTP status, an optional keyword, response time and the TLS certificate's expiry, or a plain TCP port. Two failures in a row mark a monitor down; alerts go out through your Notifications channels. History is kept for 30 days." %}</p>
+  </div>
+
+  <div class="ua-card">
+    <h2>{% trans "Monitors" %} <span class="ua-muted" id="up-count"></span></h2>
+    <div id="up-list" style="overflow-x:auto"><p class="ua-muted">{% trans "Loading…" %}</p></div>
+  </div>
+
+  <div class="ua-card">
+    <h2 id="up-form-title">{% trans "Add a monitor" %}</h2>
+    <div class="ua-row">
+      <label>{% trans "Type" %} <select id="up-kind"><option value="http">HTTP(S)</option><option value="tcp">{% trans "TCP port" %}</option></select></label>
+      <label>{% trans "Name" %} <input type="text" id="up-name" maxlength="60"></label>
+      <label>{% trans "Every" %} <select id="up-interval"><option value="1">1 {% trans "min" %}</option><option value="5" selected>5 {% trans "min" %}</option><option value="15">15 {% trans "min" %}</option></select></label>
+      <label><input type="checkbox" id="up-enabled" checked> {% trans "Enabled" %}</label>
+    </div>
+    <div class="ua-row" data-kind="http">
+      <label>{% trans "URL" %} <input type="url" id="up-url" size="50" list="up-sites" placeholder="https://example.com/"></label>
+      <datalist id="up-sites"></datalist>
+      <label>{% trans "Keyword" %} <input type="text" id="up-keyword" maxlength="100"></label>
+      <label><select id="up-mode"><option value="present">{% trans "must be present" %}</option><option value="absent">{% trans "must be absent" %}</option></select></label>
+    </div>
+    <div class="ua-row" data-kind="tcp" style="display:none">
+      <label>{% trans "Host" %} <input type="text" id="up-host" maxlength="253"></label>
+      <label>{% trans "Port" %} <input type="number" id="up-port" min="1" max="65535" style="width:100px"></label>
+    </div>
+    <p class="ua-muted">{% trans "Private, loopback and link-local addresses cannot be monitored. Redirects are followed (up to two) and checked the same way." %}</p>
+    <div class="ua-row">
+      <button class="ua-btn" id="up-save">{% trans "Save monitor" %}</button>
+      <button class="ua-btn ua-btn-secondary" id="up-cancel" style="display:none">{% trans "Cancel" %}</button>
+      <span class="ua-muted" id="up-note"></span>
+    </div>
+  </div>
+
+  <div class="ua-card" id="up-detail" style="display:none">
+    <h2 id="up-detail-title"></h2>
+    <div id="up-detail-out"></div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,70 @@
+{% extends "universalAddons/base.html" %}
+{% load i18n static %}
+{% block title %}{% trans "Autoresponders & Spam Rules" %} - IndiansCloud{% endblock %}
+{% block addon_scripts %}<script src="{% static 'universalAddons/autoresponder.js' %}?v={{ CP_VERSION }}"></script>{% endblock %}
+{% block content %}
+<div class="ua-wrap" id="ua-autoresponder" data-base="{% url 'ua-autoresponder' %}" data-admin="{{ is_admin|yesno:'1,0' }}" data-mailbox="{{ mailbox }}">
+  <div class="ua-header">
+    <h1><i class="fas fa-reply-all"></i> {% trans "Autoresponders & Spam Rules" %}</h1>
+    <p>{% trans "Out-of-office replies and spam handling for each mailbox, run by IndiansCloud as a Sieve script before the mailbox's own filters. Filters you make in Roundcube are never changed." %}</p>
+  </div>
+
+  {% if is_admin %}
+  <div class="ua-card">
+    <h2>{% trans "Server check" %}</h2>
+    <div class="ua-row"><button class="ua-btn ua-btn-secondary" id="ar-health">{% trans "Check again" %}</button>
+      <span class="ua-muted">{% trans "Read-only. Dovecot and MailScanner are never changed or restarted from this page." %}</span></div>
+    <table class="ua-table" id="ar-health-out"><tbody><tr><td class="ua-muted">{% trans "Loading…" %}</td></tr></tbody></table>
+    <details id="ar-dropin-box" style="display:none;margin-top:12px">
+      <summary>{% trans "Dovecot drop-in to apply by hand" %} (<code id="ar-dropin-path"></code>)</summary>
+      <pre class="ua-pre" id="ar-dropin" style="white-space:pre-wrap"></pre>
+    </details>
+  </div>
+  {% endif %}
+
+  <div class="ua-card">
+    <h2>{% trans "Mailbox" %}</h2>
+    <div class="ua-row">
+      <input id="ar-filter" placeholder="{% trans 'Filter mailboxes' %}">
+      <select id="ar-mailbox" style="min-width:280px"></select>
+    </div>
+    <div id="ar-status"></div>
+  </div>
+
+  <div class="ua-card" id="ar-forms" style="display:none">
+    <h2>{% trans "Autoresponder" %}</h2>
+    <div class="ua-row"><label><input type="checkbox" id="ar-enabled"> {% trans "Send an automatic reply" %}</label>
+      <span id="ar-active"></span></div>
+    <div class="ua-row">
+      <label>{% trans "From" %} <input type="date" id="ar-start"></label>
+      <label>{% trans "Until (inclusive)" %} <input type="date" id="ar-end"></label>
+      <label>{% trans "Reply to the same sender at most every" %} <input type="number" id="ar-days" min="1" max="30" value="7" style="min-width:70px"> {% trans "days" %}</label>
+    </div>
+    <div class="ua-row"><label style="flex:1">{% trans "Subject" %}<br><input id="ar-subject" maxlength="{{ max_subject }}" style="width:100%"></label></div>
+    <div class="ua-row"><label style="flex:1">{% trans "Message (plain text)" %}<br><textarea id="ar-body" rows="7" maxlength="{{ max_body }}" style="width:100%"></textarea></label></div>
+    <div class="ua-row"><label style="flex:1">{% trans "Other addresses that are mine (aliases), one per line" %}<br><textarea id="ar-addresses" rows="2" style="width:100%"></textarea></label></div>
+    <p class="ua-muted">{% trans "Mailing lists, bulk mail and automatic messages are never answered. Spam and blocked senders are not answered either." %}</p>
+
+    <h2 style="margin-top:18px">{% trans "Spam" %}</h2>
+    <div class="ua-row">
+      <label><input type="checkbox" id="ar-move"> {% trans "Move mail marked as spam to the folder" %}</label>
+      <input id="ar-folder" value="Junk" maxlength="60" style="min-width:120px">
+    </div>
+    <div class="ua-row">
+      <label>{% trans "Also act on a spam score of at least" %} <input type="number" id="ar-threshold" min="1" max="50" placeholder="{% trans 'off' %}" style="min-width:80px"></label>
+      <select id="ar-threshold-action"><option value="junk">{% trans "move to the folder" %}</option><option value="discard">{% trans "delete silently" %}</option></select>
+      <span class="ua-muted" id="ar-score-note"></span>
+    </div>
+    <div class="ua-row">
+      <label style="flex:1">{% trans "Allow list: never treated as spam (address or @domain, one per line)" %}<br><textarea id="ar-allow" rows="3" style="width:100%"></textarea></label>
+      <label style="flex:1">{% trans "Block list (address or @domain, one per line)" %}<br><textarea id="ar-block" rows="3" style="width:100%"></textarea></label>
+    </div>
+    <div class="ua-row"><label>{% trans "Mail from blocked senders" %}
+      <select id="ar-block-action"><option value="discard">{% trans "delete silently" %}</option><option value="junk">{% trans "move to the folder" %}</option></select></label></div>
+
+    <div class="ua-row" style="margin-top:14px"><button class="ua-btn" id="ar-save">{% trans "Save" %}</button></div>
+    <div id="ar-out"></div>
+    <details style="margin-top:12px"><summary>{% trans "Generated Sieve script" %}</summary><pre class="ua-pre" id="ar-script" style="white-space:pre-wrap"></pre></details>
+  </div>
+</div>
+{% endblock %}

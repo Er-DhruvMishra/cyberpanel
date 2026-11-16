@@ -17,7 +17,7 @@ class PolicyKeys(SimpleTestCase):
         self.assertTrue(policy['terminal_for_users'])
         self.assertTrue(policy['apps_for_users'])
         self.assertEqual(policy['max_apps_per_site'], 7)
-        self.assertEqual(access.user_modules(policy), ['apps', 'webterm'])
+        self.assertEqual(access.user_modules(policy), ['apps', 'webterm', 'notify', 'uptime'])  # last two: on by default
 
     def test_rejects_unknown_or_non_boolean(self):
         path = os.path.join(tempfile.mkdtemp(), 'p.json')
@@ -45,10 +45,12 @@ class Hub(SimpleTestCase):
         return captured
 
     def test_users_see_only_allowed_addons(self):
-        data = self.render(0, {'mssql_for_users': True})
+        off = {'notify_for_users': False, 'uptime_for_users': False}   # on by default (all accounts)
+        data = self.render(0, dict(off, mssql_for_users=True))
         self.assertEqual([m['key'] for m in data['modules']], ['mssql'])
         self.assertEqual(data['user_access'], [])
-        self.assertEqual(self.render(0, {})['modules'], [])
+        self.assertEqual(self.render(0, off)['modules'], [])
+        self.assertEqual([m['key'] for m in self.render(0, {})['modules']], ['notify', 'uptime'])
 
     def test_admin_sees_everything_and_the_access_switches(self):
         data = self.render(1, {'apps_for_users': True, 'backup_for_users': True})
@@ -58,7 +60,9 @@ class Hub(SimpleTestCase):
             'wordpress': False, 'backupv2': True, 'sslv2': False, 'htaccess': False, 'emaildebug': False,
             'limits': False, 'apps': True, 'mssql': False, 'emaillimits': False, 'webterm': False,
             'cloudflare': False, 'laravel': False, 'gitdeploy': False,
-            'sitetools': False})
+            'sitetools': False,
+            'appcatalog': False,
+            'notify': True, 'uptime': True, 'visitstats': False})
         for row in data['user_access']:
             self.assertTrue(row['help'], row['key'])            # a short description of what users get
             self.assertNotEqual(row['title'], row['key'])        # the module's real title
@@ -69,7 +73,8 @@ class Hub(SimpleTestCase):
                             ('sslv2', 'ssl_for_users'), ('htaccess', 'htaccess_for_users'),
                             ('emaildebug', 'email_debug_for_users'), ('limits', 'limits_for_users')):
             self.assertIs(access.DEFAULT_POLICY[switch], False, switch)
-            self.assertEqual([m['key'] for m in self.render(0, {switch: True})['modules']], [key])
+            policy = {'notify_for_users': False, 'uptime_for_users': False, switch: True}
+            self.assertEqual([m['key'] for m in self.render(0, policy)['modules']], [key])
 
     def test_server_wide_modules_have_no_user_switch(self):
         keys = {key for key, _ in access.USER_FEATURES}
@@ -110,6 +115,6 @@ class Hub(SimpleTestCase):
     def test_new_switches_can_be_saved(self):
         path = os.path.join(tempfile.mkdtemp(), 'p.json')
         policy = access.save_policy_keys({'wordpress_for_users': True, 'limits_for_users': True}, path)
-        self.assertEqual(access.user_modules(policy), ['wordpress', 'limits'])
+        self.assertEqual(access.user_modules(policy), ['wordpress', 'limits', 'notify', 'uptime'])  # last two: on by default
         policy = access.save_policy_keys({switch: False for _, switch in access.USER_FEATURES}, path)
         self.assertEqual(access.user_modules(policy), [])

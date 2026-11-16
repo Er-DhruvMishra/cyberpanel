@@ -351,9 +351,11 @@
             {l:'{% trans "WordPress Sites" %}', h:'{% url "ListWPSites" %}', i:'fab fa-wordpress', g:'{% trans "Sites" %}'},
             {l:'{% trans "Sub / Addon Domains" %}', h:'{% url "listChildDomains" %}', i:'fa-diagram-project', g:'{% trans "Sites" %}'},
             {l:'{% trans "Create Sub / Addon Domain" %}', h:'{% url "CreateNewDomain" %}', i:'fa-circle-plus', g:'{% trans "Sites" %}'},
+            {l:'{% trans "App Catalogue" %}', h:'{% url "ua-appcatalog" %}', i:'fa-store', g:'{% trans "Sites" %}'},
             // Email
             {% if admin or listEmails %}{l:'{% trans "Email Accounts" %}', h:'{% url "listEmails" %}', i:'fa-inbox', g:'{% trans "Email" %}'},{% endif %}
             {% if admin or emailForwarding %}{l:'{% trans "Email Forwarding" %}', h:'{% url "emailForwarding" %}', i:'fa-share', g:'{% trans "Email" %}'},
+            {l:'{% trans "Autoresponders & Spam Rules" %}', h:'{% url "ua-autoresponder" %}', i:'fa-reply-all', g:'{% trans "Email" %}'},
             {l:'{% trans "Catch-All Email" %}', h:'{% url "catchAllEmail" %}', i:'fa-filter', g:'{% trans "Email" %}'},
             {l:'{% trans "Email Limits" %}', h:'{% url "EmailLimits" %}', i:'fa-gauge', g:'{% trans "Email" %}'},{% endif %}
             {% if admin or dkimManager %}{l:'{% trans "DKIM Manager" %}', h:'{% url "dkimManager" %}', i:'fa-signature', g:'{% trans "Email" %}'},{% endif %}

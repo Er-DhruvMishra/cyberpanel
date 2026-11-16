@@ -30,4 +30,9 @@ urlpatterns = [
     path('laravel/', include('universalAddons.laravel.urls')),
     path('git-deploy/', include('universalAddons.gitdeploy.urls')),
     path('site-tools/', include('universalAddons.sitetools.urls')),
+    path('autoresponder/', include('universalAddons.autoresponder.urls')),
+    path('app-catalog/', include('universalAddons.appcatalog.urls')),
+    path('notifications/', include('universalAddons.notify.urls')),
+    path('uptime/', include('universalAddons.uptime.urls')),
+    path('visitor-stats/', include('universalAddons.visitstats.urls')),
 ]

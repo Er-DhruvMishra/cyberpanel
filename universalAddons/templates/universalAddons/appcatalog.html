@@ -1,0 +1,37 @@
+{% extends "universalAddons/base.html" %}
+{% load i18n static %}
+{% block title %}{% trans "App Catalogue" %} - IndiansCloud{% endblock %}
+{% block addon_scripts %}<script src="{% static 'universalAddons/appcatalog.js' %}?v={{ CP_VERSION }}"></script>{% endblock %}
+{% block content %}
+<div class="ua-wrap" id="ua-appcatalog" data-base="{% url 'ua-appcatalog' %}" data-site="{{ site }}">
+  <div class="ua-header">
+    <h1><i class="fas fa-store"></i> {% trans "App Catalogue" %}</h1>
+    <p>{% trans "Install an application on a site. New installers download the official release, verify its checksum (and signature where the project signs releases) before anything is unpacked, create the database within your package quota, and run as the site's own user." %}</p>
+  </div>
+  <div class="ua-card">
+    <div class="ua-row"><label>{% trans "Site" %} <select id="ac-site" style="min-width:260px"></select></label></div>
+  </div>
+  <div class="ua-card"><div id="ac-apps"><p class="ua-muted">{% trans "Choose a site." %}</p></div></div>
+
+  <div class="ua-card" id="ac-form" style="display:none">
+    <h2 id="ac-form-title"></h2>
+    <p class="ua-muted" id="ac-form-source"></p>
+    <div class="ua-row">
+      <label id="ac-path-label">{% trans "Folder below the web root (empty = the site itself)" %} <input id="ac-path" placeholder="blog"></label>
+      <label>{% trans "Site name" %} <input id="ac-name" maxlength="80"></label>
+    </div>
+    <div class="ua-row">
+      <label>{% trans "Admin user" %} <input id="ac-admin" value="admin" maxlength="32"></label>
+      <label>{% trans "Admin email" %} <input id="ac-email" type="email" maxlength="120"></label>
+    </div>
+    <div id="ac-target"></div>
+    <div class="ua-row" id="ac-overwrite-row" style="display:none">
+      <label><input type="checkbox" id="ac-overwrite"> {% trans "Overwrite: move the existing files to ~/appcatalog-backups first" %}</label>
+      <label>{% trans "Type the domain to confirm" %} <input id="ac-confirm"></label>
+    </div>
+    <div class="ua-row"><button class="ua-btn" id="ac-install">{% trans "Install" %}</button>
+      <button class="ua-btn ua-btn-secondary" id="ac-cancel">{% trans "Cancel" %}</button></div>
+    <div id="ac-out"></div>
+  </div>
+</div>
+{% endblock %}

@@ -2510,6 +2510,45 @@
                     <div class="install-btn"><i class="fas fa-screwdriver-wrench"></i> {% trans "Open Site Tools" %}</div>
                 </a>
 
+                <!-- App Catalogue add-on card (IndiansCloud) -->
+                <a href="/addons/app-catalog/?site={{ domain|urlencode }}" class="app-card appcatalog">
+                    <div class="app-icon-wrapper"><i class="fas fa-store app-icon" style="font-size:40px;line-height:64px;"></i></div>
+                    <h3 class="app-name">{% trans "App Catalogue" %}</h3>
+                    <p class="app-description">{% trans "Drupal, Nextcloud, phpBB, MediaWiki, Matomo, Grav, Ghost and the panel installers, verified before install" %}</p>
+                    <div class="app-features">
+                        <span class="feature-tag">Verified</span>
+                        <span class="feature-tag">CMS</span>
+                        <span class="feature-tag">Apps</span>
+                    </div>
+                    <div class="install-btn"><i class="fas fa-store"></i> {% trans "Browse apps" %}</div>
+                </a>
+
+                <!-- Uptime Monitoring add-on card (IndiansCloud) -->
+                <a href="/addons/uptime/?site={{ domain|urlencode }}" class="app-card uptime">
+                    <div class="app-icon-wrapper"><i class="fas fa-heart-pulse app-icon" style="font-size:40px;line-height:64px;"></i></div>
+                    <h3 class="app-name">{% trans "Uptime Monitoring" %}</h3>
+                    <p class="app-description">{% trans "Check this site every 1, 5 or 15 minutes and get alerts when it goes down or its certificate expires" %}</p>
+                    <div class="app-features">
+                        <span class="feature-tag">HTTP(S)</span>
+                        <span class="feature-tag">Keyword</span>
+                        <span class="feature-tag">Alerts</span>
+                    </div>
+                    <div class="install-btn"><i class="fas fa-heart-pulse"></i> {% trans "Monitor this site" %}</div>
+                </a>
+
+                <!-- Visitor Statistics add-on card (IndiansCloud) -->
+                <a href="/addons/visitor-stats/?site={{ domain|urlencode }}" class="app-card visitstats">
+                    <div class="app-icon-wrapper"><i class="fas fa-chart-line app-icon" style="font-size:40px;line-height:64px;"></i></div>
+                    <h3 class="app-name">{% trans "Visitor Statistics" %}</h3>
+                    <p class="app-description">{% trans "GoAccess reports of visitors, pages, referrers and status codes from this site's access log" %}</p>
+                    <div class="app-features">
+                        <span class="feature-tag">GoAccess</span>
+                        <span class="feature-tag">Private</span>
+                        <span class="feature-tag">Anonymised IPs</span>
+                    </div>
+                    <div class="install-btn"><i class="fas fa-chart-line"></i> {% trans "View statistics" %}</div>
+                </a>
+
                 <!-- PrestaShop Card -->
                 <a href="{$ installPrestaURL $}" class="app-card prestashop">
                     <div class="quick-badge">E-Commerce</div>

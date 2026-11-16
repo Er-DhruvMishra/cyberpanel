@@ -80,13 +80,45 @@ def monitor():
     rows, untrusted = service.alert_rows(service.inventory(_panel_domains()))
     if not rows:
         return {'alerts': 0, 'untrusted': untrusted}
-    from loginSystem.models import Administrator
-    recipients = [a.email for a in Administrator.objects.filter(acl__adminStatus=1) if a.email] or ['root']
     hostname = subprocess.run(['hostname', '-f'], stdout=subprocess.PIPE, universal_newlines=True).stdout.strip()
-    body = 'To: %s\nSubject: [IndiansCloud] %d certificate(s) need attention on %s\n\n%s\n' % (
-        ', '.join(recipients), len(rows), hostname, service.alert_body(rows, hostname, untrusted))
-    subprocess.run(['sendmail', '--'] + recipients, input=body, universal_newlines=True, timeout=60)
-    return {'alerts': len(rows), 'recipients': len(recipients)}
+    text = service.alert_body(rows, hostname, untrusted)
+    sent = {'recipients': 0}
+
+    def legacy(recipients):
+        # Administrators without notification settings: the same e-mail as before.
+        body = 'To: %s\nSubject: [IndiansCloud] %d certificate(s) need attention on %s\n\n%s\n' % (
+            ', '.join(recipients), len(rows), hostname, text)
+        subprocess.run(['sendmail', '--'] + recipients, input=body, universal_newlines=True, timeout=60)
+        sent['recipients'] = len(recipients)
+
+    from universalAddons import notify
+    notify.notify_admins('ssl_expiry', '%d certificate(s) need attention on %s' % (len(rows), hostname), text,
+                         'warning', key='ssl:server', state=','.join(sorted(r['domain'] for r in rows)),
+                         fallback=legacy)
+    _notify_site_owners(rows)
+    return {'alerts': len(rows), 'recipients': sent['recipients']}
+
+
+def _notify_site_owners(rows):
+    """Site owners who saved notification settings (and subscribe to SSL expiry) hear about their own
+    domains. Nobody else gets anything new."""
+    try:
+        from universalAddons.notify import service as notify_service
+        from websiteFunctions.models import ChildDomains, Websites
+        owners = dict(Websites.objects.values_list('domain', 'admin_id'))
+        owners.update({d: m for d, m in ChildDomains.objects.values_list('domain', 'master__admin_id')})
+        admins = {pk for pk, _ in notify_service.admin_accounts()}
+        by_owner = {}
+        for row in rows:
+            owner = owners.get(row['domain'])
+            if owner and owner not in admins and notify_service.has_settings(owner):
+                by_owner.setdefault(owner, []).append(row)
+        for owner, own_rows in by_owner.items():
+            notify_service.send(owner, 'ssl_expiry', '%d certificate(s) of your sites need attention' % len(own_rows),
+                                service.alert_body(own_rows, 'your sites'), 'warning', key='ssl:sites',
+                                state=','.join(sorted(r['domain'] for r in own_rows)), window=86400)
+    except Exception:
+        pass
 
 
 def monitor_cron(enable=True):

@@ -1,0 +1,38 @@
+{% extends "universalAddons/base.html" %}
+{% load i18n static %}
+{% block title %}{% trans "Visitor Statistics" %} - IndiansCloud{% endblock %}
+{% block addon_scripts %}<script src="{% static 'universalAddons/visitstats.js' %}?v={{ CP_VERSION }}"></script>{% endblock %}
+{% block content %}
+<div class="ua-wrap" id="ua-visitstats" data-base="{% url 'ua-visitstats' %}" data-report="{% url 'ua-visitstats-report' %}" data-admin="{{ is_admin|yesno:'1,0' }}" data-site="{{ site }}">
+  <div class="ua-header">
+    <h1><i class="fas fa-chart-line"></i> {% trans "Visitor Statistics" %}</h1>
+    <p>{% trans "Reports of who visits your sites, built from each site's web server access log: visitors, pages, referrers, status codes, browsers and more. They are rebuilt every night and on request, kept privately on the server and shown only to the site's owner." %}</p>
+  </div>
+
+  {% if is_admin %}
+  <div class="ua-card" id="vs-engine">
+    <h2>{% trans "Report engine" %}</h2>
+    <div id="vs-engine-out"><p class="ua-muted">{% trans "Loading…" %}</p></div>
+    <div class="ua-row">
+      <button class="ua-btn ua-btn-secondary" id="vs-check">{% trans "Check if GoAccess is available (dnf)" %}</button>
+      <button class="ua-btn" id="vs-install" style="display:none">{% trans "Install GoAccess" %}</button>
+      <span class="ua-muted" id="vs-engine-note"></span>
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="ua-card">
+    <h2>{% trans "Sites" %}</h2>
+    <div class="ua-row"><input type="search" id="vs-filter" placeholder="{% trans 'Filter sites' %}"></div>
+    <div id="vs-sites" style="overflow-x:auto"><p class="ua-muted">{% trans "Loading…" %}</p></div>
+  </div>
+
+  <div class="ua-card" id="vs-job" style="display:none"><h2>{% trans "Progress" %}</h2><div id="vs-job-out"></div></div>
+
+  <div class="ua-card" id="vs-view" style="display:none">
+    <h2 id="vs-view-title"></h2>
+    <p class="ua-muted"><a id="vs-view-open" href="#" target="_blank" rel="noopener">{% trans "Open in a new tab" %}</a></p>
+    <iframe id="vs-frame" title="{% trans 'Visitor statistics report' %}" sandbox="allow-scripts allow-popups" style="width:100%;height:80vh;border:1px solid #e2e8f0;border-radius:8px"></iframe>
+  </div>
+</div>
+{% endblock %}

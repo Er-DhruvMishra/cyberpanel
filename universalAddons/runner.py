@@ -41,6 +41,10 @@ MODULES = {
     'laravel': 'universalAddons.laravel.actions',
     'gitdeploy': 'universalAddons.gitdeploy.actions',
     'sitetools': 'universalAddons.sitetools.actions',
+    'autoresponder': 'universalAddons.autoresponder.actions',
+    'appcatalog': 'universalAddons.appcatalog.actions',
+    'notify': 'universalAddons.notify.actions',
+    'visitstats': 'universalAddons.visitstats.actions',
     'hub': 'universalAddons.hub_actions',
 }
 

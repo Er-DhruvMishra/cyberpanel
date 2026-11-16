@@ -135,6 +135,11 @@ def verifyLogin(request):
                 # Persist before the browser follows the login response with a
                 # dashboard request.  This is important with multiple workers.
                 request.session.save()
+                try:  # Notifications add-on: alert on a sign-in from a new IP (queued, never blocks)
+                    from universalAddons.notify.service import login_seen
+                    login_seen(admin.pk, get_client_ip(request))
+                except Exception:
+                    pass
                 data = {'userID': admin.pk, 'loginStatus': 1, 'error_message': "None"}
                 json_data = json.dumps(data)
                 response.write(json_data)
