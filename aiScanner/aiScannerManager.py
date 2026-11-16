@@ -1,972 +1,293 @@
-import requests
+"""IndiansCloud AI Scanner - page and JSON endpoints.
+
+Access (unchanged from the original design):
+* any logged-in panel user may open the scanner, unless their ACL carries
+  ``aiScannerAccess = 0``;
+* a user may scan only websites they own (ACLManager.checkOwnership: admins all
+  sites, resellers their own and their users' sites, users their own);
+* scan history: admins see all scans, others their own and their direct
+  sub-users' scans;
+* the provider/key/budget settings are administrator-only.  Non-admin users may
+  store their own key only when the key policy allows it.
+"""
 import json
+import os
+import subprocess
+import sys
 import uuid
-import secrets
-from datetime import datetime, timedelta
-from django.shortcuts import render, redirect
+
 from django.http import JsonResponse
-from django.utils import timezone
-from django.conf import settings
-from django.urls import reverse
-from django.contrib import messages
+from django.shortcuts import render
+
 from loginSystem.models import Administrator
-from .models import AIScannerSettings, ScanHistory, FileAccessToken
 from plogical.acl import ACLManager
 from plogical.CyberCPLogFileWriter import CyberCPLogFileWriter as logging
 
+from . import budget, pipeline, providers, settings_store
+from .models import ScanHistory
+
+MAX_ACTIVE_SCANS = 2
+MAX_BODY = 64 * 1024
+
+
+class AccessDenied(Exception):
+    pass
+
+
+def _error(message, status=200):
+    return JsonResponse({'success': False, 'error': message}, status=status)
+
+
+def load_actor(user_id):
+    """(admin, acl, is_admin) for a session user; raises AccessDenied."""
+    admin = Administrator.objects.get(pk=user_id)
+    acl = ACLManager.loadedACL(user_id)
+    try:
+        if acl.get('aiScannerAccess', 1) == 0:
+            raise AccessDenied('Access denied')
+    except AttributeError:
+        pass
+    return admin, acl, acl.get('admin') == 1
+
+
+def visible_admins(admin, is_admin):
+    """Whose scans this user may see: everyone (admin) or self + direct sub-users."""
+    if is_admin:
+        return None
+    return [admin] + list(Administrator.objects.filter(owner=admin.pk))
+
+
+def scans_for(admin, is_admin):
+    owners = visible_admins(admin, is_admin)
+    query = ScanHistory.objects.all() if owners is None else ScanHistory.objects.filter(admin__in=owners)
+    return query.order_by('-started_at')
+
+
+def can_see_scan(scan, admin, is_admin):
+    owners = visible_admins(admin, is_admin)
+    return owners is None or scan.admin_id in {a.pk for a in owners}
+
+
+def _json_body(request):
+    if len(request.body or b'') > MAX_BODY:
+        raise ValueError('Request too large.')
+    data = json.loads(request.body or b'{}')
+    if not isinstance(data, dict):
+        raise ValueError('Invalid request.')
+    return data
+
+
+def launch_background(scan_id):
+    """Run the scan in a detached low-priority process so it survives worker recycling."""
+    from django.conf import settings
+    manage = os.path.join(str(settings.BASE_DIR), 'manage.py')
+    python = pipeline.PANEL_PYTHON if os.path.exists(pipeline.PANEL_PYTHON) else sys.executable
+    subprocess.Popen(['nice', '-n', '10', python, manage, 'aiscanner_scan', '--scan-id', scan_id],
+                     cwd=str(settings.BASE_DIR), stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                     stderr=subprocess.DEVNULL, close_fds=True, start_new_session=True)
+
 
 class AIScannerManager:
-    AI_SCANNER_API_BASE = 'https://platform.cyberpersons.com/ai-scanner'
-    
+
     def __init__(self):
         self.logger = logging
-    
+
+    # ------------------------------------------------------------------ page
     def scannerHome(self, request, userID):
-        """Main AI Scanner page"""
         try:
-            admin = Administrator.objects.get(pk=userID)
-            
-            # Load ACL permissions
-            currentACL = ACLManager.loadedACL(userID)
-            
-            # Check ACL permissions (with fallback for new field)
-            try:
-                if currentACL.get('aiScannerAccess', 1) == 0:
-                    return ACLManager.loadError()
-            except (AttributeError, KeyError):
-                # Field doesn't exist yet, allow access for now
-                self.logger.writeToFile(f'[AIScannerManager.scannerHome] aiScannerAccess field not found, allowing access')
-                pass
-            
-            # Get or create scanner settings
-            scanner_settings, created = AIScannerSettings.objects.get_or_create(
-                admin=admin,
-                defaults={'balance': 0.0000, 'is_payment_configured': False}
-            )
-            
-            # Get current pricing from API
-            pricing_data = self.get_ai_scanner_pricing()
-            
-            # Get recent scan history with ACL respect
-            if currentACL['admin'] == 1:
-                # Admin can see all scans
-                recent_scans = ScanHistory.objects.all().order_by('-started_at')[:10]
-            else:
-                # Users can only see their own scans and their sub-users' scans
-                user_admins = ACLManager.loadUserObjects(userID)
-                recent_scans = ScanHistory.objects.filter(admin__in=user_admins).order_by('-started_at')[:10]
-            
-            # Get current balance if payment is configured
-            current_balance = scanner_settings.balance
-            self.logger.writeToFile(f'[AIScannerManager.scannerHome] Stored balance: {current_balance}')
-            
-            if scanner_settings.is_payment_configured:
-                # Try to fetch latest balance from API (now supports flexible auth)
-                self.logger.writeToFile(f'[AIScannerManager.scannerHome] Fetching balance from API...')
-                api_balance = self.get_account_balance(scanner_settings.api_key)
-                self.logger.writeToFile(f'[AIScannerManager.scannerHome] API returned balance: {api_balance}')
-                
-                if api_balance is not None:
-                    scanner_settings.balance = api_balance
-                    scanner_settings.save()
-                    current_balance = api_balance
-                    self.logger.writeToFile(f'[AIScannerManager.scannerHome] Updated balance to: {current_balance}')
-                else:
-                    self.logger.writeToFile(f'[AIScannerManager.scannerHome] API balance call failed, keeping stored balance: {current_balance}')
-            
-            # Check VPS free scans availability
-            server_ip = ACLManager.fetchIP()
-            vps_info = self.check_vps_free_scans(server_ip)
-            
-            # Get user's websites for scan selection using ACL-aware method
-            try:
-                websites = ACLManager.findWebsiteObjects(currentACL, userID)
-                self.logger.writeToFile(f'[AIScannerManager.scannerHome] Found {len(websites)} websites for {admin.userName}')
-            except Exception as e:
-                self.logger.writeToFile(f'[AIScannerManager.scannerHome] Error fetching websites: {str(e)}')
-                websites = []
-            
-            # Build context safely
-            self.logger.writeToFile(f'[AIScannerManager.scannerHome] Building context for {admin.userName}')
-            
-            context = {
-                'admin': admin,
-                'scanner_settings': scanner_settings,
-                'pricing_data': pricing_data,
-                'recent_scans': recent_scans,
-                'current_balance': current_balance,
-                'websites': websites,
-                'is_payment_configured': scanner_settings.is_payment_configured,
-                'vps_info': vps_info,
-                'server_ip': server_ip,
-            }
-            
-            self.logger.writeToFile(f'[AIScannerManager.scannerHome] Context built successfully, rendering template')
-            
-            return render(request, 'aiScanner/scanner.html', context)
-            
-        except Exception as e:
-            import traceback
-            self.logger.writeToFile(f'[AIScannerManager.scannerHome] Error: {str(e)}')
-            self.logger.writeToFile(f'[AIScannerManager.scannerHome] Traceback: {traceback.format_exc()}')
-            
-            return render(request, 'aiScanner/scanner.html', {
-                'error': f'Failed to load AI Scanner page: {str(e)}',
-                'is_payment_configured': False,
-                'websites': [],
-                'recent_scans': [],
-                'current_balance': 0,
-                'pricing_data': None
-            })
-    
-    def setupPayment(self, request, userID):
-        """Setup payment method for AI scanner"""
+            admin, acl, is_admin = load_actor(userID)
+        except AccessDenied:
+            return ACLManager.loadError()
+        config = settings_store.load_config()
         try:
-            if request.method != 'POST':
-                return JsonResponse({'success': False, 'error': 'Invalid request method'})
-            
-            admin = Administrator.objects.get(pk=userID)
-            
-            # Load ACL permissions
-            currentACL = ACLManager.loadedACL(userID)
-            
-            # Check ACL permissions (with fallback for new field)
-            try:
-                if currentACL.get('aiScannerAccess', 1) == 0:
-                    return JsonResponse({'success': False, 'error': 'Access denied'})
-            except (AttributeError, KeyError):
-                # Field doesn't exist yet, allow access for now
-                pass
-            
-            # Get admin email and domain
-            cyberpanel_host = request.get_host()  # Keep full host including port
-            cyberpanel_domain = cyberpanel_host.split(':')[0]  # Domain only for email fallback
-            admin_email = admin.email if hasattr(admin, 'email') and admin.email else f'{admin.userName}@{cyberpanel_domain}'
-            
-            self.logger.writeToFile(f'[AIScannerManager.setupPayment] Admin: {admin.userName}, Email: {admin_email}, Host: {cyberpanel_host}')
-            
-            # Setup payment with AI Scanner API
-            self.logger.writeToFile(f'[AIScannerManager.setupPayment] Attempting payment setup for {admin_email} on {cyberpanel_host}')
-            setup_data = self.setup_ai_scanner_payment(admin_email, cyberpanel_host)
-            
-            if setup_data:
-                self.logger.writeToFile(f'[AIScannerManager.setupPayment] Payment setup successful for {admin_email}')
-                return JsonResponse({
-                    'success': True,
-                    'payment_url': setup_data['payment_url'],
-                    'token': setup_data['token']
-                })
-            else:
-                self.logger.writeToFile(f'[AIScannerManager.setupPayment] Payment setup failed for {admin_email}')
-                return JsonResponse({
-                    'success': False,
-                    'error': 'Failed to setup payment. Please check the logs and try again.'
-                })
-                
-        except Exception as e:
-            self.logger.writeToFile(f'[AIScannerManager.setupPayment] Error: {str(e)}')
-            return JsonResponse({'success': False, 'error': 'Internal server error'})
-    
-    def setupComplete(self, request, userID):
-        """Handle return from payment setup"""
-        try:
-            admin = Administrator.objects.get(pk=userID)
-            status = request.GET.get('status')
-            
-            # Log all URL parameters for debugging
-            self.logger.writeToFile(f'[AIScannerManager.setupComplete] All URL params: {dict(request.GET)}')
-            
-            if status == 'success':
-                api_key = request.GET.get('api_key')
-                balance = request.GET.get('balance', '0.00')
-                charged = request.GET.get('charged') == 'true'
-                amount = request.GET.get('amount', '0.00')
-                
-                self.logger.writeToFile(f'[AIScannerManager.setupComplete] API Key: {api_key[:20] if api_key else "None"}...')
-                self.logger.writeToFile(f'[AIScannerManager.setupComplete] Balance from URL: {balance}')
-                self.logger.writeToFile(f'[AIScannerManager.setupComplete] Charged: {charged}, Amount: {amount}')
-                
-                if api_key:
-                    try:
-                        # Convert balance to float with error handling
-                        balance_float = float(balance) if balance else 0.0
-                        
-                        # Update scanner settings
-                        scanner_settings, created = AIScannerSettings.objects.get_or_create(
-                            admin=admin,
-                            defaults={
-                                'api_key': api_key,
-                                'balance': balance_float,
-                                'is_payment_configured': True
-                            }
-                        )
-                        
-                        if not created:
-                            # Update existing record
-                            scanner_settings.api_key = api_key
-                            scanner_settings.balance = balance_float
-                            scanner_settings.is_payment_configured = True
-                            scanner_settings.save()
-                            self.logger.writeToFile(f'[AIScannerManager.setupComplete] Updated existing scanner settings')
-                        else:
-                            self.logger.writeToFile(f'[AIScannerManager.setupComplete] Created new scanner settings')
-                        
-                        # Verify the save worked
-                        scanner_settings.refresh_from_db()
-                        self.logger.writeToFile(f'[AIScannerManager.setupComplete] Final state - API Key: {scanner_settings.api_key[:20] if scanner_settings.api_key else "None"}..., Balance: {scanner_settings.balance}, Configured: {scanner_settings.is_payment_configured}')
-                        
-                        # Success message
-                        if charged:
-                            messages.success(request, f'Payment setup successful! ${amount} charged to your card. You have ${balance} credit.')
-                        else:
-                            messages.success(request, f'Payment setup successful! You have ${balance} credit.')
-                        
-                        self.logger.writeToFile(f'[AIScannerManager] Payment setup completed for {admin.userName} with balance ${balance}')
-                        
-                    except ValueError as e:
-                        self.logger.writeToFile(f'[AIScannerManager.setupComplete] Balance conversion error: {str(e)}')
-                        messages.error(request, 'Payment setup completed but balance format invalid.')
-                    except Exception as e:
-                        self.logger.writeToFile(f'[AIScannerManager.setupComplete] Database save error: {str(e)}')
-                        messages.error(request, 'Payment setup completed but failed to save settings.')
-                else:
-                    self.logger.writeToFile(f'[AIScannerManager.setupComplete] No API key received in success callback')
-                    messages.error(request, 'Payment setup completed but API key not received.')
-                    
-            elif status == 'partial_success':
-                # Handle partial success (payment method added but charge failed)
-                api_key = request.GET.get('api_key')
-                if api_key:
-                    try:
-                        scanner_settings, created = AIScannerSettings.objects.get_or_create(
-                            admin=admin,
-                            defaults={
-                                'api_key': api_key,
-                                'balance': 0.0,
-                                'is_payment_configured': True
-                            }
-                        )
-                        
-                        if not created:
-                            scanner_settings.api_key = api_key
-                            scanner_settings.is_payment_configured = True
-                            scanner_settings.save()
-                        
-                        messages.warning(request, 'Payment method added but initial charge failed. Please add funds manually.')
-                        self.logger.writeToFile(f'[AIScannerManager] Partial payment setup for {admin.userName}')
-                    except Exception as e:
-                        self.logger.writeToFile(f'[AIScannerManager.setupComplete] Partial success save error: {str(e)}')
-                        messages.error(request, 'Payment method setup partially failed.')
-                else:
-                    messages.error(request, 'Payment method setup failed - no API key received.')
-                    
-            elif status in ['failed', 'cancelled', 'error']:
-                error = request.GET.get('error', 'Payment setup failed')
-                messages.error(request, f'Payment setup failed: {error}')
-                self.logger.writeToFile(f'[AIScannerManager] Payment setup failed for {admin.userName}: {error}')
-            
-            return redirect('aiScannerHome')
-            
-        except Exception as e:
-            self.logger.writeToFile(f'[AIScannerManager.setupComplete] Error: {str(e)}')
-            messages.error(request, 'An error occurred during payment setup.')
-            return redirect('aiScannerHome')
-    
-    def startScan(self, request, userID):
-        """Start a new AI security scan"""
-        try:
-            if request.method != 'POST':
-                return JsonResponse({'success': False, 'error': 'Invalid request method'})
-            
-            admin = Administrator.objects.get(pk=userID)
-            
-            # Load ACL permissions
-            currentACL = ACLManager.loadedACL(userID)
-            
-            # Check ACL permissions (with fallback for new field)
-            try:
-                if currentACL.get('aiScannerAccess', 1) == 0:
-                    return JsonResponse({'success': False, 'error': 'Access denied'})
-            except (AttributeError, KeyError):
-                # Field doesn't exist yet, allow access for now
-                pass
-            
-            # Check VPS free scans availability first
-            server_ip = ACLManager.fetchIP()
-            vps_info = self.check_vps_free_scans(server_ip)
-            
-            # If VPS is eligible for free scans, get or create API key
-            vps_api_key = None
-            vps_key_data = None
-            if (vps_info.get('success') and 
-                vps_info.get('is_vps') and 
-                vps_info.get('free_scans_available', 0) > 0):
-                
-                self.logger.writeToFile(f'[AIScannerManager.startScan] VPS eligible for free scans, getting API key for IP: {server_ip}')
-                vps_key_data = self.get_or_create_vps_api_key(server_ip)
+            websites = ACLManager.findWebsiteObjects(acl, userID)
+        except Exception as exc:
+            self.logger.writeToFile('[AI Scanner] could not list websites: %s' % exc.__class__.__name__)
+            websites = []
+        own_allowed = (not is_admin) and config['key_policy'] in ('admin_or_own', 'own')
+        context = {
+            'websites': websites,
+            'recent_scans': scans_for(admin, is_admin)[:10],
+            'is_admin': is_admin,
+            'own_key_allowed': own_allowed,
+            'ai_mode': config['mode'] == 'ai',
+            'key_policy': config['key_policy'],
+            'boot_json': {
+                'settings': settings_store.public_view(config, user_id=userID, is_admin=is_admin),
+                'presets': settings_store.presets_view(include_custom=is_admin),
+                'is_admin': is_admin,
+                'own_key_allowed': own_allowed,
+            },
+        }
+        return render(request, 'aiScanner/scanner.html', context)
 
-                if vps_key_data:
-                    vps_api_key = vps_key_data.get('api_key')
-                    free_scans_remaining = vps_key_data.get('free_scans_remaining', 0)
-                    self.logger.writeToFile(f'[AIScannerManager.startScan] VPS API key obtained, {free_scans_remaining} free scans remaining')
+    # ------------------------------------------------------------ settings
+    def getSettings(self, request, userID):
+        try:
+            admin, acl, is_admin = load_actor(userID)
+        except AccessDenied:
+            return _error('Access denied', 403)
+        config = settings_store.load_config()
+        data = {'success': True, 'settings': settings_store.public_view(config, user_id=userID, is_admin=is_admin),
+                'presets': settings_store.presets_view(include_custom=is_admin)}
+        if is_admin:
+            data['usage'] = budget.snapshot()
+        return JsonResponse(data)
 
-                    # Save VPS API key to database for future operations (file fixes, etc.)
-                    try:
-                        scanner_settings, created = AIScannerSettings.objects.get_or_create(
-                            admin=admin,
-                            defaults={
-                                'api_key': vps_api_key,
-                                'balance': 0.0000,
-                                'is_payment_configured': True  # VPS accounts have implicit payment
-                            }
-                        )
+    def saveSettings(self, request, userID):
+        if request.method != 'POST':
+            return _error('Invalid request method', 405)
+        try:
+            admin, acl, is_admin = load_actor(userID)
+            data = _json_body(request).get('settings')
+            if not isinstance(data, dict):
+                return _error('Invalid request.')
+            config = settings_store.load_config()
+            keys = data.get('keys') if isinstance(data.get('keys'), dict) else {}
+            if is_admin:
+                new = settings_store.apply_admin_settings(config, data)
+                pending = {}
+                for slot in settings_store.SLOTS:
+                    entry = keys.get(slot) if isinstance(keys.get(slot), dict) else {}
+                    if entry.get('clear'):
+                        pending[settings_store.key_owner(slot)] = ''
+                    elif entry.get('value'):
+                        pending[settings_store.key_owner(slot)] = providers.validate_key(str(entry['value']).strip())
+                if new['mode'] == 'ai':
+                    owner = settings_store.key_owner('primary')
+                    has = pending.get(owner) if owner in pending else settings_store.has_key(owner)
+                    if not has and not providers.PRESETS[new['primary']['provider']].get('key_optional'):
+                        return _error('Add an API key for the primary provider before turning on AI analysis.')
+                settings_store.save_config(new)
+                for owner, value in pending.items():
+                    settings_store.set_key(owner, value)
+            else:
+                if config['key_policy'] not in ('admin_or_own', 'own'):
+                    return _error('The administrator manages the AI provider for this server.', 403)
+                own = data.get('own')
+                users = dict(config.get('users') or {})
+                owner = settings_store.key_owner('primary', userID)
+                entry = keys.get('own') if isinstance(keys.get('own'), dict) else {}
+                if isinstance(own, dict) and own.get('provider'):
+                    users[str(int(userID))] = {'primary': settings_store.clean_slot(own, allow_custom=False)}
+                elif isinstance(own, dict):
+                    users.pop(str(int(userID)), None)
+                    entry = {'clear': True}
+                config['users'] = users
+                value = providers.validate_key(str(entry['value']).strip()) if entry.get('value') else None
+                settings_store.save_config(config)
+                if entry.get('clear'):
+                    settings_store.set_key(owner, '')
+                elif value:
+                    settings_store.set_key(owner, value)
+            config = settings_store.load_config()
+            return JsonResponse({'success': True,
+                                 'settings': settings_store.public_view(config, user_id=userID, is_admin=is_admin)})
+        except AccessDenied:
+            return _error('Access denied', 403)
+        except (settings_store.StoreError, providers.ConfigError, ValueError) as exc:
+            return _error(str(exc))
+        except OSError as exc:
+            self.logger.writeToFile('[AI Scanner] could not save settings: %s' % exc.__class__.__name__)
+            return _error('Could not write the settings file (%s).' % settings_store.base_dir())
 
-                        # Update existing settings if API key is different or empty
-                        if not created and (not scanner_settings.api_key or scanner_settings.api_key != vps_api_key):
-                            scanner_settings.api_key = vps_api_key
-                            scanner_settings.is_payment_configured = True
-                            scanner_settings.save()
-                            self.logger.writeToFile(f'[AIScannerManager.startScan] Updated VPS API key in database')
-                        elif created:
-                            self.logger.writeToFile(f'[AIScannerManager.startScan] Saved new VPS API key to database')
-                    except Exception as e:
-                        self.logger.writeToFile(f'[AIScannerManager.startScan] Error saving VPS API key: {str(e)}')
-                        # Continue even if saving fails - scan can still proceed
-                else:
-                    self.logger.writeToFile(f'[AIScannerManager.startScan] Failed to get VPS API key')
-                    return JsonResponse({'success': False, 'error': 'Failed to authenticate VPS for free scans'})
-            
-            # Get scanner settings (only required if not using VPS free scan)
-            scanner_settings = None
-            if not vps_api_key:
-                try:
-                    scanner_settings = AIScannerSettings.objects.get(admin=admin)
-                    if not scanner_settings.is_payment_configured or not scanner_settings.api_key:
-                        return JsonResponse({'success': False, 'error': 'Payment not configured'})
-                except AIScannerSettings.DoesNotExist:
-                    return JsonResponse({'success': False, 'error': 'Scanner not configured'})
-            
-            # Parse request data
-            data = json.loads(request.body)
-            domain = data.get('domain')
-            scan_type = data.get('scan_type', 'full')
-            
-            if not domain:
-                return JsonResponse({'success': False, 'error': 'Domain is required'})
-            
-            # Validate domain belongs to user using ACL-aware method
-            from websiteFunctions.models import Websites
-            try:
-                # Check if user has access to this domain through ACL system
-                if not ACLManager.checkOwnership(domain, admin, currentACL):
-                    return JsonResponse({'success': False, 'error': 'Access denied to this domain'})
-                
-                # Get the website object (we know it exists due to checkOwnership)
-                website = Websites.objects.get(domain=domain)
-            except Websites.DoesNotExist:
-                return JsonResponse({'success': False, 'error': 'Domain not found'})
-            
-            # Generate scan ID and file access token
-            scan_id = f'cp_{uuid.uuid4().hex[:12]}'
-            file_access_token = self.generate_file_access_token()
-            
-            # Create scan history record
-            scan_history = ScanHistory.objects.create(
-                admin=admin,
-                scan_id=scan_id,
-                domain=domain,
-                scan_type=scan_type,
-                status='pending'
-            )
-            
-            # Create file access token
-            FileAccessToken.objects.create(
-                token=file_access_token,
-                scan_history=scan_history,
-                domain=domain,
-                wp_path=f'/home/{domain}/public_html',  # Adjust path as needed
-                expires_at=timezone.now() + timedelta(hours=2)
-            )
-            
-            # Submit scan to AI Scanner API
-            callback_url = f"https://{request.get_host()}/api/ai-scanner/callback"
-            file_access_base_url = f"https://{request.get_host()}/api/ai-scanner/"
-            
-            # Use VPS API key if available, otherwise use regular scanner settings
-            api_key_to_use = vps_api_key if vps_api_key else scanner_settings.api_key
-            
-            scan_response = self.submit_wordpress_scan(
-                api_key_to_use,
-                domain,
-                scan_type,
-                callback_url,
-                file_access_token,
-                file_access_base_url,
-                scan_id,
-                server_ip
-            )
-            
-            if scan_response:
-                scan_history.status = 'running'
-                scan_history.save()
-                
-                # Create appropriate success message
-                if vps_api_key:
-                    message = f'Free VPS scan started successfully! {vps_key_data.get("free_scans_remaining", 0)} free scans remaining.'
-                else:
-                    message = 'Scan started successfully'
-                
-                return JsonResponse({
-                    'success': True,
-                    'scan_id': scan_id,
-                    'message': message
-                })
-            else:
-                scan_history.status = 'failed'
-                scan_history.error_message = 'Failed to submit scan to AI Scanner API'
-                scan_history.save()
-                
-                return JsonResponse({'success': False, 'error': 'Failed to start scan'})
-                
-        except Exception as e:
-            self.logger.writeToFile(f'[AIScannerManager.startScan] Error: {str(e)}')
-            return JsonResponse({'success': False, 'error': 'Internal server error'})
-    
-    def refreshBalance(self, request, userID):
-        """Refresh account balance from API"""
+    def testKey(self, request, userID, http=None):
+        if request.method != 'POST':
+            return _error('Invalid request method', 405)
         try:
-            if request.method != 'POST':
-                return JsonResponse({'success': False, 'error': 'Invalid request method'})
-            
-            admin = Administrator.objects.get(pk=userID)
-            
-            # Load ACL permissions
-            currentACL = ACLManager.loadedACL(userID)
-            
-            # Check ACL permissions (with fallback for new field)
-            try:
-                if currentACL.get('aiScannerAccess', 1) == 0:
-                    return JsonResponse({'success': False, 'error': 'Access denied'})
-            except (AttributeError, KeyError):
-                # Field doesn't exist yet, allow access for now
-                pass
-            
-            # Get scanner settings
-            try:
-                scanner_settings = AIScannerSettings.objects.get(admin=admin)
-                if not scanner_settings.is_payment_configured or not scanner_settings.api_key:
-                    return JsonResponse({'success': False, 'error': 'Payment not configured'})
-            except AIScannerSettings.DoesNotExist:
-                return JsonResponse({'success': False, 'error': 'Scanner not configured'})
-            
-            # Fetch balance from API
-            api_balance = self.get_account_balance(scanner_settings.api_key)
-            
-            if api_balance is not None:
-                old_balance = scanner_settings.balance
-                scanner_settings.balance = api_balance
-                scanner_settings.save()
-                
-                self.logger.writeToFile(f'[AIScannerManager.refreshBalance] Updated balance from ${old_balance} to ${api_balance} for {admin.userName}')
-                
-                return JsonResponse({
-                    'success': True,
-                    'balance': float(api_balance),
-                    'message': f'Balance refreshed: ${api_balance:.4f}'
-                })
+            admin, acl, is_admin = load_actor(userID)
+            data = _json_body(request).get('settings')
+            if not isinstance(data, dict):
+                return _error('Invalid request.')
+            config = settings_store.load_config()
+            slot_name = data.get('slot', 'primary')
+            if is_admin and slot_name in settings_store.SLOTS:
+                slot = settings_store.clean_slot(data.get('provider') or config[slot_name])
+                owner = settings_store.key_owner(slot_name)
+            elif not is_admin and slot_name == 'own' and config['key_policy'] in ('admin_or_own', 'own'):
+                slot = settings_store.clean_slot(data.get('provider') or {}, allow_custom=False)
+                owner = settings_store.key_owner('primary', userID)
             else:
-                return JsonResponse({'success': False, 'error': 'Failed to fetch balance from API'})
-                
-        except Exception as e:
-            self.logger.writeToFile(f'[AIScannerManager.refreshBalance] Error: {str(e)}')
-            return JsonResponse({'success': False, 'error': 'Internal server error'})
-    
-    def addPaymentMethod(self, request, userID):
-        """Add a new payment method for the user"""
-        try:
-            if request.method != 'POST':
-                return JsonResponse({'success': False, 'error': 'Invalid request method'})
-            
-            admin = Administrator.objects.get(pk=userID)
-            
-            # Load ACL permissions
-            currentACL = ACLManager.loadedACL(userID)
-            
-            # Check ACL permissions (with fallback for new field)
-            try:
-                if currentACL.get('aiScannerAccess', 1) == 0:
-                    return JsonResponse({'success': False, 'error': 'Access denied'})
-            except (AttributeError, KeyError):
-                # Field doesn't exist yet, allow access for now
-                pass
-            
-            # Check if user has scanner configured (create if VPS user)
-            try:
-                scanner_settings = AIScannerSettings.objects.get(admin=admin)
-                if not scanner_settings.is_payment_configured or not scanner_settings.api_key:
-                    # Check if this is a VPS with free scans
-                    server_ip = ACLManager.fetchIP()
-                    vps_info = self.check_vps_free_scans(server_ip)
-                    
-                    if vps_info.get('is_vps'):
-                        # VPS users can add payment methods without initial setup
-                        # Get or create VPS API key
-                        vps_key_data = self.get_or_create_vps_api_key(server_ip)
-                        if vps_key_data and vps_key_data.get('api_key'):
-                            # Use VPS API key for adding payment method
-                            api_key_to_use = vps_key_data.get('api_key')
+                return _error('Access denied', 403)
+            key = str(data.get('key') or '').strip()
+            key = providers.validate_key(key) if key else settings_store.get_key(owner)
+            cfg = providers.resolve(slot)
+            # the test request counts against the same daily budget
+            budget.reserve(owner, 600, config['budget'])
+            kwargs = {'http': http} if http is not None else {}
+            result = providers.test_key(cfg, key, **kwargs)
+            return JsonResponse({'success': True, 'message': 'The provider answered (%d tokens).' % result['tokens']})
+        except AccessDenied:
+            return _error('Access denied', 403)
+        except budget.BudgetExceeded as exc:
+            return _error(str(exc))
+        except providers.ProviderError as exc:
+            return _error(exc.message)
+        except (settings_store.StoreError, providers.ConfigError, ValueError) as exc:
+            return _error(str(exc))
 
-                            # Save VPS API key to database
-                            scanner_settings.api_key = api_key_to_use
-                            scanner_settings.is_payment_configured = True
-                            scanner_settings.save()
-                            self.logger.writeToFile(f'[AIScannerManager.addPaymentMethod] Saved VPS API key to database')
-                        else:
-                            return JsonResponse({'success': False, 'error': 'Failed to authenticate VPS'})
-                    else:
-                        return JsonResponse({'success': False, 'error': 'Initial payment setup required first'})
-                else:
-                    api_key_to_use = scanner_settings.api_key
-            except AIScannerSettings.DoesNotExist:
-                # Check if this is a VPS with free scans
-                server_ip = ACLManager.fetchIP()
-                vps_info = self.check_vps_free_scans(server_ip)
-                
-                if vps_info.get('is_vps'):
-                    # VPS users can add payment methods without initial setup
-                    # Get or create VPS API key
-                    vps_key_data = self.get_or_create_vps_api_key(server_ip)
-                    if vps_key_data and vps_key_data.get('api_key'):
-                        # Use VPS API key for adding payment method
-                        api_key_to_use = vps_key_data.get('api_key')
+    # ---------------------------------------------------------------- scans
+    def startScan(self, request, userID, launcher=None):
+        if request.method != 'POST':
+            return _error('Invalid request method', 405)
+        try:
+            admin, acl, is_admin = load_actor(userID)
+            data = _json_body(request)
+        except AccessDenied:
+            return _error('Access denied', 403)
+        except ValueError as exc:
+            return _error(str(exc))
+        domain = str(data.get('domain') or '').strip().lower()
+        scan_type = data.get('scan_type') if data.get('scan_type') in ('full', 'quick') else 'full'
+        if not domain:
+            return _error('Domain is required')
+        from websiteFunctions.models import Websites
+        try:
+            website = Websites.objects.get(domain=domain)
+        except Websites.DoesNotExist:
+            return _error('Domain not found')
+        try:
+            if not ACLManager.checkOwnership(domain, admin, acl):
+                return _error('Access denied to this domain', 403)
+        except Exception:
+            return _error('Access denied to this domain', 403)
+        active = ScanHistory.objects.filter(status__in=['pending', 'running'])
+        if active.filter(domain=domain).exists():
+            return _error('A scan of this site is already running.')
+        if active.count() >= MAX_ACTIVE_SCANS:
+            return _error('Other scans are running; try again in a few minutes.')
+        scan = ScanHistory.objects.create(admin=admin, scan_id='ic_%s' % uuid.uuid4().hex[:16], domain=domain,
+                                          scan_type=scan_type, status='pending')
+        try:
+            (launcher or launch_background)(scan.scan_id)
+        except Exception as exc:
+            scan.status = 'failed'
+            scan.error_message = 'Could not start the scanner process.'
+            scan.save()
+            self.logger.writeToFile('[AI Scanner] launch failed: %s' % exc.__class__.__name__)
+            return _error('Could not start the scan.')
+        return JsonResponse({'success': True, 'scan_id': scan.scan_id, 'message': 'Scan started'})
 
-                        # Create scanner settings with VPS API key
-                        AIScannerSettings.objects.create(
-                            admin=admin,
-                            api_key=api_key_to_use,
-                            balance=0.0000,
-                            is_payment_configured=True
-                        )
-                        self.logger.writeToFile(f'[AIScannerManager.addPaymentMethod] Created new scanner settings with VPS API key')
-                    else:
-                        return JsonResponse({'success': False, 'error': 'Failed to authenticate VPS'})
-                else:
-                    return JsonResponse({'success': False, 'error': 'Scanner not configured'})
-            
-            # Get admin email and domain
-            cyberpanel_host = request.get_host()  # Keep full host including port
-            cyberpanel_domain = cyberpanel_host.split(':')[0]  # Domain only for email fallback
-            admin_email = admin.email if hasattr(admin, 'email') and admin.email else f'{admin.userName}@{cyberpanel_domain}'
-            
-            self.logger.writeToFile(f'[AIScannerManager.addPaymentMethod] Setting up new payment method for {admin.userName} (API key authentication)')
-            
-            # Call platform API to add payment method
-            setup_data = self.setup_add_payment_method(api_key_to_use, admin_email, cyberpanel_host)
-            
-            if setup_data:
-                self.logger.writeToFile(f'[AIScannerManager.addPaymentMethod] Payment method setup successful for {admin_email}')
-                return JsonResponse({
-                    'success': True,
-                    'setup_url': setup_data['setup_url'],
-                    'token': setup_data.get('token', '')
-                })
-            else:
-                self.logger.writeToFile(f'[AIScannerManager.addPaymentMethod] Payment method setup failed for {admin_email}')
-                return JsonResponse({
-                    'success': False,
-                    'error': 'Failed to setup payment method. Please try again.'
-                })
-                
-        except Exception as e:
-            self.logger.writeToFile(f'[AIScannerManager.addPaymentMethod] Error: {str(e)}')
-            return JsonResponse({'success': False, 'error': 'Internal server error'})
-    
-    def paymentMethodComplete(self, request, userID):
-        """Handle return from adding payment method"""
-        try:
-            admin = Administrator.objects.get(pk=userID)
-            
-            # Load ACL permissions
-            currentACL = ACLManager.loadedACL(userID)
-            
-            # Check ACL permissions (with fallback for new field)
-            try:
-                if currentACL.get('aiScannerAccess', 1) == 0:
-                    messages.error(request, 'Access denied to AI Scanner')
-                    return redirect('dashboard')
-            except (AttributeError, KeyError):
-                # Field doesn't exist yet, allow access for now
-                pass
-            
-            status = request.GET.get('status')
-            
-            # Log all URL parameters for debugging
-            self.logger.writeToFile(f'[AIScannerManager.paymentMethodComplete] All URL params: {dict(request.GET)}')
-            
-            if status == 'success':
-                payment_method_id = request.GET.get('payment_method_id')
-                card_last4 = request.GET.get('card_last4')
-                card_brand = request.GET.get('card_brand')
-                
-                self.logger.writeToFile(f'[AIScannerManager.paymentMethodComplete] Payment method added: {payment_method_id} ({card_brand} ****{card_last4})')
-                
-                if payment_method_id:
-                    messages.success(request, f'Payment method added successfully! New {card_brand} card ending in {card_last4}.')
-                    self.logger.writeToFile(f'[AIScannerManager] Payment method added for {admin.userName}: {card_brand} ****{card_last4}')
-                else:
-                    messages.success(request, 'Payment method added successfully!')
-                    
-            elif status in ['failed', 'cancelled', 'error']:
-                error = request.GET.get('error', 'Failed to add payment method')
-                messages.error(request, f'Failed to add payment method: {error}')
-                self.logger.writeToFile(f'[AIScannerManager] Payment method add failed for {admin.userName}: {error}')
-            
-            return redirect('aiScannerHome')
-            
-        except Exception as e:
-            self.logger.writeToFile(f'[AIScannerManager.paymentMethodComplete] Error: {str(e)}')
-            messages.error(request, 'An error occurred while adding payment method.')
-            return redirect('aiScannerHome')
-    
-    def scanCallback(self, request):
-        """Handle scan results callback from AI Scanner API"""
-        try:
-            if request.method != 'POST':
-                return JsonResponse({'success': False, 'error': 'Invalid request method'})
-            
-            data = json.loads(request.body)
-            scan_id = data.get('scan_id')
-            status = data.get('status')
-            
-            if not scan_id:
-                return JsonResponse({'success': False, 'error': 'Scan ID required'})
-            
-            # Find scan history record
-            try:
-                scan_history = ScanHistory.objects.get(scan_id=scan_id)
-            except ScanHistory.DoesNotExist:
-                self.logger.writeToFile(f'[AIScannerManager.scanCallback] Scan not found: {scan_id}')
-                return JsonResponse({'success': False, 'error': 'Scan not found'})
 
-            # Authenticate the callback: the platform must present the API key
-            # belonging to the admin that owns this scan. Without this check any
-            # unauthenticated request could mutate scan records and balances.
-            provided_key = request.META.get('HTTP_X_API_KEY', '').strip()
-            if not provided_key:
-                self.logger.writeToFile(f'[AIScannerManager.scanCallback] Rejected: missing X-API-Key for scan {scan_id}')
-                return JsonResponse({'success': False, 'error': 'Authentication required'}, status=401)
-            try:
-                scanner_settings = AIScannerSettings.objects.get(admin=scan_history.admin)
-            except AIScannerSettings.DoesNotExist:
-                self.logger.writeToFile(f'[AIScannerManager.scanCallback] Rejected: no scanner settings for scan {scan_id}')
-                return JsonResponse({'success': False, 'error': 'Scan not found'}, status=404)
-            if provided_key != scanner_settings.api_key:
-                self.logger.writeToFile(f'[AIScannerManager.scanCallback] Rejected: invalid API key for scan {scan_id}')
-                return JsonResponse({'success': False, 'error': 'Invalid API key'}, status=403)
-
-            # Update scan status and results
-            scan_history.status = status
-            scan_history.completed_at = timezone.now()
-            
-            if status == 'completed':
-                findings = data.get('findings', [])
-                summary = data.get('summary', {})
-                cost_usd = data.get('cost_usd', 0)
-                files_scanned = data.get('files_scanned', 0)
-                
-                scan_history.set_findings(findings)
-                scan_history.set_summary(summary)
-                scan_history.cost_usd = cost_usd
-                scan_history.files_scanned = files_scanned
-                scan_history.issues_found = len(findings)
-                
-                # Update user balance
-                scanner_settings = scan_history.admin.ai_scanner_settings
-                if cost_usd and scanner_settings.balance >= cost_usd:
-                    scanner_settings.balance -= cost_usd
-                    scanner_settings.save()
-                
-                self.logger.writeToFile(f'[AIScannerManager] Scan completed: {scan_id}, Cost: ${cost_usd}, Issues: {len(findings)}')
-                
-            elif status == 'failed':
-                error_message = data.get('error', 'Scan failed')
-                scan_history.error_message = error_message
-                self.logger.writeToFile(f'[AIScannerManager] Scan failed: {scan_id}, Error: {error_message}')
-            
-            scan_history.save()
-            
-            # Deactivate file access tokens
-            FileAccessToken.objects.filter(scan_history=scan_history).update(is_active=False)
-            
-            return JsonResponse({'success': True})
-            
-        except Exception as e:
-            self.logger.writeToFile(f'[AIScannerManager.scanCallback] Error: {str(e)}')
-            return JsonResponse({'success': False, 'error': 'Internal server error'})
-    
-    # API Helper Methods
-    
-    def get_ai_scanner_pricing(self):
-        """Get current pricing from AI Scanner API"""
-        try:
-            response = requests.get(f'{self.AI_SCANNER_API_BASE}/api/plan/', timeout=10)
-            if response.status_code == 200:
-                return response.json()
-            return None
-        except Exception as e:
-            self.logger.writeToFile(f'[AIScannerManager.get_ai_scanner_pricing] Error: {str(e)}')
-            return None
-    
-    def setup_ai_scanner_payment(self, user_email, cyberpanel_host):
-        """Setup payment method with AI Scanner API"""
-        try:
-            payload = {
-                'email': user_email,
-                'domain': cyberpanel_host.split(':')[0],  # Send domain without port
-                'return_url': f'https://{cyberpanel_host}/aiscanner/setup-complete/'  # Include port in URL
-            }
-            
-            self.logger.writeToFile(f'[AIScannerManager.setup_ai_scanner_payment] Sending request to: {self.AI_SCANNER_API_BASE}/cyberpanel/setup-payment/')
-            self.logger.writeToFile(f'[AIScannerManager.setup_ai_scanner_payment] Payload: {payload}')
-            
-            response = requests.post(
-                f'{self.AI_SCANNER_API_BASE}/cyberpanel/setup-payment/',
-                json=payload,
-                timeout=10
-            )
-            
-            self.logger.writeToFile(f'[AIScannerManager.setup_ai_scanner_payment] Response status: {response.status_code}')
-            self.logger.writeToFile(f'[AIScannerManager.setup_ai_scanner_payment] Response content: {response.text}')
-            
-            if response.status_code == 200:
-                data = response.json()
-                if data.get('success'):
-                    return {
-                        'payment_url': data['payment_url'],
-                        'token': data['token']
-                    }
-                else:
-                    self.logger.writeToFile(f'[AIScannerManager.setup_ai_scanner_payment] API returned success=false: {data.get("error", "Unknown error")}')
-            else:
-                self.logger.writeToFile(f'[AIScannerManager.setup_ai_scanner_payment] Non-200 status code: {response.status_code}')
-            
-            return None
-        except Exception as e:
-            self.logger.writeToFile(f'[AIScannerManager.setup_ai_scanner_payment] Exception: {str(e)}')
-            return None
-    
-    def get_account_balance(self, api_key):
-        """Get current account balance"""
-        try:
-            self.logger.writeToFile(f'[AIScannerManager.get_account_balance] Requesting balance from: {self.AI_SCANNER_API_BASE}/api/account/balance/')
-            
-            response = requests.get(
-                f'{self.AI_SCANNER_API_BASE}/api/account/balance/',
-                headers={'X-API-Key': api_key},
-                timeout=10
-            )
-            
-            self.logger.writeToFile(f'[AIScannerManager.get_account_balance] Response status: {response.status_code}')
-            self.logger.writeToFile(f'[AIScannerManager.get_account_balance] Response content: {response.text}')
-            
-            if response.status_code == 200:
-                data = response.json()
-                if data.get('success'):
-                    # Use the new balance_usd field from flexible API
-                    balance = float(data.get('balance_usd', data.get('balance', 0)))
-                    auth_method = data.get('authenticated_via', 'unknown')
-                    self.logger.writeToFile(f'[AIScannerManager.get_account_balance] Parsed balance: {balance} (auth: {auth_method})')
-                    return balance
-                else:
-                    # Even failed responses now include balance_usd hint
-                    balance_hint = data.get('balance_usd', 0)
-                    self.logger.writeToFile(f'[AIScannerManager.get_account_balance] API returned success=false: {data.get("error", "Unknown error")} (balance hint: {balance_hint})')
-                    # Return the balance hint if available, even on auth failure
-                    if balance_hint > 0:
-                        return float(balance_hint)
-            else:
-                self.logger.writeToFile(f'[AIScannerManager.get_account_balance] Non-200 status code: {response.status_code}')
-            
-            return None
-        except Exception as e:
-            self.logger.writeToFile(f'[AIScannerManager.get_account_balance] Exception: {str(e)}')
-            return None
-    
-    def submit_wordpress_scan(self, api_key, domain, scan_type, callback_url, file_access_token, file_access_base_url, scan_id, server_ip):
-        """Submit scan request to AI Scanner API"""
-        try:
-            payload = {
-                'domain': domain,
-                'site_url': domain,
-                'scan_type': scan_type,
-                'cyberpanel_callback': callback_url,
-                'file_access_token': file_access_token,
-                'file_access_base_url': file_access_base_url,
-                'scan_id': scan_id,
-                'server_ip': server_ip
-            }
-            
-            self.logger.writeToFile(f'[AIScannerManager.submit_wordpress_scan] Submitting scan {scan_id} for {domain}')
-            self.logger.writeToFile(f'[AIScannerManager.submit_wordpress_scan] Payload: {payload}')
-            
-            response = requests.post(
-                f'{self.AI_SCANNER_API_BASE}/api/scan/submit-v2/',
-                headers={'X-API-Key': api_key},
-                json=payload,
-                timeout=10
-            )
-            
-            self.logger.writeToFile(f'[AIScannerManager.submit_wordpress_scan] Response status: {response.status_code}')
-            self.logger.writeToFile(f'[AIScannerManager.submit_wordpress_scan] Response content: {response.text}')
-            
-            if response.status_code == 200:
-                data = response.json()
-                if data.get('success'):
-                    platform_scan_id = data.get('scan_id')
-                    self.logger.writeToFile(f'[AIScannerManager.submit_wordpress_scan] Platform assigned scan ID: {platform_scan_id}')
-                    return platform_scan_id
-                else:
-                    self.logger.writeToFile(f'[AIScannerManager.submit_wordpress_scan] Platform returned success=false: {data.get("error", "Unknown error")}')
-            else:
-                self.logger.writeToFile(f'[AIScannerManager.submit_wordpress_scan] Non-200 status code: {response.status_code}')
-            
-            return None
-        except Exception as e:
-            self.logger.writeToFile(f'[AIScannerManager.submit_wordpress_scan] Error: {str(e)}')
-            return None
-    
-    def get_scan_status(self, api_key, scan_id):
-        """Get scan status from AI Scanner API"""
-        try:
-            response = requests.get(
-                f'{self.AI_SCANNER_API_BASE}/api/scan/{scan_id}/status/',
-                headers={'X-API-Key': api_key},
-                timeout=10
-            )
-            
-            if response.status_code == 200:
-                return response.json()
-            return None
-        except Exception as e:
-            self.logger.writeToFile(f'[AIScannerManager.get_scan_status] Error: {str(e)}')
-            return None
-    
-    def get_scan_results(self, api_key, scan_id):
-        """Get scan results from AI Scanner API"""
-        try:
-            response = requests.get(
-                f'{self.AI_SCANNER_API_BASE}/api/scan/{scan_id}/results/',
-                headers={'X-API-Key': api_key},
-                timeout=10
-            )
-            
-            if response.status_code == 200:
-                return response.json()
-            return None
-        except Exception as e:
-            self.logger.writeToFile(f'[AIScannerManager.get_scan_results] Error: {str(e)}')
-            return None
-    
-    def check_vps_free_scans(self, server_ip):
-        """Check if server IP belongs to VPS hosting and has free scans available"""
-        try:
-            self.logger.writeToFile(f'[AIScannerManager.check_vps_free_scans] Checking VPS free scans for IP: {server_ip}')
-            
-            response = requests.post(
-                'https://platform.cyberpersons.com/ai-scanner/api/vps/check-free-scans/',
-                json={'ip': server_ip},
-                timeout=10
-            )
-            
-            self.logger.writeToFile(f'[AIScannerManager.check_vps_free_scans] Response status: {response.status_code}')
-            
-            if response.status_code == 200:
-                data = response.json()
-                self.logger.writeToFile(f'[AIScannerManager.check_vps_free_scans] Response data: {data}')
-                return data
-            else:
-                self.logger.writeToFile(f'[AIScannerManager.check_vps_free_scans] API error: {response.text}')
-                return {'success': False, 'is_vps': False, 'error': 'API call failed'}
-        except Exception as e:
-            self.logger.writeToFile(f'[AIScannerManager.check_vps_free_scans] Error: {str(e)}')
-            return {'success': False, 'is_vps': False, 'error': str(e)}
-
-    def setup_add_payment_method(self, api_key, user_email, cyberpanel_host):
-        """Setup additional payment method with AI Scanner API"""
-        try:
-            payload = {
-                'domain': cyberpanel_host.split(':')[0],  # Send domain without port
-                'return_url': f'https://{cyberpanel_host}/aiscanner/payment-method-complete/',  # Include port in URL
-                'action': 'add_payment_method'  # Indicate this is adding a payment method, not initial setup
-            }
-            
-            self.logger.writeToFile(f'[AIScannerManager.setup_add_payment_method] Sending request to: {self.AI_SCANNER_API_BASE}/cyberpanel/add-payment-method/')
-            self.logger.writeToFile(f'[AIScannerManager.setup_add_payment_method] Payload: {payload}')
-            
-            response = requests.post(
-                f'{self.AI_SCANNER_API_BASE}/cyberpanel/add-payment-method/',
-                headers={'X-API-Key': api_key},
-                json=payload,
-                timeout=10
-            )
-            
-            self.logger.writeToFile(f'[AIScannerManager.setup_add_payment_method] Response status: {response.status_code}')
-            self.logger.writeToFile(f'[AIScannerManager.setup_add_payment_method] Response content: {response.text}')
-            
-            if response.status_code == 200:
-                data = response.json()
-                if data.get('success'):
-                    return {
-                        'setup_url': data['setup_url'],
-                        'token': data.get('token', '')
-                    }
-                else:
-                    self.logger.writeToFile(f'[AIScannerManager.setup_add_payment_method] API returned success=false: {data.get("error", "Unknown error")}')
-            else:
-                self.logger.writeToFile(f'[AIScannerManager.setup_add_payment_method] Non-200 status code: {response.status_code}')
-            
-            return None
-        except Exception as e:
-            self.logger.writeToFile(f'[AIScannerManager.setup_add_payment_method] Exception: {str(e)}')
-            return None
-
-    def get_or_create_vps_api_key(self, server_ip):
-        """Get API key for VPS free scans from platform"""
-        try:
-            payload = {'server_ip': server_ip}
-            
-            self.logger.writeToFile(f'[AIScannerManager.get_or_create_vps_api_key] Requesting VPS API key for IP: {server_ip}')
-            
-            response = requests.post(
-                f'{self.AI_SCANNER_API_BASE}/api/vps/generate-api-key/',
-                json=payload,
-                headers={'Content-Type': 'application/json'},
-                timeout=10
-            )
-            
-            self.logger.writeToFile(f'[AIScannerManager.get_or_create_vps_api_key] Response status: {response.status_code}')
-            self.logger.writeToFile(f'[AIScannerManager.get_or_create_vps_api_key] Response content: {response.text}')
-            
-            if response.status_code == 200:
-                data = response.json()
-                if data.get('success'):
-                    return {
-                        'api_key': data.get('api_key'),
-                        'free_scans_remaining': data.get('free_scans_remaining'),
-                        'account_type': data.get('account_type'),
-                        'vps_name': data.get('vps_name'),
-                        'vps_id': data.get('vps_id')
-                    }
-                else:
-                    self.logger.writeToFile(f'[AIScannerManager.get_or_create_vps_api_key] API returned success=false: {data.get("error", "Unknown error")}')
-            else:
-                self.logger.writeToFile(f'[AIScannerManager.get_or_create_vps_api_key] Non-200 status code: {response.status_code}')
-            
-            return None
-        except Exception as e:
-            self.logger.writeToFile(f'[AIScannerManager.get_or_create_vps_api_key] Exception: {str(e)}')
-            return None
-
-    def generate_file_access_token(self):
-        """Generate secure file access token"""
-        return f'cp_{secrets.token_urlsafe(32)}'
+def run_scan_by_id(scan_id, runner=None, http=None):
+    """Entry point for the background process and the scheduler."""
+    from websiteFunctions.models import Websites
+    scan = ScanHistory.objects.select_related('admin').get(scan_id=scan_id)
+    if scan.status not in ('pending', 'running'):
+        return scan
+    acl = ACLManager.loadedACL(scan.admin.pk)
+    is_admin = acl.get('admin') == 1
+    try:
+        website = Websites.objects.get(domain=scan.domain)
+        allowed = ACLManager.checkOwnership(scan.domain, scan.admin, acl)
+    except Exception:
+        website, allowed = None, 0
+    if not website or not allowed:
+        scan.status = 'failed'
+        scan.error_message = 'The website no longer exists or is not accessible to this user.'
+        scan.save()
+        return scan
+    kwargs = {'runner': runner}
+    if http is not None:
+        kwargs['http'] = http
+    return pipeline.run_scan(scan, website, scan.admin.pk, is_admin, **kwargs)

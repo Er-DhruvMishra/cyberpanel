@@ -1152,11 +1152,7 @@ app.controller('dashboardStatsController', function ($scope, $http, $timeout) {
         $http.post('/base/analyzeSSHSecurity', {}).then(function (response) {
             $scope.loadingSecurityAnalysis = false;
             if (response.data) {
-                if (response.data.addon_required) {
-                    $scope.showAddonRequired = true;
-                    $scope.addonInfo = response.data;
-                    $scope.securityAlerts = [];
-                } else if (response.data.status === 1) {
+                if (response.data.status === 1) {
                     $scope.securityAlerts = response.data.alerts;
                     $scope.showAddonRequired = false;
                 }

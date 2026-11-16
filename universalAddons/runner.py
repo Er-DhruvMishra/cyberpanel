@@ -22,6 +22,7 @@ MODULES = {
     'rspamd': 'universalAddons.rspamd.actions',
     'sslv2': 'universalAddons.sslv2.actions',
     'backupv2': 'universalAddons.backupv2.actions',
+    'destinations': 'universalAddons.destinations.actions',
     'wordpress': 'universalAddons.wordpress.actions',
     'htaccess': 'universalAddons.htaccess.actions',
     'apps': 'universalAddons.apps.actions',

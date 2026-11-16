@@ -540,63 +540,6 @@
     </div>
 </div>
 
-<!-- Pricing -->
-<div class="ed-section">
-    <div class="ed-section-tag">Pricing</div>
-    <h2>Simple, Transparent Plans</h2>
-    <p>Start free, upgrade when you need more</p>
-</div>
-<div class="ed-pricing">
-    <div class="ed-price">
-        <div class="ed-price-name">Free</div>
-        <div class="ed-price-amount">$0<span>/mo</span></div>
-        <div class="ed-price-vol">15,000 emails/month</div>
-        <ul class="ed-price-list">
-            <li>Auto DNS Configuration</li>
-            <li>Real-time Analytics</li>
-            <li>SMTP Relay</li>
-            <li>Community Support</li>
-        </ul>
-        <button class="ed-price-btn" data-toggle="modal" data-target="#connectModal">Get Started</button>
-    </div>
-    <div class="ed-price">
-        <div class="ed-price-name">Starter</div>
-        <div class="ed-price-amount">$15<span>/mo</span></div>
-        <div class="ed-price-vol">100,000 emails/month</div>
-        <ul class="ed-price-list">
-            <li>Everything in Free</li>
-            <li>Priority Delivery</li>
-            <li>Advanced Analytics</li>
-            <li>Email Support</li>
-        </ul>
-        <button class="ed-price-btn" data-toggle="modal" data-target="#connectModal">Get Started</button>
-    </div>
-    <div class="ed-price featured">
-        <div class="ed-price-name">Professional</div>
-        <div class="ed-price-amount">$90<span>/mo</span></div>
-        <div class="ed-price-vol">500,000 emails/month</div>
-        <ul class="ed-price-list">
-            <li>Everything in Starter</li>
-            <li>Dedicated IP Pool</li>
-            <li>Webhook Notifications</li>
-            <li>Priority Support</li>
-        </ul>
-        <button class="ed-price-btn" data-toggle="modal" data-target="#connectModal">Get Started</button>
-    </div>
-    <div class="ed-price">
-        <div class="ed-price-name">Enterprise</div>
-        <div class="ed-price-amount">$299<span>/mo</span></div>
-        <div class="ed-price-vol">2,000,000 emails/month</div>
-        <ul class="ed-price-list">
-            <li>Everything in Pro</li>
-            <li>Dedicated Infrastructure</li>
-            <li>Custom DKIM Signing</li>
-            <li>24/7 Phone Support</li>
-        </ul>
-        <button class="ed-price-btn" data-toggle="modal" data-target="#connectModal">Get Started</button>
-    </div>
-</div>
-
 <!-- Features -->
 <div class="ed-section">
     <div class="ed-section-tag">Features</div>
@@ -694,15 +637,6 @@
             </div>
             <div class="ed-bar-pct">{$ getUsagePercent() $}% used</div>
         </div>
-    </div>
-
-    <!-- Upgrade Banner -->
-    <div class="ed-upgrade" ng-show="getUsagePercent() > 80 && account.plan_slug === 'free'">
-        <div>
-            <strong>Approaching your plan limit</strong>
-            <p>Upgrade to Starter for 100K emails/month at just $15/mo</p>
-        </div>
-        <a href="https://platform.cyberpersons.com/email/cp/pricing/" target="_blank" class="ed-upgrade-btn">Upgrade Plan</a>
     </div>
 
     <!-- Tabs -->

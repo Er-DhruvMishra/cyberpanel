@@ -8,38 +8,13 @@ CyberPanel's integrated `/webmail/` client remains the default. The optional
 Roundcube client is available at `https://<panel-host>:<panel-port>/roundcube/`.
 Both clients access the existing IMAP mailboxes; Roundcube keeps a separate
 address book and preferences. There is no mailbox migration and no SnappyMail
-installation. Roundcube itself is GPL software; the paid feature is its
-CyberPanel integration and management.
+installation. Roundcube itself is GPL software.
 
-## Pricing and purchase integration
+## Availability
 
-Roundcube integration is included in CyberPanel's **$169 lifetime premium
-add-ons plan**, or available as a **$99 one-time standalone lifetime license**.
-The paid product covers CyberPanel integration and management of the open-source
-Roundcube client.
-
-The management page provides distinct purchase links:
-
-- **$169 lifetime premium plan:** <https://cyberpanel.net/cyberpanel-addons>.
-- **$99 standalone Roundcube lifetime license:**
-  <https://platform.cyberpersons.com/order/roundcube/>.
-
-License management uses the existing platform account at
-<https://platform.cyberpersons.com/>. The standalone order route is owned by the
-platform; the existing in-panel premium pricing page uses a platform-managed
-Stripe pricing table. Products, payments and fulfillment are outside this
-repository.
-
-Before making the standalone offer purchasable, the platform/billing deployment
-must provide the $99 one-time Roundcube product and checkout, fulfill successful
-purchases as the `roundcube` entitlement for the licensed server IP, and retain
-that grant without a recurring subscription expiry. Refunds and revocations
-must update that grant through the existing entitlement service. Verify the
-$169 lifetime product grants `all`, or explicitly grants `roundcube`, and update
-the public plan feature list to include Roundcube. Deploy and verify the
-standalone order route before releasing its panel purchase link. These are
-external deployment requirements; this panel change creates no billing product,
-payment, or license.
+In IndiansCloud this integration is part of the panel: there is no purchase,
+licence or vendor lookup. `ACLManager.CheckForPremFeature` answers locally, so
+`entitled()` is true and only the administrator checks below apply.
 
 ## Entitlement and access
 
@@ -231,9 +206,8 @@ CYBERPANEL_ROUNDCUBE_ROOT_TESTS=1 python -m unittest webmail.test_roundcube_addo
 Browser acceptance must include all of the following on the actual installed
 feature branch, not a mocked HTTP page:
 
-1. Unlicensed admin sees the paid notice; install and direct `/roundcube/` return
-   denial. Ordinary panel users cannot perform management operations.
-2. Licensed admin installs through the real UI; status becomes ready. Service
+1. Ordinary panel users cannot open the page or perform management operations.
+2. An administrator installs through the real UI; status becomes ready. Service
    and panel/mail health checks pass; there are no new failed systemd units.
 3. Direct mailbox login works through HTTPS. Wrong passwords fail. Roundcube
    folders and INBOX load, contacts can be created, and logout rejects subsequent

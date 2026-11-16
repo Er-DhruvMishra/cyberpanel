@@ -1597,20 +1597,7 @@ def sshAccess(request, domain):
         # except Exception as e:
         #     CyberCPLogFileWriter.writeLog(f"Failed to ensure fastapi_ssh_server is running: {e}")
 
-        # # Add-on check logic
-        # url = "https://platform.cyberpersons.com/CyberpanelAdOns/Adonpermission"
-        # data = {
-        #     "name": "all",
-        #     "IP": ACLManager.GetServerIP()
-        # }
-        # import requests
-        # import json
-        # try:
-        #     response = requests.post(url, data=json.dumps(data))
-        #     Status = response.json().get('status', 0)
-        # except Exception:
-        #     Status = 0
-        # has_addons = (Status == 1) or ProcessUtilities.decideServer() == ProcessUtilities.ent
+        # has_addons = ACLManager.CheckForPremFeature('all') == 1
 
         # from plogical.CyberCPLogFileWriter import CyberCPLogFileWriter
 

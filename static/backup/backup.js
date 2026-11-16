@@ -1156,8 +1156,16 @@ app.controller('googleDrive', function ($scope, $http) {
         }
     }
 
+    // Reconnect must never fail silently. When the panel has no Google OAuth client the button
+    // stays clickable and says why (it used to be disabled with no explanation).
+    function setupUnavailable() {
+        gdriveNotify('error', ($scope.gdriveSetupReason || 'Google Drive setup is not available.') +
+            ($scope.gdriveIsAdmin ? ' Save your Google OAuth client in the "Google OAuth client" section of this page first.' : ''));
+    }
+
     $scope.setupAccount = function (accountName) {
-        if (!$scope.gdriveSetupEnabled || $scope.gdriveSetupPending) return;
+        if ($scope.gdriveSetupPending) return;
+        if (!$scope.gdriveSetupEnabled) { setupUnavailable(); return; }
         var name = typeof accountName === 'string' ? accountName : $scope.accountName;
         var popup = window.open('about:blank', '_blank');
         function failed(response) {

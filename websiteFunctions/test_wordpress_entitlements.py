@@ -52,7 +52,13 @@ def load_wordpress_manager():
         'JsonResponse': lambda data: Response(json.dumps(data)),
         'redirect': lambda target: Response(status=302, location=target),
         'randint': lambda lower, upper: lower, 're': re, 'shlex': shlex,
+        # Free add-on redirects are licence-independent; none is configured unless a test says so.
+        'preferred_alternative': lambda path: None, 'alternative_for': lambda path: None,
     }
+    alternatives = ast.parse((ROOT / 'plogical/universalAlternatives.py').read_text())
+    alternatives.body = [node for node in alternatives.body
+                         if isinstance(node, ast.FunctionDef) and node.name == 'request_from']
+    exec(compile(alternatives, 'universalAlternatives.py', 'exec'), namespace)
     premium = ast.parse((ROOT / 'plogical/premiumEntitlements.py').read_text())
     premium.body = [node for node in premium.body if isinstance(node, ast.FunctionDef)]
     exec(compile(premium, 'premiumEntitlements.py', 'exec'), namespace)
@@ -97,7 +103,7 @@ class WordPressEntitlementTests(unittest.TestCase):
             if service_name != 'ACLManager':
                 self.assertEqual(service.mock_calls, [], service_name)
         if page:
-            self.assertEqual((result.status_code, result.url), (302, 'pricing'))
+            self.assertEqual((result.status_code, result.url), (302, 'index'))
         else:
             payload = json.loads(result.content)
             for key in ('status', 'installStatus', 'createWebSiteStatus', 'fetchStatus'):
@@ -197,11 +203,33 @@ class WordPressEntitlementTests(unittest.TestCase):
         self.services['ApplicationInstaller'].assert_not_called()
         self.acl.CheckForPremFeature.assert_called_once_with('wp-manager')
 
-    def test_pricing_page_does_not_require_paid_access(self):
-        expected = Response('pricing')
-        self.services['httpProc'].return_value.render.return_value = expected
-        self.assertIs(self.manager().WordpressPricing(userID=7), expected)
+    def test_old_pricing_page_redirects_to_dashboard(self):
+        result = self.manager().WordpressPricing(userID=7)
+        self.assertEqual((result.status_code, result.url), (302, 'index'))
+        self.services['httpProc'].assert_not_called()
         self.acl.CheckForPremFeature.assert_not_called()
+
+    def test_granted_pages_render_without_redirect_or_vendor_call(self):
+        self.prepare_paid()
+        self.services['WPSites'].objects.get.return_value = SimpleNamespace(
+            owner=SimpleNamespace(domain='owned.example'))
+        self.services['randomPassword'].generate_pass.return_value = 'inert'
+        result = self.manager().WPHome(SimpleNamespace(GET={}, path='/websites/WPHome', method='GET', session={}),
+                                       7, WPid=9)
+        self.assertEqual(self.services['httpProc'].call_args.args[1], 'websiteFunctions/WPsiteHome.html')
+        self.assertIsNot(getattr(result, 'status_code', None), 302)
+        self.services['requests'].post.assert_not_called()
+
+    def test_preferred_free_addon_redirect_is_independent_of_licence(self):
+        self.prepare_paid()
+        self.ns['preferred_alternative'] = lambda path: '/addons/wordpress/' if path == '/websites/ListWPSites' else None
+        request = SimpleNamespace(GET={}, path='/websites/ListWPSites', method='GET', session={})
+        result = self.manager().ListWPSites(request, 7)
+        self.assertEqual((result.status_code, result.url), (302, '/addons/wordpress/'))
+        self.acl.checkOwnership.assert_not_called()
+        # JSON actions are never redirected.
+        self.manager().AddNewpluginAjax(7, {'Name': 'Owned', 'config': ['one']})
+        self.services['wpplugins'].return_value.save.assert_called_once_with()
 
     def test_shared_polling_does_not_require_wordpress_entitlement(self):
         self.acl.CheckStatusFilleLoc.return_value = False

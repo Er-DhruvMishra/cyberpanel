@@ -558,22 +558,6 @@
                     </div>
                 </div>
             </div>
-            {% else %}
-            <div class="content-card">
-                <h2 class="card-title">{% trans "Advanced Resource Limits" %}</h2>
-
-                <div class="alert alert-info">
-                    <i class="fas fa-info-circle"></i>
-                    <div>
-                        <strong>{% trans "Premium Feature" %}</strong><br>
-                        {% trans "Advanced resource limits (CPU, Memory, I/O, Inode, Process limits) require CyberPanel Addons." %}<br>
-                        <a href="/addons/" target="_blank" class="alert-link">
-                            <i class="fas fa-external-link-alt"></i>
-                            {% trans "Open Universal Add-ons" %}
-                        </a>
-                    </div>
-                </div>
-            </div>
             {% endif %}
 
             <div class="content-card" ng-hide="installationDetailsForm">

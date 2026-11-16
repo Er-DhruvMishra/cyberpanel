@@ -1,0 +1,90 @@
+{% extends "universalAddons/base.html" %}
+{% load i18n static %}
+{% block title %}{% trans "Backup destinations" %} - IndiansCloud{% endblock %}
+{% block addon_scripts %}<script src="{% static 'universalAddons/destinations.js' %}?v={{ CP_VERSION }}-1"></script>{% endblock %}
+{% block content %}
+<div class="ua-wrap" id="ua-destinations" data-base="{% url 'ua-destinations' %}">
+  <div class="ua-header">
+    <h1><i class="fas fa-cloud-arrow-up"></i> {% trans "Backup destinations" %}</h1>
+    <p>{% trans "Connect your own storage and back up your websites to it: encrypted, incremental backups of site files and databases. Your credentials are stored on the server where only the backup service can read them; nobody, including administrators, can view them in the panel." %}</p>
+  </div>
+
+  <div class="ua-tabs">
+    <button class="active" data-pane="list">{% trans "My destinations" %}</button>
+    <button data-pane="sites">{% trans "Site backups" %}</button>
+    <button data-pane="apps" id="tab-apps" style="display:none">{% trans "Sign-in apps" %}</button>
+  </div>
+
+  <div class="ua-pane active" id="pane-list">
+    <div class="ua-card">
+      <h2>{% trans "My destinations" %}</h2>
+      <div id="dst-tools" class="ua-muted"></div>
+      <div id="dst-list"><p class="ua-muted">{% trans "Loading…" %}</p></div>
+      <div id="dst-out"></div>
+    </div>
+    <div class="ua-card">
+      <h2 id="dst-form-title">{% trans "Add destination" %}</h2>
+      <div class="ua-row">
+        <label>{% trans "Provider" %}
+          <select id="dst-provider"></select></label>
+        <label>{% trans "Name" %} <input id="dst-name" maxlength="64" placeholder="{% trans 'e.g. offsite' %}"></label>
+      </div>
+      <div id="dst-fields"></div>
+      <p class="ua-muted" id="dst-oauth-note" style="display:none"></p>
+      <div class="ua-row">
+        <button class="ua-btn" id="dst-save">{% trans "Save destination" %}</button>
+        <button class="ua-btn ua-btn-secondary" id="dst-cancel" style="display:none">{% trans "Cancel editing" %}</button>
+      </div>
+      <div id="dst-form-out"></div>
+    </div>
+  </div>
+
+  <div class="ua-pane" id="pane-sites">
+    <div class="ua-card">
+      <h2>{% trans "Back up a site" %}</h2>
+      <div class="ua-row">
+        <label>{% trans "Website" %} <select id="site-domain"></select></label>
+        <label>{% trans "Destination" %} <select id="site-dest"></select></label>
+      </div>
+      <p class="ua-muted">{% trans "You can choose your own destinations and, depending on your account, the site owner's or their reseller's. Others' destinations show only their name and owner." %}</p>
+      <div class="ua-row">
+        <label>{% trans "Schedule" %} <select id="job-schedule">
+          <option value="daily">{% trans "Daily" %}</option><option value="weekly">{% trans "Weekly (Sunday)" %}</option>
+          <option value="hourly">{% trans "Hourly" %}</option><option value="manual">{% trans "Only when I click Back up now" %}</option>
+        </select></label>
+        <label>{% trans "Hour" %} <input id="job-hour" type="number" min="0" max="23" value="2" style="width:5em"></label>
+        <label>{% trans "Keep daily" %} <input id="job-keep-daily" type="number" min="0" max="365" value="7" style="width:5em"></label>
+        <label>{% trans "weekly" %} <input id="job-keep-weekly" type="number" min="0" max="520" value="4" style="width:5em"></label>
+        <label>{% trans "monthly" %} <input id="job-keep-monthly" type="number" min="0" max="240" value="6" style="width:5em"></label>
+      </div>
+      <div class="ua-row">
+        <button class="ua-btn" id="job-save">{% trans "Save schedule" %}</button>
+        <button class="ua-btn ua-btn-secondary" id="site-backup-now">{% trans "Back up now" %}</button>
+        <button class="ua-btn ua-btn-secondary" id="site-snapshots">{% trans "Show backups" %}</button>
+      </div>
+      <div id="site-out"></div>
+    </div>
+    <div class="ua-card">
+      <h2>{% trans "Schedules" %}</h2>
+      <div id="job-list"></div>
+    </div>
+    <div class="ua-card" id="snap-card" style="display:none">
+      <h2>{% trans "Backups in this destination" %}</h2>
+      <p class="ua-muted">{% trans "Restores go back into the site. A safety snapshot of the current files (or database) is taken first." %}</p>
+      <div id="snap-list"></div>
+    </div>
+    <div class="ua-card" id="dst-job" style="display:none">
+      <h2>{% trans "Progress" %}</h2>
+      <div id="dst-job-out"></div>
+    </div>
+  </div>
+
+  <div class="ua-pane" id="pane-apps">
+    <div class="ua-card">
+      <h2>{% trans "Sign-in apps (administrator)" %}</h2>
+      <p>{% trans "Google Drive, OneDrive, Dropbox, Box and pCloud sign-in use your own app registration with each provider. Register it once, enter the client ID and secret here, and every account can then click Connect. Secrets are stored privately on this server and are never shown again. Open the panel by its host name over https: providers do not accept an IP address in a redirect URI." %}</p>
+      <div id="apps-list"></div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -428,15 +428,8 @@ Automatic backup failed for %s on %s.
 
                     # logging.writeToFile('job completed')
 
-                    url = "https://platform.cyberpersons.com/CyberpanelAdOns/Adonpermission"
-                    data = {
-                        "name": "backups-retention",
-                        "IP": ipAddress
-                    }
-
-                    import requests
-                    response = requests.post(url, data=json.dumps(data))
-                    Status = response.json()['status']
+                    from plogical.acl import ACLManager
+                    Status = ACLManager.CheckForPremFeature('backups-retention')
 
                     if (Status == 1) or ProcessUtilities.decideServer() == ProcessUtilities.ent:
                         try:

@@ -1,6 +1,5 @@
 from django.shortcuts import render, redirect
 from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 from loginSystem.views import loadLoginPage
 import json
@@ -17,6 +16,8 @@ def scheduledScans(request):
         
         admin = Administrator.objects.get(pk=userID)
         currentACL = ACLManager.loadedACL(userID)
+        if currentACL.get('aiScannerAccess', 1) == 0:
+            return JsonResponse({'success': False, 'error': 'Access denied'}, status=403)
         
         if request.method == 'GET':
             # Get scheduled scans with ACL respect
@@ -25,7 +26,8 @@ def scheduledScans(request):
                 scheduled_scans = ScheduledScan.objects.all()
             else:
                 # Users can only see their own scheduled scans and their sub-users' scans
-                user_admins = ACLManager.loadUserObjects(userID)
+                from .aiScannerManager import visible_admins
+                user_admins = visible_admins(admin, False)
                 scheduled_scans = ScheduledScan.objects.filter(admin__in=user_admins)
             
             scan_data = []
@@ -107,6 +109,14 @@ def scheduledScans(request):
                 scheduled_scan.day_of_week = int(data['day_of_week'])
             elif data['frequency'] in ['monthly', 'quarterly'] and 'day_of_month' in data:
                 scheduled_scan.day_of_month = int(data['day_of_month'])
+            if data['frequency'] == 'weekly' and scheduled_scan.day_of_week is None:
+                scheduled_scan.day_of_week = 0
+            if data['frequency'] in ['monthly', 'quarterly'] and scheduled_scan.day_of_month is None:
+                scheduled_scan.day_of_month = 1
+            if scheduled_scan.day_of_week is not None and not 0 <= scheduled_scan.day_of_week <= 6:
+                return JsonResponse({'success': False, 'error': 'Invalid day of week'})
+            if scheduled_scan.day_of_month is not None and not 1 <= scheduled_scan.day_of_month <= 31:
+                return JsonResponse({'success': False, 'error': 'Invalid day of month'})
             
             scheduled_scan.save()
             
@@ -129,6 +139,8 @@ def scheduledScanDetail(request, scan_id):
         
         admin = Administrator.objects.get(pk=userID)
         currentACL = ACLManager.loadedACL(userID)
+        if currentACL.get('aiScannerAccess', 1) == 0:
+            return JsonResponse({'success': False, 'error': 'Access denied'}, status=403)
         
         # Get scheduled scan with ACL respect
         try:
@@ -136,7 +148,8 @@ def scheduledScanDetail(request, scan_id):
             
             # Check if user has access to this scheduled scan
             if currentACL['admin'] != 1:
-                user_admins = ACLManager.loadUserObjects(userID)
+                from .aiScannerManager import visible_admins
+                user_admins = visible_admins(admin, False)
                 if scheduled_scan.admin not in user_admins:
                     return JsonResponse({'success': False, 'error': 'Access denied to this scheduled scan'})
         except ScheduledScan.DoesNotExist:
@@ -177,7 +190,6 @@ def scheduledScanDetail(request, scan_id):
         return JsonResponse({'success': False, 'error': str(e)})
 
 
-@csrf_exempt
 @require_http_methods(['POST'])
 def toggleScheduledScan(request, scan_id):
     """Toggle scheduled scan status (active/paused)"""
@@ -189,6 +201,8 @@ def toggleScheduledScan(request, scan_id):
         
         admin = Administrator.objects.get(pk=userID)
         currentACL = ACLManager.loadedACL(userID)
+        if currentACL.get('aiScannerAccess', 1) == 0:
+            return JsonResponse({'success': False, 'error': 'Access denied'}, status=403)
         
         # Get scheduled scan with ACL respect
         try:
@@ -196,7 +210,8 @@ def toggleScheduledScan(request, scan_id):
             
             # Check if user has access to this scheduled scan
             if currentACL['admin'] != 1:
-                user_admins = ACLManager.loadUserObjects(userID)
+                from .aiScannerManager import visible_admins
+                user_admins = visible_admins(admin, False)
                 if scheduled_scan.admin not in user_admins:
                     return JsonResponse({'success': False, 'error': 'Access denied to this scheduled scan'})
         except ScheduledScan.DoesNotExist:
@@ -229,6 +244,8 @@ def scheduledScanExecutions(request, scan_id):
         
         admin = Administrator.objects.get(pk=userID)
         currentACL = ACLManager.loadedACL(userID)
+        if currentACL.get('aiScannerAccess', 1) == 0:
+            return JsonResponse({'success': False, 'error': 'Access denied'}, status=403)
         
         # Get scheduled scan with ACL respect
         try:
@@ -236,7 +253,8 @@ def scheduledScanExecutions(request, scan_id):
             
             # Check if user has access to this scheduled scan
             if currentACL['admin'] != 1:
-                user_admins = ACLManager.loadUserObjects(userID)
+                from .aiScannerManager import visible_admins
+                user_admins = visible_admins(admin, False)
                 if scheduled_scan.admin not in user_admins:
                     return JsonResponse({'success': False, 'error': 'Access denied to this scheduled scan'})
         except ScheduledScan.DoesNotExist:

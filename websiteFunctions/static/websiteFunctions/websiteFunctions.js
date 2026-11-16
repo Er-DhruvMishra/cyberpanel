@@ -5870,6 +5870,22 @@ app.controller('createWebsite', function ($scope, $http, $timeout, $window) {
 
     var statusFile;
 
+    // Free subdomain: ask the panel whether <label>.<base> is still free while the user types.
+    var freeSubdomainTimer = null;
+    $scope.freeSubdomainMessage = '';
+    $scope.checkFreeSubdomain = function () {
+        if (freeSubdomainTimer) { $timeout.cancel(freeSubdomainTimer); }
+        freeSubdomainTimer = $timeout(function () {
+            var label = String($scope.freeSubdomainLabel || '').trim().toLowerCase();
+            if (!label) { $scope.freeSubdomainMessage = ''; return; }
+            $http.post('/addons/free-subdomains/ajax/check', {label: label},
+                {headers: {'X-CSRFToken': getCookie('csrftoken')}}).then(function (response) {
+                var d = response.data || {};
+                $scope.freeSubdomainMessage = d.status === 1 ? (d.available ? '' : d.message) : (d.error_message || '');
+            }, function () { $scope.freeSubdomainMessage = ''; });
+        }, 400);
+    };
+
     $scope.createWebsite = function () {
 
         $scope.webSiteCreationLoading = false;
@@ -5926,6 +5942,11 @@ app.controller('createWebsite', function ($scope, $http, $timeout, $window) {
         //     var domainName = $scope.domainNameCreate;
         // }
         var domainName = $scope.domainNameCreate;
+        var freeSubdomain = 0;
+        if ($scope.useFreeSubdomain && $scope.freeSubdomainBase) {
+            domainName = String($scope.freeSubdomainLabel || '').trim().toLowerCase() + '.' + $scope.freeSubdomainBase;
+            freeSubdomain = 1;
+        }
 
         var adminEmail = $scope.adminEmail;
         var phpSelection = $scope.phpSelection;
@@ -5942,7 +5963,8 @@ app.controller('createWebsite', function ($scope, $http, $timeout, $window) {
             dkimCheck: dkimCheck,
             openBasedir: openBasedir,
             mailDomain: mailDomain,
-            apacheBackend: apacheBackend
+            apacheBackend: apacheBackend,
+            freeSubdomain: freeSubdomain
         };
 
 
@@ -18002,45 +18024,6 @@ app.controller('listDockersite', function ($scope, $http) {
 
 });
 
-
-app.controller('BuyAddons', function ($scope, $http) {
-
-
-    $scope.cyberpanelLoading = true;
-    $scope.sftpHide = true;
-    $scope.localHide = true;
-
-    $scope.PaypalBuyNowAddons = function (planName, monthlyPrice, yearlyPrice, lifetime, months) {
-
-        const baseURL = 'https://platform.cyberpersons.com/Billing/AddOnOrderPaypal';
-        // Get the current URL
-        var currentURL = window.location.href;
-
-// Find the position of the question mark
-        const queryStringIndex = currentURL.indexOf('?');
-
-// Check if there is a query string
-        currentURL = queryStringIndex !== -1 ? currentURL.substring(0, queryStringIndex) : currentURL;
-
-        // Encode parameters to make them URL-safe
-        const params = new URLSearchParams({
-            planName: planName,
-            monthlyPrice: monthlyPrice,
-            yearlyPrice: yearlyPrice,
-            returnURL: currentURL,  // Add the current URL as a query parameter
-            months: months
-        });
-
-        // Build the complete URL with query string
-        const fullURL = `${baseURL}?${params.toString()}`;
-
-        // Redirect to the constructed URL
-
-        window.location.href = fullURL;
-
-    }
-
-})
 
 app.controller('launchChild', function ($scope, $http) {
 

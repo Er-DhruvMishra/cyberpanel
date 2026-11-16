@@ -1,2030 +1,449 @@
 {% extends "baseTemplate/index.html" %}
 {% load i18n %}
 
-{% block title %}
-AI Security Scanner - IndiansCloud
-{% endblock %}
+{% block title %}{% trans "AI Security Scanner" %} - IndiansCloud{% endblock %}
 
 {% block header_scripts %}
 <style>
-    /* AI Scanner Specific Styles */
-    .scanner-wrapper {
-        background: transparent;
-        padding: 20px;
-    }
-    
-    .scanner-container {
-        max-width: 1400px;
-        margin: 0 auto;
-    }
-    
-    /* Section Headers */
-    .scanner-section {
-        background: var(--bg-primary, white);
-        border-radius: 12px;
-        padding: 25px;
-        margin-bottom: 25px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-        border: 1px solid var(--border-primary, #e8e9ff);
-    }
-    
-    .scanner-title {
-        font-size: 16px;
-        font-weight: 700;
-        color: var(--text-primary, #2f3640);
-        margin-bottom: 20px;
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-    }
-    
-    .scanner-title::before {
-        content: '';
-        width: 4px;
-        height: 24px;
-        background: #5b5fcf;
-        border-radius: 2px;
-    }
-    
-    /* Alert Styles */
-    .scanner-alert {
-        border-radius: 12px;
-        padding: 20px;
-        margin-bottom: 20px;
-        border: 1px solid;
-        display: flex;
-        align-items: flex-start;
-        gap: 15px;
-    }
-    
-    .scanner-alert-info {
-        background: var(--alert-info-bg, #e0f2fe);
-        border-color: var(--alert-info-border, #0ea5e9);
-        color: var(--alert-info-text, #0c4a6e);
-    }
-    
-    .scanner-alert-success {
-        background: var(--alert-success-bg, #d1fae5);
-        border-color: var(--alert-success-border, #10b981);
-        color: var(--alert-success-text, #065f46);
-    }
-    
-    .scanner-alert-warning {
-        background: var(--alert-warning-bg, #fef3c7);
-        border-color: var(--alert-warning-border, #f59e0b);
-        color: var(--alert-warning-text, #92400e);
-    }
-    
-    .scanner-alert-danger {
-        background: var(--alert-danger-bg, #fee2e2);
-        border-color: var(--alert-danger-border, #ef4444);
-        color: var(--alert-danger-text, #991b1b);
-    }
-    
-    .scanner-alert i {
-        font-size: 20px;
-        flex-shrink: 0;
-    }
-    
-    .scanner-alert-content {
-        flex: 1;
-    }
-    
-    .scanner-alert h4 {
-        margin: 0 0 8px 0;
-        font-size: 16px;
-        font-weight: 600;
-    }
-    
-    .scanner-alert p {
-        margin: 0;
-        line-height: 1.6;
-    }
-    
-    /* Stats Cards */
-    .stats-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-        gap: 20px;
-        margin-bottom: 25px;
-    }
-    
-    .stat-card {
-        background: var(--bg-primary, white);
-        border: 1px solid var(--border-primary, #e8e9ff);
-        border-radius: 12px;
-        padding: 25px;
-        text-align: center;
-        transition: all 0.3s ease;
-    }
-    
-    .stat-card:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 5px 15px rgba(88,86,214,0.1);
-    }
-    
-    .stat-card-icon {
-        width: 56px;
-        height: 56px;
-        margin: 0 auto 15px;
-        border-radius: 12px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 24px;
-        color: white;
-    }
-    
-    .stat-card-icon.success {
-        background: #10b981;
-    }
-    
-    .stat-card-icon.info {
-        background: #3b82f6;
-    }
-    
-    .stat-card-icon.warning {
-        background: #f59e0b;
-    }
-    
-    .stat-card-icon.danger {
-        background: #ef4444;
-    }
-    
-    .stat-card h2 {
-        font-size: 32px;
-        font-weight: 700;
-        margin: 0 0 8px 0;
-        color: var(--text-primary, #2f3640);
-    }
-    
-    .stat-card p {
-        margin: 0;
-        color: var(--text-secondary, #64748b);
-        font-size: 14px;
-        font-weight: 500;
-    }
-    
-    .stat-card small {
-        display: block;
-        margin-top: 8px;
-        color: var(--text-muted, #94a3b8);
-        font-size: 12px;
-    }
-    
-    /* Button Styles */
-    .btn-primary {
-        background: #5856d6;
-        border: none;
-        padding: 12px 24px;
-        border-radius: 8px;
-        font-weight: 600;
-        color: white;
-        transition: all 0.3s ease;
-        cursor: pointer;
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-    }
-    
-    .btn-primary:hover {
-        background: #4644c0;
-        transform: translateY(-1px);
-        box-shadow: 0 4px 12px rgba(88,86,214,0.3);
-    }
-    
-    .btn-primary:disabled {
-        background: #94a3b8;
-        cursor: not-allowed;
-        transform: none;
-        box-shadow: none;
-    }
-    
-    .btn-default {
-        background: var(--bg-secondary, #f8f9ff);
-        border: 1px solid var(--border-primary, #e8e9ff);
-        padding: 10px 20px;
-        border-radius: 8px;
-        font-weight: 600;
-        color: #5856d6;
-        transition: all 0.3s ease;
-        cursor: pointer;
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-    }
-    
-    .btn-default:hover {
-        background: var(--border-primary, #e8e9ff);
-        color: #4644c0;
-    }
-    
-    .btn-xs {
-        padding: 6px 12px;
-        font-size: 12px;
-    }
-    
-    .btn-lg {
-        padding: 16px 32px;
-        font-size: 16px;
-    }
-    
-    /* Form Styles */
-    .form-group {
-        margin-bottom: 20px;
-    }
-    
-    .form-group label {
-        display: block;
-        margin-bottom: 8px;
-        font-weight: 600;
-        color: var(--text-primary, #2f3640);
-        font-size: 14px;
-    }
-    
-    .form-control {
-        width: 100%;
-        padding: 10px 15px;
-        border: 1px solid var(--border-primary, #e8e9ff);
-        border-radius: 8px;
-        font-size: 14px;
-        transition: all 0.3s ease;
-        background: var(--bg-primary, white);
-        color: var(--text-primary, #2f3640);
-    }
-    
-    .form-control:focus {
-        outline: none;
-        border-color: #5856d6;
-        box-shadow: 0 0 0 3px rgba(88,86,214,0.1);
-    }
-    
-    /* Table Styles */
-    .table-container {
-        background: var(--bg-primary, white);
-        border-radius: 12px;
-        overflow: hidden;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-    }
-    
-    .scanner-table {
-        width: 100%;
-        border-collapse: collapse;
-    }
-    
-    .scanner-table th {
-        background: var(--bg-secondary, #f8f9ff);
-        padding: 15px;
-        text-align: left;
-        font-size: 12px;
-        font-weight: 700;
-        color: var(--text-secondary, #64748b);
-        text-transform: uppercase;
-        letter-spacing: 0.8px;
-        border-bottom: 2px solid var(--border-primary, #e8e9ff);
-    }
-    
-    .scanner-table td {
-        padding: 15px;
-        border-bottom: 1px solid var(--border-light, #f0f0ff);
-        color: var(--text-primary, #2f3640);
-        font-size: 14px;
-    }
-    
-    .scanner-table tr:hover {
-        background: var(--bg-secondary, #f8f9ff);
-    }
-    
-    /* Progress Bar */
-    .progress {
-        background: var(--border-primary, #e8e9ff);
-        height: 8px;
-        border-radius: 4px;
-        overflow: hidden;
-        margin: 0;
-    }
-    
-    .progress-bar {
-        background: #5856d6;
-        height: 100%;
-        transition: width 0.3s ease;
-        position: relative;
-    }
-    
-    .progress-bar-animated {
-        background-image: linear-gradient(45deg, rgba(255,255,255,.15) 25%, transparent 25%, transparent 50%, rgba(255,255,255,.15) 50%, rgba(255,255,255,.15) 75%, transparent 75%, transparent);
-        background-size: 1rem 1rem;
-        animation: progress-bar-stripes 1s linear infinite;
-    }
-    
-    @keyframes progress-bar-stripes {
-        0% { background-position: 1rem 0; }
-        100% { background-position: 0 0; }
-    }
-    
-    /* Status Labels */
-    .status-label {
-        display: inline-block;
-        padding: 4px 12px;
-        border-radius: 6px;
-        font-size: 12px;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-    }
-    
-    .status-label.success {
-        background: var(--alert-success-bg, #d1fae5);
-        color: var(--alert-success-border, #10b981);
-    }
-    
-    .status-label.warning {
-        background: var(--alert-warning-bg, #fef3c7);
-        color: var(--alert-warning-border, #f59e0b);
-    }
-    
-    .status-label.danger {
-        background: var(--alert-danger-bg, #fee2e2);
-        color: var(--alert-danger-border, #ef4444);
-    }
-    
-    .status-label.info {
-        background: var(--alert-info-bg, #e0f2fe);
-        color: var(--alert-info-border, #3b82f6);
-    }
-    
-    /* Modal Styles */
-    .modal-backdrop {
-        background: rgba(0,0,0,0.5);
-        backdrop-filter: blur(2px);
-    }
-    
-    .modal-content {
-        border: none;
-        border-radius: 16px;
-        box-shadow: 0 8px 40px rgba(0,0,0,0.18);
-    }
-    
-    .modal-header {
-        background: var(--bg-secondary, #f8f9ff);
-        border-bottom: 1px solid var(--border-primary, #e8e9ff);
-        border-radius: 16px 16px 0 0;
-        padding: 20px 25px;
-    }
-    
-    .modal-title {
-        font-size: 18px;
-        font-weight: 700;
-        color: var(--text-primary, #2f3640);
-        display: flex;
-        align-items: center;
-        gap: 10px;
-    }
-    
-    .modal-body {
-        padding: 25px;
-        background: var(--bg-primary, white);
-        color: var(--text-primary, #2f3640);
-    }
-    
-    .modal-footer {
-        background: var(--bg-secondary, #f8f9ff);
-        border-top: 1px solid var(--border-primary, #e8e9ff);
-        border-radius: 0 0 16px 16px;
-        padding: 15px 25px;
-    }
-    
-    /* Responsive */
-    @media (max-width: 768px) {
-        .stats-grid {
-            grid-template-columns: 1fr;
-        }
-        
-        .scanner-wrapper {
-            padding: 15px;
-        }
-        
-        .scanner-section {
-            padding: 20px;
-        }
-        
-        .scanner-table {
-            font-size: 12px;
-        }
-        
-        .scanner-table th,
-        .scanner-table td {
-            padding: 10px;
-        }
-    }
+  .ais-wrap { max-width: 1300px; margin: 0 auto; padding: 20px; }
+  .ais-card { background: var(--bg-primary, #fff); border: 1px solid var(--border-primary, #e5e7eb); border-radius: 12px;
+              padding: 20px 22px; margin-bottom: 20px; box-shadow: 0 1px 4px rgba(0,0,0,.05); }
+  .ais-card h2 { font-size: 16px; font-weight: 700; margin: 0 0 14px; color: var(--text-primary, #1f2937); }
+  .ais-header h1 { font-size: 22px; font-weight: 700; margin: 0 0 6px; color: var(--text-primary, #1f2937); }
+  .ais-muted { color: var(--text-secondary, #6b7280); font-size: 13px; }
+  .ais-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 10px; }
+  .ais-row label { font-size: 13px; font-weight: 600; min-width: 150px; }
+  .ais-row input[type=text], .ais-row input[type=password], .ais-row input[type=number], .ais-row input[type=time],
+  .ais-row input[type=email], .ais-row select { padding: 7px 10px; border: 1px solid var(--border-primary, #d1d5db);
+              border-radius: 8px; min-width: 220px; background: var(--bg-secondary, #fff); color: inherit; }
+  .ais-btn { background: #4f46e5; color: #fff; border: 0; border-radius: 8px; padding: 8px 16px; font-weight: 600; cursor: pointer; }
+  .ais-btn:disabled { opacity: .55; cursor: default; }
+  .ais-btn-secondary { background: #6b7280; }
+  .ais-btn-danger { background: #dc2626; }
+  .ais-warn { background: #fff7ed; border: 1px solid #fdba74; color: #7c2d12; border-radius: 10px; padding: 12px 14px; font-size: 13px; }
+  .ais-ok { color: #15803d; font-weight: 600; } .ais-bad { color: #b91c1c; font-weight: 600; }
+  .ais-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .ais-table th, .ais-table td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--border-primary, #eee); vertical-align: top; }
+  .ais-table td.ais-file { font-family: monospace; word-break: break-all; }
+  .ais-sev { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 12px; font-weight: 700; color: #fff; }
+  .ais-sev-critical { background: #991b1b; } .ais-sev-high { background: #dc2626; } .ais-sev-medium { background: #d97706; }
+  .ais-sev-low { background: #2563eb; } .ais-sev-info { background: #6b7280; }
+  .ais-progress { height: 8px; background: #e5e7eb; border-radius: 4px; overflow: hidden; margin: 8px 0; }
+  .ais-progress > div { height: 100%; background: #4f46e5; width: 0; transition: width .4s; }
+  .ais-slot { border: 1px dashed var(--border-primary, #d1d5db); border-radius: 10px; padding: 12px; margin-bottom: 12px; }
+  .ais-hidden { display: none; }
+  .ais-notes li { font-size: 13px; }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="scanner-wrapper">
-    <div class="scanner-container">
-            
-        <!-- Page Header -->
-        <div class="scanner-section">
-            <h2 class="scanner-title">
-                <i class="fas fa-shield-alt" style="color: #5856d6;"></i>
-                AI Security Scanner
-            </h2>
-            
-            <!-- Error Display -->
-            {% if error %}
-            <div class="scanner-alert scanner-alert-danger">
-                <i class="fas fa-exclamation-triangle"></i>
-                <div class="scanner-alert-content">
-                    <p>{{ error }}</p>
-                </div>
-            </div>
-            {% endif %}
+{{ boot_json|json_script:"ais-boot" }}
+<div class="ais-wrap" id="ais-root"
+     data-start="{% url 'aiScannerStartScan' %}" data-settings="{% url 'aiScannerSettings' %}"
+     data-save="{% url 'aiScannerSaveSettings' %}" data-test="{% url 'aiScannerTestKey' %}"
+     data-history="{% url 'aiScannerHistory' %}" data-scheduled="{% url 'aiScannerScheduledScans' %}">
 
-            <!-- Messages -->
-            {% if messages %}
-                {% for message in messages %}
-                    <div class="scanner-alert scanner-alert-{{ message.tags }}">
-                        <i class="fas fa-info-circle"></i>
-                        <div class="scanner-alert-content">
-                            <p>{{ message }}</p>
-                        </div>
-                    </div>
-                {% endfor %}
-            {% endif %}
-        </div>
+  <div class="ais-header ais-card">
+    <h1><i class="fas fa-brain"></i> {% trans "AI Security Scanner" %}</h1>
+    <p class="ais-muted">{% trans "Every scan first runs fast local checks on this server (signatures for eval/base64 chains, obfuscation, known web shells, PHP in upload folders, suspicious .htaccess rules). Only the files those checks flag can be sent for an optional AI review, using the AI provider and API key configured below. Local-only mode needs no key and sends nothing anywhere." %}</p>
+    <p class="ais-muted" id="ais-mode-line"></p>
+  </div>
 
-        <!-- Payment Setup Section -->
-        {% if not is_payment_configured and not vps_info.is_vps|default:False|default:False %}
-        <div class="scanner-section">
-            <div class="scanner-alert scanner-alert-info">
-                <i class="fas fa-credit-card"></i>
-                <div class="scanner-alert-content">
-                    <h4>Setup Required</h4>
-                    <p>Configure your payment method to start scanning WordPress sites for malware and security vulnerabilities. Your card will be charged <strong>$10 initially</strong> to fund your scanning account.</p>
-                    
-                    {% if pricing_data.success and pricing_data.plan %}
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin: 20px 0;">
-                        <div>
-                            <h6 style="font-weight: 600; margin-bottom: 10px;">Current Pricing:</h6>
-                            <ul style="list-style: none; padding: 0; margin: 0;">
-                                <li style="margin-bottom: 5px;"><strong>{{ pricing_data.plan.name }}</strong></li>
-                                <li style="margin-bottom: 5px; color: var(--text-secondary, #64748b);">Max Files: {{ pricing_data.plan.limits.max_files_per_scan|floatformat:0 }}</li>
-                                <li style="color: var(--text-secondary, #64748b);">Max File Size: {{ pricing_data.plan.limits.max_file_size_mb }}MB</li>
-                            </ul>
-                        </div>
-                        <div>
-                            <h6 style="font-weight: 600; margin-bottom: 10px;">Example Costs:</h6>
-                            <ul style="list-style: none; padding: 0; margin: 0;">
-                                <li style="margin-bottom: 5px; color: var(--text-secondary, #64748b);">Small Scan: ${{ pricing_data.plan.example_costs.small_scan.estimated_cost_usd }}</li>
-                                <li style="margin-bottom: 5px; color: var(--text-secondary, #64748b);">Medium Scan: ${{ pricing_data.plan.example_costs.medium_scan.estimated_cost_usd }}</li>
-                                <li style="color: var(--text-secondary, #64748b);">Large Scan: ${{ pricing_data.plan.example_costs.large_scan.estimated_cost_usd }}</li>
-                            </ul>
-                        </div>
-                    </div>
-                    {% endif %}
-                    
-                    <button type="button" class="btn-primary btn-lg" onclick="setupPayment()">
-                        <i class="fas fa-credit-card"></i> Setup Payment ($10 Initial Charge)
-                    </button>
-                </div>
-            </div>
-        </div>
-        {% endif %}
-            
-        <!-- VPS Free Scans Notice -->
-        {% if vps_info.is_vps|default:False|default:False and vps_info.has_free_scans|default:False|default:False %}
-        <div class="scanner-section">
-            <div class="scanner-alert scanner-alert-success">
-                <i class="fas fa-gift"></i>
-                <div class="scanner-alert-content">
-                    <h4>VPS Free Scans Available</h4>
-                    <p>Great news! Your CyberPanel VPS hosting includes <strong>{{ vps_info.free_scans_available|default:0 }} free AI security scans</strong> this month ({{ vps_info.scans_used_this_month|default:0 }}/{{ vps_info.free_scans_per_month|default:0 }} used).</p>
-                    {% if not is_payment_configured %}
-                    <p style="margin-top: 10px;"><small style="color: var(--text-secondary, #64748b);">You can still add a payment method below for additional scans beyond your free allowance.</small></p>
-                    {% endif %}
-                </div>
-            </div>
-        </div>
-        {% elif vps_info.is_vps|default:False|default:False and not vps_info.has_free_scans|default:False|default:True %}
-        <div class="scanner-section">
-            <div class="scanner-alert scanner-alert-warning">
-                <i class="fas fa-exclamation-triangle"></i>
-                <div class="scanner-alert-content">
-                    <h4>Free Scans Exhausted</h4>
-                    <p>You've used all {{ vps_info.free_scans_per_month|default:0 }} free AI security scans for this month. Setup payment to continue scanning.</p>
-                </div>
-            </div>
-        </div>
-        {% endif %}
-            
-        <!-- Scanner Dashboard -->
-        {% if is_payment_configured or vps_info.is_vps|default:False|default:False %}
-        <div class="stats-grid">
-            <div class="stat-card">
-                <div class="stat-card-icon success">
-                    <i class="fas fa-wallet"></i>
-                </div>
-                {% if vps_info.is_vps|default:False|default:False and vps_info.has_free_scans|default:False|default:False %}
-                    <h2>{{ vps_info.free_scans_available|default:0 }}</h2>
-                    <p>Free Scans Available</p>
-                    {% if is_payment_configured %}
-                    <small>Plus ${{ current_balance|floatformat:4 }} credit</small>
-                    {% endif %}
-                {% else %}
-                    <h2>${{ current_balance|floatformat:4 }}</h2>
-                    <p>Available Credit</p>
-                {% endif %}
-                {% if is_payment_configured %}
-                <button class="btn-default btn-xs" style="margin-top: 10px;" onclick="refreshBalance()">
-                    <i class="fas fa-sync"></i> Refresh
-                </button>
-                {% endif %}
-            </div>
-            
-            <div class="stat-card">
-                <div class="stat-card-icon info">
-                    <i class="fas fa-chart-line"></i>
-                </div>
-                <h2>{{ recent_scans|length }}</h2>
-                <p>Recent Scans</p>
-                <small>Last 30 Days</small>
-            </div>
-            
-            <div class="stat-card">
-                <div class="stat-card-icon warning">
-                    <i class="fas fa-exclamation-triangle"></i>
-                </div>
-                <h2>
-                    {% for scan in recent_scans %}{% if scan.status == 'completed' %}{{ scan.issues_found|add:0 }}{% endif %}{% endfor %}
-                </h2>
-                <p>Issues Found</p>
-                <small>Total Issues</small>
-            </div>
-        </div>
-
-        <!-- Payment Methods Section -->
-        <div class="scanner-section">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                <h3 class="scanner-title" style="margin: 0;">
-                    <i class="fas fa-credit-card" style="color: #5856d6;"></i>
-                    Payment Methods
-                </h3>
-                {% if not vps_info.is_vps|default:False or is_payment_configured %}
-                <button class="btn-primary btn-xs" onclick="addPaymentMethod()">
-                    <i class="fas fa-plus"></i> Add Payment Method
-                </button>
-                {% else %}
-                <button class="btn-default btn-xs" onclick="addPaymentMethod()">
-                    <i class="fas fa-plus"></i> Add Payment (Optional)
-                </button>
-                {% endif %}
-            </div>
-            
-            {% if vps_info.is_vps|default:False and not is_payment_configured %}
-            <p style="color: var(--text-secondary, #64748b); margin-bottom: 15px;">
-                <i class="fas fa-info-circle"></i> 
-                Payment setup is optional for VPS users. You have {{ vps_info.free_scans_available|default:0 }} free scans available.
-            </p>
-            {% else %}
-            <p style="color: var(--text-secondary, #64748b); margin-bottom: 15px;">
-                <i class="fas fa-info-circle"></i> 
-                Your account uses automatic billing. Add multiple payment methods for backup security.
-            </p>
-            {% endif %}
-            <div id="paymentMethodsList">
-                {% if is_payment_configured %}
-                <p style="color: var(--text-muted, #94a3b8);">Payment methods will be managed through the platform.</p>
-                {% else %}
-                <p style="color: var(--text-muted, #94a3b8);">No payment methods configured yet.</p>
-                {% endif %}
-            </div>
-        </div>
-
-        <!-- Scan Form -->
-        <div class="scanner-section">
-            <h3 class="scanner-title">
-                <i class="fas fa-search" style="color: #5856d6;"></i>
-                Start New Scan
-            </h3>
-            <form id="scanForm">
-                <div style="display: grid; grid-template-columns: 2fr 1fr auto; gap: 20px; align-items: end;">
-                    <div class="form-group" style="margin: 0;">
-                        <label for="scanDomain">Select Website:</label>
-                        <select class="form-control" id="scanDomain" name="domain" required>
-                            <option value="">Choose a website...</option>
-                            {% for website in websites %}
-                            <option value="{{ website.domain }}">{{ website.domain }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <div class="form-group" style="margin: 0;">
-                        <label for="scanType">Scan Type:</label>
-                        <select class="form-control" id="scanType" name="scan_type">
-                            <option value="full">Full Scan (Recommended)</option>
-                            <option value="quick">Quick Scan</option>
-                        </select>
-                    </div>
-                    <div>
-                        {% if vps_info.is_vps|default:False and not vps_info.has_free_scans|default:False and not is_payment_configured %}
-                        <button type="button" class="btn-primary" disabled style="width: 100%;">
-                            <i class="fas fa-lock"></i> Free Scans Exhausted
-                        </button>
-                        {% else %}
-                        <button type="submit" class="btn-primary" id="scanButton" style="width: 100%;">
-                            {% if vps_info.is_vps|default:False|default:False and vps_info.has_free_scans|default:False|default:False %}
-                            <i class="fas fa-search"></i> Start Free Scan
-                            {% else %}
-                            <i class="fas fa-search"></i> Start Scan
-                            {% endif %}
-                        </button>
-                        {% endif %}
-                    </div>
-                </div>
-            </form>
-        </div>
-
-        <!-- Scheduled Scans -->
-        {% if is_payment_configured or vps_info.is_vps|default:False %}
-        <div class="scanner-section">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                <h3 class="scanner-title" style="margin: 0;">
-                    <i class="fas fa-calendar-alt" style="color: #5856d6;"></i>
-                    Scheduled Scans
-                </h3>
-                <button class="btn-primary btn-xs" onclick="showScheduleModal()">
-                    <i class="fas fa-plus"></i> Schedule New Scan
-                </button>
-            </div>
-            
-            <div id="scheduledScansContainer">
-                <!-- Scheduled scans will be loaded here -->
-            </div>
-        </div>
-        {% endif %}
-        
-        </div>
-        {% endif %}
-
-        <!-- Scan History -->
-        {% if recent_scans and is_payment_configured or recent_scans and vps_info.is_vps|default:False %}
-        <div class="scanner-section">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                <h3 class="scanner-title" style="margin: 0;">
-                    <i class="fas fa-history" style="color: #5856d6;"></i>
-                    Recent Scans
-                </h3>
-                <button class="btn-default btn-xs" onclick="refreshScanHistory()">
-                    <i class="fas fa-sync"></i> Refresh
-                </button>
-            </div>
-            <div class="table-container">
-                <table class="scanner-table" id="scanHistoryTable">
-                    <thead>
-                        <tr>
-                            <th>Date</th>
-                            <th>Domain</th>
-                            <th>Type</th>
-                            <th>Status</th>
-                            <th>Progress</th>
-                            <th>Files</th>
-                            <th>Issues</th>
-                            <th>Cost</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody id="scanHistoryBody">
-                        {% for scan in recent_scans %}
-                        <tr data-scan-id="{{ scan.scan_id }}">
-                            <td>{{ scan.started_at|date:"M d, Y H:i" }}</td>
-                            <td>{{ scan.domain }}</td>
-                            <td>
-                                <span class="status-label info">{{ scan.get_scan_type_display }}</span>
-                            </td>
-                            <td class="scan-status">
-                                {% if scan.status == 'completed' %}
-                                    <span class="status-label success">Completed</span>
-                                {% elif scan.status == 'running' %}
-                                    <span class="status-label warning">Running</span>
-                                {% elif scan.status == 'failed' %}
-                                    <span class="status-label danger">Failed</span>
-                                {% elif scan.status == 'pending' %}
-                                    <span class="status-label info">Pending</span>
-                                {% endif %}
-                            </td>
-                            <td class="scan-progress">
-                                {% if scan.status == 'running' or scan.status == 'pending' %}
-                                    <div class="progress" style="height: 20px;">
-                                        <div class="progress-bar progress-bar-animated" 
-                                             role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
-                                            <span class="progress-text" style="position: absolute; width: 100%; text-align: center; line-height: 20px; color: var(--text-primary, #2f3640); font-size: 12px;">0%</span>
-                                        </div>
-                                    </div>
-                                {% else %}
-                                    <span style="color: #10b981; font-weight: 600;">100%</span>
-                                {% endif %}
-                            </td>
-                            <td class="scan-files">{{ scan.files_scanned|default:"-" }}</td>
-                            <td class="scan-issues">
-                                {% if scan.issues_found > 0 %}
-                                    <span style="color: #ef4444; font-weight: 700;">{{ scan.issues_found }}</span>
-                                {% else %}
-                                    <span style="color: #10b981;">{{ scan.issues_found }}</span>
-                                {% endif %}
-                            </td>
-                            <td>
-                                {% if scan.cost_usd %}
-                                    ${{ scan.cost_usd|floatformat:4 }}
-                                {% else %}
-                                    -
-                                {% endif %}
-                            </td>
-                            <td>
-                                <div style="display: flex; gap: 5px;">
-                                    <button class="btn-default btn-xs" onclick="viewScanDetails('{{ scan.scan_id }}')">
-                                        <i class="fas fa-eye"></i> View
-                                    </button>
-                                    {% if scan.status == 'completed' %}
-                                    <button class="btn-primary btn-xs" onclick="viewOnPlatform('{{ scan.scan_id }}')" title="View detailed AI analysis on platform">
-                                        <i class="fas fa-external-link-alt"></i> AI Analysis
-                                    </button>
-                                    {% endif %}
-                                </div>
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-        {% endif %}
-
+  <div class="ais-card">
+    <h2>{% trans "Privacy" %}</h2>
+    <div class="ais-warn">
+      <strong>{% trans "What leaves the server in AI mode:" %}</strong>
+      {% trans "excerpts of flagged files (never whole sites, never files outside the site's document root). Before sending, the scanner redacts likely secrets: DB_PASSWORD and other define() values, variables and array keys named like passwords, keys or tokens, .env-style lines, API-key and token formats (AWS, Google, OpenAI, Anthropic, GitHub, Stripe, Slack, JWT), private keys, credentials in URLs and e-mail addresses. Configuration files such as wp-config.php are sent as structure only, with every value blanked." %}
+      <br><br>
+      <strong>{% trans "Free tiers may keep your data." %}</strong>
+      {% trans "Google Gemini's free tier lets Google use prompts to improve its products and have humans review them; Mistral's free mode and many OpenRouter free models may train on prompts. Redaction is best effort and obfuscated code can hide secrets it misses. For customer sites prefer a provider that does not train on API data (Cloudflare Workers AI, or paid OpenAI or Anthropic), or use local-only mode." %}
     </div>
-</div>
+  </div>
 
-<!-- Scan Details Modal -->
-<div class="modal fade" id="scanDetailsModal" tabindex="-1" role="dialog">
-    <div class="modal-dialog modal-lg" role="document">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h4 class="modal-title">
-                    <i class="fas fa-search"></i> Scan Results
-                </h4>
-                <button type="button" class="close" data-dismiss="modal" style="font-size: 24px;">&times;</button>
-            </div>
-            <div class="modal-body" id="scanDetailsContent">
-                <!-- Real-time Progress Section -->
-                <div id="progressSection" style="display: none;">
-                    <div class="row">
-                        <div class="col-md-12">
-                            <h5>
-                                <span id="scanPhase" class="status-label info">Loading...</span>
-                                <button class="btn-default btn-xs pull-right" onclick="refreshScanProgress()">
-                                    <i class="fas fa-sync-alt"></i> Refresh
-                                </button>
-                            </h5>
-                        </div>
-                    </div>
-                    
-                    <!-- Progress Bar -->
-                    <div class="row" style="margin-bottom: 15px;">
-                        <div class="col-md-12">
-                            <div class="progress" style="height: 25px;">
-                                <div id="scanProgressBar" class="progress-bar progress-bar-animated" 
-                                     role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
-                                    <span id="scanProgressText" style="position: absolute; width: 100%; text-align: center; line-height: 25px; color: var(--text-primary, #2f3640); font-weight: 600;">0%</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Current Activity -->
-                    <div class="row" style="margin-bottom: 15px;">
-                        <div class="col-md-6">
-                            <strong>Current Activity:</strong>
-                            <br><span id="currentActivity" style="color: var(--text-secondary, #64748b);">Initializing...</span>
-                        </div>
-                        <div class="col-md-6">
-                            <strong>Current File:</strong>
-                            <br><code id="currentFile" style="color: #5856d6;">N/A</code>
-                        </div>
-                    </div>
-
-                    <!-- Statistics -->
-                    <div class="row">
-                        <div class="col-md-3">
-                            <div style="background: var(--alert-info-bg, #e0f2fe); border-radius: 8px; padding: 15px; text-align: center;">
-                                <h4 id="filesDiscovered" style="margin: 0 0 5px 0; color: var(--alert-info-border, #3b82f6);">0</h4>
-                                <small style="color: var(--text-secondary, #64748b);">Files Discovered</small>
-                            </div>
-                        </div>
-                        <div class="col-md-3">
-                            <div style="background: var(--bg-secondary, #e8e6ff); border-radius: 8px; padding: 15px; text-align: center;">
-                                <h4 id="filesScanned" style="margin: 0 0 5px 0; color: #5856d6;">0</h4>
-                                <small style="color: var(--text-secondary, #64748b);">Files Scanned</small>
-                            </div>
-                        </div>
-                        <div class="col-md-3">
-                            <div style="background: var(--alert-warning-bg, #fef3c7); border-radius: 8px; padding: 15px; text-align: center;">
-                                <h4 id="filesRemaining" style="margin: 0 0 5px 0; color: var(--alert-warning-border, #f59e0b);">0</h4>
-                                <small style="color: var(--text-secondary, #64748b);">Files Remaining</small>
-                            </div>
-                        </div>
-                        <div class="col-md-3">
-                            <div style="background: var(--alert-danger-bg, #fee2e2); border-radius: 8px; padding: 15px; text-align: center;">
-                                <h4 id="threatsFound" style="margin: 0 0 5px 0; color: var(--alert-danger-border, #ef4444);">0</h4>
-                                <small style="color: var(--text-secondary, #64748b);">Threats Found</small>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Threat Breakdown -->
-                    <div class="row">
-                        <div class="col-md-12">
-                            <strong>Threat Breakdown:</strong>
-                            <span class="status-label danger" style="margin-left: 10px;">Critical: <span id="criticalThreats">0</span></span>
-                            <span class="status-label warning" style="margin-left: 10px;">High: <span id="highThreats">0</span></span>
-                        </div>
-                    </div>
-
-                    <!-- Last Updated -->
-                    <div class="row" style="margin-top: 15px;">
-                        <div class="col-md-12">
-                            <small style="color: var(--text-muted, #94a3b8);">Last updated: <span id="lastUpdated">Never</span></small>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Loading Section -->
-                <div id="loadingSection" class="text-center">
-                    <i class="fas fa-spinner fa-spin fa-2x"></i>
-                    <p>Loading scan details...</p>
-                </div>
-
-                <!-- Completed Scan Results Section -->
-                <div id="completedSection" style="display: none;">
-                    <!-- This will be populated with completed scan results -->
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn-default" data-dismiss="modal">Close</button>
-            </div>
-        </div>
+  <div class="ais-card">
+    <h2>{% trans "Scan a website" %}</h2>
+    {% if websites %}
+    <div class="ais-row">
+      <select id="ais-domain">
+        {% for w in websites %}<option value="{{ w.domain }}">{{ w.domain }}</option>{% endfor %}
+      </select>
+      <select id="ais-type">
+        <option value="full">{% trans "Full scan (local checks + AI review when configured)" %}</option>
+        <option value="quick">{% trans "Quick scan (local checks only)" %}</option>
+      </select>
+      <button class="ais-btn" id="ais-start">{% trans "Start scan" %}</button>
     </div>
+    {% else %}
+    <p class="ais-muted">{% trans "You have no websites to scan." %}</p>
+    {% endif %}
+    <div id="ais-live" class="ais-hidden">
+      <div class="ais-progress"><div id="ais-bar"></div></div>
+      <div class="ais-muted" id="ais-activity"></div>
+    </div>
+    <div id="ais-msg" class="ais-muted"></div>
+  </div>
+
+  <div class="ais-card ais-hidden" id="ais-result">
+    <h2 id="ais-result-title"></h2>
+    <div id="ais-result-summary" class="ais-muted"></div>
+    <ul class="ais-notes" id="ais-result-notes"></ul>
+    <div style="overflow-x:auto"><table class="ais-table" id="ais-findings"></table></div>
+  </div>
+
+  <div class="ais-card">
+    <h2>{% trans "Recent scans" %}</h2>
+    <div style="overflow-x:auto"><table class="ais-table" id="ais-history"></table></div>
+  </div>
+
+  {% if is_admin %}
+  <div class="ais-card" id="ais-settings">
+    <h2>{% trans "AI provider settings (administrator)" %}</h2>
+    <div class="ais-row"><label>{% trans "Mode" %}</label>
+      <select id="set-mode"><option value="local">{% trans "Local only (no AI, no key needed)" %}</option>
+        <option value="ai">{% trans "Local checks + AI review" %}</option></select></div>
+    <div class="ais-row"><label></label><span><input type="checkbox" id="set-ack">
+      {% trans "I understand which data is sent to the AI provider and that free tiers may use it." %}</span></div>
+    <div class="ais-slot" data-slot="primary"><h2>{% trans "Primary provider" %}</h2></div>
+    <div class="ais-slot" data-slot="fallback"><h2>{% trans "Fallback provider (optional, used when the primary is rate-limited or over budget)" %}</h2></div>
+    <h2>{% trans "Budgets (per provider, reset daily at 00:00 UTC)" %}</h2>
+    <div class="ais-row"><label>{% trans "Requests per day" %}</label><input type="number" id="set-rpd" min="0">
+      <label>{% trans "Tokens per day" %}</label><input type="number" id="set-tpd" min="0"></div>
+    <div class="ais-row"><label>{% trans "Requests per minute" %}</label><input type="number" id="set-rpm" min="1">
+      <label>{% trans "Files sent per scan" %}</label><input type="number" id="set-files" min="0"></div>
+    <div class="ais-row"><label>{% trans "Characters per request" %}</label><input type="number" id="set-chars" min="2000">
+      <label>{% trans "Max output tokens" %}</label><input type="number" id="set-out" min="256"></div>
+    <h2>{% trans "Resellers and users" %}</h2>
+    <div class="ais-row"><label>{% trans "Whose key" %}</label>
+      <select id="set-policy">
+        <option value="admin">{% trans "Users use the administrator's key (with a daily cap)" %}</option>
+        <option value="admin_or_own">{% trans "Users may add their own key; otherwise the administrator's key" %}</option>
+        <option value="own">{% trans "Users must bring their own key (otherwise local checks only)" %}</option>
+      </select></div>
+    <div class="ais-row"><label>{% trans "AI scans per user per day" %}</label><input type="number" id="set-cap" min="0"></div>
+    <div class="ais-row"><button class="ais-btn" id="set-save">{% trans "Save settings" %}</button><span id="set-msg" class="ais-muted"></span></div>
+    <div class="ais-muted" id="set-usage"></div>
+  </div>
+  {% elif own_key_allowed %}
+  <div class="ais-card" id="ais-settings">
+    <h2>{% trans "Your AI provider key" %}</h2>
+    <p class="ais-muted">{% trans "The administrator lets you use your own AI provider key for AI reviews of your sites." %}</p>
+    <div class="ais-slot" data-slot="own"></div>
+    <div class="ais-row"><button class="ais-btn" id="set-save">{% trans "Save" %}</button><span id="set-msg" class="ais-muted"></span></div>
+  </div>
+  {% endif %}
+
+  <div class="ais-card">
+    <h2>{% trans "Scheduled scans" %}</h2>
+    <div style="overflow-x:auto"><table class="ais-table" id="ais-sched"></table></div>
+    {% if websites %}
+    <h2 style="margin-top:16px">{% trans "New schedule" %}</h2>
+    <div class="ais-row"><label>{% trans "Name" %}</label><input type="text" id="sch-name" maxlength="200"></div>
+    <div class="ais-row"><label>{% trans "Websites" %}</label>
+      <select id="sch-domains" multiple size="4">{% for w in websites %}<option value="{{ w.domain }}">{{ w.domain }}</option>{% endfor %}</select></div>
+    <div class="ais-row"><label>{% trans "Frequency" %}</label>
+      <select id="sch-freq"><option value="daily">{% trans "Daily" %}</option><option value="weekly" selected>{% trans "Weekly" %}</option>
+        <option value="monthly">{% trans "Monthly" %}</option><option value="quarterly">{% trans "Quarterly" %}</option></select>
+      <label>{% trans "Time (UTC)" %}</label><input type="time" id="sch-time" value="03:00"></div>
+    <div class="ais-row"><label>{% trans "Scan type" %}</label>
+      <select id="sch-type"><option value="full">{% trans "Full" %}</option><option value="quick">{% trans "Quick (local only)" %}</option></select>
+      <label>{% trans "Notify e-mail" %}</label><input type="email" id="sch-email"></div>
+    <div class="ais-row"><button class="ais-btn" id="sch-add">{% trans "Add schedule" %}</button><span id="sch-msg" class="ais-muted"></span></div>
+    {% endif %}
+  </div>
 </div>
 
 <script>
-function escapeHtml(str) {
-    if (str === null || str === undefined) return '';
-    return String(str)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
-}
+(function () {
+  'use strict';
+  var root = document.getElementById('ais-root');
+  var boot = JSON.parse(document.getElementById('ais-boot').textContent);
+  var presets = {};
+  boot.presets.forEach(function (p) { presets[p.id] = p; });
 
-function setupPayment() {
-    // Show loading
-    const button = event.target;
-    const originalText = button.innerHTML;
-    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Setting up...';
-    button.disabled = true;
-    
-    fetch('/aiscanner/setup-payment/', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': getCookie('csrftoken')
-        }
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            // Redirect to payment setup
-            window.location.href = data.payment_url;
-        } else {
-            alert('Error: ' + data.error);
-            button.innerHTML = originalText;
-            button.disabled = false;
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        alert('Failed to setup payment. Please try again.');
-        button.innerHTML = originalText;
-        button.disabled = false;
+  function cookie(name) {
+    var m = document.cookie.match('(?:^|; )' + name + '=([^;]*)');
+    return m ? decodeURIComponent(m[1]) : '';
+  }
+  function request(method, url, body) {
+    var opts = {method: method, credentials: 'same-origin', headers: {'X-CSRFToken': cookie('csrftoken')}};
+    if (body !== undefined) { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
+    return fetch(url, opts).then(function (r) {
+      return r.json().catch(function () { return {success: false, error: 'Unexpected response (HTTP ' + r.status + ').'}; });
     });
-}
+  }
+  // All text from the server, including AI output, is set with textContent only (no HTML parsing).
+  function el(tag, text, cls) {
+    var node = document.createElement(tag);
+    if (text !== undefined && text !== null) { node.textContent = String(text); }
+    if (cls) { node.className = cls; }
+    return node;
+  }
+  function clear(node) { while (node.firstChild) { node.removeChild(node.firstChild); } }
+  function sev(name) {
+    var ok = ['critical', 'high', 'medium', 'low', 'info'];
+    var s = ok.indexOf(name) >= 0 ? name : 'info';
+    return el('span', s, 'ais-sev ais-sev-' + s);
+  }
+  function headerRow(table, cols) {
+    var tr = el('tr'); cols.forEach(function (c) { tr.appendChild(el('th', c)); }); table.appendChild(tr);
+  }
 
-const scanForm = document.getElementById('scanForm');
-if (scanForm) {
-    scanForm.addEventListener('submit', function(e) {
-        e.preventDefault();
-        
-        const domain = document.getElementById('scanDomain').value;
-        const scanType = document.getElementById('scanType').value;
-        const button = document.getElementById('scanButton');
-    
-    if (!domain) {
-        alert('Please select a website to scan.');
-        return;
-    }
-    
-    // Show loading
-    const originalText = button.innerHTML;
-    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Starting...';
-    button.disabled = true;
-    
-    fetch('/aiscanner/start-scan/', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': getCookie('csrftoken')
-        },
-        body: JSON.stringify({
-            domain: domain,
-            scan_type: scanType
-        })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            alert('Scan started successfully! You will be notified when it completes.');
-            // Reset form and refresh page
-            document.getElementById('scanForm').reset();
-            setTimeout(() => location.reload(), 2000);
-        } else {
-            alert('Error: ' + data.error);
-        }
-        button.innerHTML = originalText;
-        button.disabled = false;
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        alert('Failed to start scan. Please try again.');
-        button.innerHTML = originalText;
-        button.disabled = false;
-    });
-});
-}
-
-function refreshScanHistory() {
-    fetch('/aiscanner/scan-history/')
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            updateScanHistoryTable(data.scans);
-        }
-    })
-    .catch(error => console.error('Error refreshing scan history:', error));
-}
-
-function updateScanHistoryTable(scans) {
-    const tbody = document.getElementById('scanHistoryBody');
-    if (!tbody) return;
-    
-    tbody.innerHTML = '';
-    
-    scans.forEach(scan => {
-        const statusBadge = getStatusBadge(scan.status);
-        const safeScanId = encodeURIComponent(scan.scan_id || '');
-        const issuesText = scan.issues_found > 0 ? 
-            `<span style="color: #ef4444; font-weight: 700;">${escapeHtml(scan.issues_found)}</span>` :
-            `<span style="color: #10b981;">${escapeHtml(scan.issues_found)}</span>`;
-        
-        const actionsHtml = `<div style="display: flex; gap: 5px;">
-                <button class="btn-default btn-xs" onclick="viewScanDetails('${safeScanId}')">
-                    <i class="fas fa-eye"></i> View
-                </button>
-                ${scan.status === 'completed' ? `
-                <button class="btn-primary btn-xs" onclick="viewOnPlatform('${safeScanId}')" title="View detailed AI analysis on platform">
-                    <i class="fas fa-external-link-alt"></i> AI Analysis
-                </button>
-                ` : ''}
-            </div>`;
-        
-        const progressHtml = (scan.status === 'running' || scan.status === 'pending') ?
-            `<div class="progress" style="height: 20px;">
-                <div class="progress-bar progress-bar-animated" 
-                     role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
-                    <span class="progress-text" style="position: absolute; width: 100%; text-align: center; line-height: 20px; color: #2f3640; font-size: 12px;">0%</span>
-                </div>
-            </div>` : '<span style="color: #10b981; font-weight: 600;">100%</span>';
-        
-        const row = `
-            <tr data-scan-id="${escapeHtml(scan.scan_id)}">
-                <td>${new Date(scan.started_at).toLocaleDateString()}</td>
-                <td>${escapeHtml(scan.domain)}</td>
-                <td><span class="status-label info">${escapeHtml(scan.scan_type)}</span></td>
-                <td class="scan-status">${statusBadge}</td>
-                <td class="scan-progress">${progressHtml}</td>
-                <td class="scan-files">${escapeHtml(scan.files_scanned || '-')}</td>
-                <td class="scan-issues">${issuesText}</td>
-                <td>${scan.cost_usd ? '$' + scan.cost_usd.toFixed(4) : '-'}</td>
-                <td>${actionsHtml}</td>
-            </tr>
-        `;
-        tbody.innerHTML += row;
-    });
-}
-
-function getStatusBadge(status) {
-    const badges = {
-        'completed': '<span class="status-label success">Completed</span>',
-        'running': '<span class="status-label warning">Running</span>',
-        'failed': '<span class="status-label danger">Failed</span>',
-        'pending': '<span class="status-label info">Pending</span>'
-    };
-    return badges[status] || '<span class="status-label info">Unknown</span>';
-}
-
-// Global scan monitor variables
-let currentScanId = null;
-let scanMonitorInterval = null;
-
-function viewScanDetails(scanId) {
-    currentScanId = scanId;
-    const modal = document.getElementById('scanDetailsModal');
-    
-    // Reset sections
-    document.getElementById('loadingSection').style.display = 'block';
-    document.getElementById('progressSection').style.display = 'none';
-    document.getElementById('completedSection').style.display = 'none';
-    
-    $('#scanDetailsModal').modal('show');
-    
-    // Check if scan has real-time status updates
-    fetchLiveProgress(scanId);
-}
-
-function viewOnPlatform(scanId) {
-    // Fetch the platform monitor URL
-    fetch(`/aiscanner/platform-monitor-url/${encodeURIComponent(scanId)}/`)
-    .then(response => response.json())
-    .then(data => {
-        if (data.success && data.monitor_url) {
-            // Open in new tab
-            window.open(data.monitor_url, '_blank');
-        } else {
-            alert('Error: ' + (data.error || 'Could not get platform URL'));
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        alert('Failed to get platform URL. Please try again.');
-    });
-}
-
-function fetchLiveProgress(scanId) {
-    console.log(`[AI Scanner] Fetching live progress for scan: ${scanId}`);
-    fetch(`/api/ai-scanner/scan/${encodeURIComponent(scanId)}/live-progress`)
-    .then(response => response.json())
-    .then(data => {
-        console.log(`[AI Scanner] Live progress response:`, data);
-        if (data.success) {
-            if (data.is_active) {
-                console.log(`[AI Scanner] Scan is active (${data.phase}), showing progress section`);
-                // Show real-time progress section
-                showProgressSection(data);
-                startProgressMonitoring(scanId);
-            } else {
-                console.log(`[AI Scanner] Scan is completed, fetching full results`);
-                // Scan is completed, show full results
-                fetchCompletedScanDetails(scanId);
-            }
-        } else {
-            // Check if scan exists but no status yet
-            if (data.scan_exists && data.scan_status === 'running') {
-                console.log(`[AI Scanner] Scan is running but no status updates yet, retrying...`);
-                // Show loading state and retry in a few seconds
-                setTimeout(() => {
-                    fetchLiveProgress(scanId);
-                }, 3000);
-            } else {
-                console.log(`[AI Scanner] No live status found, falling back to completed results`);
-                // No live status found, try fetching completed scan details
-                fetchCompletedScanDetails(scanId);
-            }
-        }
-    })
-    .catch(error => {
-        console.error('[AI Scanner] Error fetching live progress:', error);
-        fetchCompletedScanDetails(scanId);
-    });
-}
-
-function showProgressSection(data) {
-    document.getElementById('loadingSection').style.display = 'none';
-    document.getElementById('progressSection').style.display = 'block';
-    document.getElementById('completedSection').style.display = 'none';
-    
-    updateProgressUI(data);
-}
-
-function updateProgressUI(data) {
-    // Update progress bar
-    const progressBar = document.getElementById('scanProgressBar');
-    const progressText = document.getElementById('scanProgressText');
-    progressBar.style.width = data.progress + '%';
-    progressBar.setAttribute('aria-valuenow', data.progress);
-    progressText.textContent = data.progress + '%';
-    
-    // Update phase
-    const phaseElement = document.getElementById('scanPhase');
-    phaseElement.textContent = formatPhase(data.phase);
-    phaseElement.className = `status-label ${getPhaseColor(data.phase)}`;
-    
-    // Update activity and file info
-    document.getElementById('currentActivity').textContent = escapeHtml(data.activity_description || 'Processing...');
-    document.getElementById('currentFile').textContent = data.current_file || 'N/A';
-    
-    // Update counters
-    document.getElementById('filesDiscovered').textContent = data.files_discovered;
-    document.getElementById('filesScanned').textContent = data.files_scanned;
-    document.getElementById('filesRemaining').textContent = data.files_remaining;
-    document.getElementById('threatsFound').textContent = data.threats_found;
-    document.getElementById('criticalThreats').textContent = data.critical_threats;
-    document.getElementById('highThreats').textContent = data.high_threats;
-    
-    // Update timestamp
-    document.getElementById('lastUpdated').textContent = new Date(data.last_updated).toLocaleTimeString();
-}
-
-function startProgressMonitoring(scanId) {
-    console.log(`[AI Scanner] Starting progress monitoring for scan: ${scanId}`);
-    // Clear any existing interval
-    if (scanMonitorInterval) {
-        clearInterval(scanMonitorInterval);
-    }
-    
-    // Poll every 3 seconds
-    scanMonitorInterval = setInterval(() => {
-        fetch(`/api/ai-scanner/scan/${encodeURIComponent(scanId)}/live-progress`)
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                if (data.is_active) {
-                    console.log(`[AI Scanner] Progress update: Phase="${data.phase}" Progress=${data.progress}% Activity="${data.activity_description || 'N/A'}" Files=${data.files_scanned}/${data.files_discovered}`);
-                    updateProgressUI(data);
-                } else {
-                    console.log(`[AI Scanner] Scan completed, stopping monitoring`);
-                    // Scan completed, stop monitoring and show results
-                    stopProgressMonitoring();
-                    fetchCompletedScanDetails(scanId);
-                }
-            }
-        })
-        .catch(error => {
-            console.error('[AI Scanner] Error in progress monitoring:', error);
-        });
-    }, 3000);
-}
-
-function stopProgressMonitoring() {
-    if (scanMonitorInterval) {
-        clearInterval(scanMonitorInterval);
-        scanMonitorInterval = null;
-    }
-}
-
-function refreshScanProgress() {
-    if (currentScanId) {
-        fetchLiveProgress(currentScanId);
-    }
-}
-
-function fetchCompletedScanDetails(scanId) {
-    console.log(`[AI Scanner] Fetching completed scan details for: ${scanId}`);
-    fetch(`/aiscanner/scan-details/${scanId}/`)
-    .then(response => {
-        console.log(`[AI Scanner] Scan details response status: ${response.status}`);
-        return response.json();
-    })
-    .then(data => {
-        console.log(`[AI Scanner] Scan details data:`, data);
-        if (data.success) {
-            displayCompletedScanDetails(data.scan);
-        } else {
-            console.error(`[AI Scanner] Scan details error: ${data.error}`);
-            document.getElementById('loadingSection').style.display = 'none';
-            document.getElementById('progressSection').style.display = 'none';
-            document.getElementById('completedSection').style.display = 'block';
-            document.getElementById('completedSection').innerHTML = 
-                `<div class="scanner-alert scanner-alert-danger">
-                    <i class="fas fa-exclamation-triangle"></i>
-                    <div class="scanner-alert-content">
-                        <p>Error: ${escapeHtml(data.error)}</p>
-                    </div>
-                </div>`;
-        }
-    })
-    .catch(error => {
-        console.error('[AI Scanner] Fetch error:', error);
-        document.getElementById('loadingSection').style.display = 'none';
-        document.getElementById('progressSection').style.display = 'none';
-        document.getElementById('completedSection').style.display = 'block';
-        document.getElementById('completedSection').innerHTML = 
-            `<div class="scanner-alert scanner-alert-danger">
-                <i class="fas fa-exclamation-triangle"></i>
-                <div class="scanner-alert-content">
-                    <p>Failed to load scan details. Please try again.</p>
-                </div>
-            </div>`;
-    });
-}
-
-function displayCompletedScanDetails(scan) {
-    console.log(`[AI Scanner] Displaying completed scan details:`, scan);
-    document.getElementById('loadingSection').style.display = 'none';
-    document.getElementById('progressSection').style.display = 'none';
-    document.getElementById('completedSection').style.display = 'block';
-    
-    let findingsHtml = '';
-    if (scan.findings && scan.findings.length > 0) {
-        findingsHtml = `
-            <h5 style="margin: 20px 0 15px; font-weight: 600;">Security Issues Found (${scan.findings.length})</h5>
-            <div style="display: flex; flex-direction: column; gap: 10px;">
-        `;
-        
-        scan.findings.forEach(finding => {
-            const severityClass = finding.severity === 'high' ? 'danger' : 
-                                finding.severity === 'medium' ? 'warning' : 'info';
-            const filePath = finding.file_path || finding.file || '';
-            
-            findingsHtml += `
-                <div style="background: var(--bg-primary, white); border: 1px solid var(--border-primary, #e8e9ff); border-radius: 8px; padding: 15px;">
-                    <h6 style="margin: 0 0 10px 0; display: flex; align-items: center; gap: 10px; color: var(--text-primary, #2f3640);">
-                        <span class="status-label ${severityClass}" style="text-transform: uppercase;">${escapeHtml(finding.severity)}</span>
-                        ${escapeHtml(finding.title)}
-                    </h6>
-                    <p style="margin: 0 0 10px 0; color: var(--text-secondary, #64748b);">${escapeHtml(finding.description)}</p>
-                    ${filePath ? `<small style="color: var(--text-muted, #94a3b8);">File: ${escapeHtml(filePath)}</small>` : ''}
-                </div>
-            `;
-        });
-        findingsHtml += '</div>';
+  function modeLine() {
+    var s = boot.settings, line = document.getElementById('ais-mode-line');
+    if (s.mode === 'ai') {
+      line.textContent = boot.is_admin && s.primary ?
+        'AI review is on: ' + s.primary.provider + ' / ' + (s.primary.model || presets[s.primary.provider].default_model) +
+        (s.primary.key_set ? ' (key set)' : ' (key not set)') : 'AI review is on.';
     } else {
-        findingsHtml = `<div class="scanner-alert scanner-alert-success">
-            <i class="fas fa-check-circle"></i>
-            <div class="scanner-alert-content">
-                <p>No security issues found!</p>
-            </div>
-        </div>`;
+      line.textContent = 'Local-only mode: no file content leaves this server.';
     }
-    
-    // Use enhanced scan data from ScanStatusUpdate if available
-    const filesScanned = scan.files_scanned || 0;
-    const filesDiscovered = scan.files_discovered || scan.files_scanned || 0;
-    const threatsFound = scan.threats_found !== undefined ? scan.threats_found : (scan.issues_found || 0);
-    const criticalThreats = scan.critical_threats || 0;
-    const highThreats = scan.high_threats || 0;
-    const safeScanId = encodeURIComponent(scan.scan_id || '');
-    
-    document.getElementById('completedSection').innerHTML = `
-        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 20px;">
-            <div class="stat-card" style="padding: 20px;">
-                <div class="stat-card-icon info" style="width: 40px; height: 40px; font-size: 18px; margin-bottom: 10px;">
-                    <i class="fas fa-file"></i>
-                </div>
-                <h4 style="margin: 0; font-size: 24px; font-weight: 700;">${filesScanned}${filesDiscovered > filesScanned ? `/${filesDiscovered}` : ''}</h4>
-                <p style="margin: 5px 0 0 0; font-size: 13px;">Files Scanned</p>
-            </div>
-            <div class="stat-card" style="padding: 20px;">
-                <div class="stat-card-icon ${threatsFound > 0 ? 'danger' : 'success'}" style="width: 40px; height: 40px; font-size: 18px; margin-bottom: 10px;">
-                    <i class="fas ${threatsFound > 0 ? 'fa-exclamation-triangle' : 'fa-check'}"></i>
-                </div>
-                <h4 style="margin: 0; font-size: 24px; font-weight: 700;">${threatsFound}</h4>
-                <p style="margin: 5px 0 0 0; font-size: 13px;">Threats Found</p>
-                ${(criticalThreats > 0 || highThreats > 0) ? `<small style="color: var(--alert-danger-border, #ef4444); font-size: 11px;">${criticalThreats > 0 ? `${criticalThreats} Critical` : ''}${criticalThreats > 0 && highThreats > 0 ? ', ' : ''}${highThreats > 0 ? `${highThreats} High` : ''}</small>` : ''}
-            </div>
-            <div class="stat-card" style="padding: 20px;">
-                <div class="stat-card-icon info" style="width: 40px; height: 40px; font-size: 18px; margin-bottom: 10px;">
-                    <i class="fas fa-dollar-sign"></i>
-                </div>
-                <h4 style="margin: 0; font-size: 24px; font-weight: 700;">${scan.cost_usd ? '$' + scan.cost_usd.toFixed(4) : 'Free'}</h4>
-                <p style="margin: 5px 0 0 0; font-size: 13px;">Cost</p>
-            </div>
-            <div class="stat-card" style="padding: 20px;">
-                <div class="stat-card-icon info" style="width: 40px; height: 40px; font-size: 18px; margin-bottom: 10px;">
-                    <i class="fas fa-calendar"></i>
-                </div>
-                <h4 style="margin: 0; font-size: 24px; font-weight: 700;">${new Date(scan.started_at).toLocaleDateString()}</h4>
-                <p style="margin: 5px 0 0 0; font-size: 13px;">Scan Date</p>
-            </div>
-        </div>
-        ${findingsHtml}
-        <div style="margin-top: 20px; text-align: center;">
-            <button class="btn-primary" onclick="viewOnPlatform('${safeScanId}')" style="padding: 0.75rem 2rem;">
-                <i class="fas fa-external-link-alt"></i> View Full AI Analysis on Platform
-            </button>
-        </div>
-    `;
-}
+  }
 
-function formatPhase(phase) {
-    const phases = {
-        'starting': 'Starting Scan',
-        'discovering_files': 'Discovering Files',
-        'scanning_files': 'Scanning Files',
-        'ai_analysis': 'AI Analysis',
-        'completing': 'Finalizing',
-        'completed': 'Completed',
-        'failed': 'Failed',
-        'cancelled': 'Cancelled'
-    };
-    return phases[phase] || phase;
-}
+  // ---------------------------------------------------------------- scans
+  var msg = document.getElementById('ais-msg');
+  var startBtn = document.getElementById('ais-start');
+  var pollTimer = null;
 
-function getPhaseColor(phase) {
-    const colors = {
-        'starting': 'info',
-        'discovering_files': 'warning',
-        'scanning_files': 'primary',
-        'ai_analysis': 'warning',
-        'completing': 'success',
-        'completed': 'success',
-        'failed': 'danger',
-        'cancelled': 'default'
-    };
-    return colors[phase] || 'default';
-}
-
-// Clean up monitoring when modal is closed
-$('#scanDetailsModal').on('hidden.bs.modal', function () {
-    stopProgressMonitoring();
-    currentScanId = null;
-});
-
-// Global table monitoring variables
-let tableMonitorInterval = null;
-
-// Start monitoring active scans in the table
-function startTableMonitoring() {
-    // Clear any existing interval
-    if (tableMonitorInterval) {
-        clearInterval(tableMonitorInterval);
+  function showScan(scan) {
+    var box = document.getElementById('ais-result');
+    box.classList.remove('ais-hidden');
+    document.getElementById('ais-result-title').textContent = 'Results: ' + scan.domain + ' (' + scan.status + ')';
+    var sum = scan.summary || {}, parts = [];
+    if (scan.status === 'failed') { parts.push(scan.error_message || 'Scan failed.'); }
+    if (sum.files_scanned !== undefined) { parts.push(sum.files_scanned + ' files checked'); }
+    if (sum.suspicious_files !== undefined) { parts.push(sum.suspicious_files + ' flagged locally'); }
+    if (sum.mode) { parts.push(sum.mode === 'ai' ? 'AI reviewed ' + sum.ai_files_sent + ' files in ' + sum.ai_requests +
+      ' requests (' + (sum.providers || []).join(', ') + ')' : 'local checks only'); }
+    if (sum.redactions) { parts.push(sum.redactions + ' secrets redacted before sending'); }
+    document.getElementById('ais-result-summary').textContent = parts.join(' · ');
+    var notes = document.getElementById('ais-result-notes'); clear(notes);
+    (sum.notes || []).forEach(function (n) { notes.appendChild(el('li', n)); });
+    var table = document.getElementById('ais-findings'); clear(table);
+    var findings = scan.findings || [];
+    if (!findings.length) {
+      if (scan.status === 'completed') { table.appendChild(el('tr')).appendChild(el('td', 'No issues found.')); }
+      return;
     }
-    
-    // Check for active scans every 5 seconds
-    tableMonitorInterval = setInterval(() => {
-        updateActiveScansInTable();
-    }, 5000);
-    
-    // Also run once immediately
-    updateActiveScansInTable();
-}
-
-function updateActiveScansInTable() {
-    const scanRows = document.querySelectorAll('tr[data-scan-id]');
-    
-    scanRows.forEach(row => {
-        const scanId = row.getAttribute('data-scan-id');
-        const statusCell = row.querySelector('.scan-status span');
-        const progressCell = row.querySelector('.scan-progress');
-        const filesCell = row.querySelector('.scan-files');
-        const issuesCell = row.querySelector('.scan-issues');
-        
-        // Only update running/pending scans
-        if (statusCell && (statusCell.textContent.includes('Running') || statusCell.textContent.includes('Pending'))) {
-            // Fetch live progress for this scan
-            fetch(`/api/ai-scanner/scan/${encodeURIComponent(scanId)}/live-progress`)
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    updateTableRowProgress(row, data);
-                }
-            })
-            .catch(error => {
-                // Silently fail for individual scan updates
-                console.log(`No live data for scan ${scanId}`);
-            });
-        }
+    headerRow(table, ['Severity', 'File', 'Line', 'Reason', 'Suggested action', 'Source']);
+    findings.forEach(function (f) {
+      var tr = el('tr'), td = el('td');
+      td.appendChild(sev(f.severity)); tr.appendChild(td);
+      tr.appendChild(el('td', f.file || f.file_path || f.path || '', 'ais-file'));
+      tr.appendChild(el('td', f.line || ''));
+      tr.appendChild(el('td', f.reason || f.description || ''));
+      tr.appendChild(el('td', f.action || f.recommendation || ''));
+      tr.appendChild(el('td', f.source === 'ai' ? 'AI' : (f.source === 'local' ? 'Local' : '')));
+      table.appendChild(tr);
     });
-}
+  }
 
-function updateTableRowProgress(row, data) {
-    const statusCell = row.querySelector('.scan-status span');
-    const progressCell = row.querySelector('.scan-progress');
-    const filesCell = row.querySelector('.scan-files');
-    const issuesCell = row.querySelector('.scan-issues');
-    const costCell = row.querySelector('td:nth-child(8)'); // Cost column
-    
-    // Update status
-    if (statusCell) {
-        const phaseText = formatPhase(data.phase);
-        const statusClass = getStatusClass(data.phase);
-        statusCell.className = `status-label ${statusClass}`;
-        statusCell.textContent = phaseText;
-    }
-    
-    // Update progress
-    if (progressCell) {
-        if (data.is_active) {
-            progressCell.innerHTML = `
-                <div class="progress" style="height: 20px;">
-                    <div class="progress-bar progress-bar-animated" 
-                         role="progressbar" style="width: ${data.progress}%" 
-                         aria-valuenow="${data.progress}" aria-valuemin="0" aria-valuemax="100">
-                        <span class="progress-text" style="position: absolute; width: 100%; text-align: center; line-height: 20px; color: var(--text-primary, #2f3640); font-size: 12px;">${data.progress}%</span>
-                    </div>
-                </div>
-            `;
-        } else {
-            progressCell.innerHTML = '<span style="color: #10b981; font-weight: 600;">100%</span>';
-        }
-    }
-    
-    // Update files count
-    if (filesCell && data.files_scanned > 0) {
-        filesCell.textContent = `${data.files_scanned}/${data.files_discovered}`;
-    }
-    
-    // Update issues count
-    if (issuesCell && data.threats_found > 0) {
-        issuesCell.innerHTML = `<span style="color: #ef4444; font-weight: 700;">${data.threats_found}</span>`;
-    }
-    
-    // Update cost (real-time cost from platform)
-    if (costCell && data.cost) {
-        costCell.textContent = data.cost;
-    }
-}
+  function loadScan(id) {
+    request('GET', root.dataset.history.replace('scan-history/', 'scan-details/' + encodeURIComponent(id) + '/'))
+      .then(function (d) { if (d.success) { showScan(d.scan); } else { msg.textContent = d.error; } });
+  }
 
-function getStatusClass(phase) {
-    const statusClasses = {
-        'starting': 'info',
-        'discovering_files': 'warning', 
-        'scanning_files': 'warning',
-        'ai_analysis': 'info',
-        'completing': 'warning',
-        'completed': 'success',
-        'failed': 'danger',
-        'cancelled': 'default'
-    };
-    return statusClasses[phase] || 'default';
-}
+  function poll(id) {
+    var live = document.getElementById('ais-live');
+    live.classList.remove('ais-hidden');
+    request('GET', root.dataset.history.replace('scan-history/', 'scan-status/' + encodeURIComponent(id) + '/'))
+      .then(function (d) {
+        if (!d.success) { msg.textContent = d.error; return; }
+        document.getElementById('ais-bar').style.width = Math.max(0, Math.min(100, d.progress | 0)) + '%';
+        document.getElementById('ais-activity').textContent = d.activity || d.phase || '';
+        if (d.is_active) { pollTimer = setTimeout(function () { poll(id); }, 3000); }
+        else { live.classList.add('ais-hidden'); if (startBtn) { startBtn.disabled = false; } loadScan(id); loadHistory(); }
+      });
+  }
 
-// Auto-start table monitoring when page loads
-document.addEventListener('DOMContentLoaded', function() {
-    // Only start monitoring if we're on the scanner page with a scan history table
-    if (document.getElementById('scanHistoryTable')) {
-        startTableMonitoring();
-        console.log('Started real-time scan monitoring');
-    }
-});
-
-// Stop monitoring when page unloads
-window.addEventListener('beforeunload', function() {
-    if (tableMonitorInterval) {
-        clearInterval(tableMonitorInterval);
-    }
-});
-
-
-function getCookie(name) {
-    let cookieValue = null;
-    if (document.cookie && document.cookie !== '') {
-        const cookies = document.cookie.split(';');
-        for (let i = 0; i < cookies.length; i++) {
-            const cookie = cookies[i].trim();
-            if (cookie.substring(0, name.length + 1) === (name + '=')) {
-                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                break;
-            }
-        }
-    }
-    return cookieValue;
-}
-
-function refreshBalance() {
-    const button = event.target.closest('button');
-    const originalHtml = button.innerHTML;
-    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Refreshing...';
-    button.disabled = true;
-    
-    fetch('/aiscanner/refresh-balance/', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': getCookie('csrftoken')
-        }
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            // Update the balance display
-            const balanceElement = button.closest('.stat-card').querySelector('h2');
-            balanceElement.textContent = '$' + parseFloat(data.balance).toFixed(4);
-            
-            // Show success message
-            if (data.message) {
-                alert(data.message);
-            }
-        } else {
-            alert('Error: ' + data.error);
-        }
-        
-        button.innerHTML = originalHtml;
-        button.disabled = false;
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        alert('Failed to refresh balance. Please try again.');
-        button.innerHTML = originalHtml;
-        button.disabled = false;
-    });
-}
-
-function addPaymentMethod() {
-    const button = event.target.closest('button');
-    const originalHtml = button.innerHTML;
-    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Setting up...';
-    button.disabled = true;
-    
-    fetch('/aiscanner/add-payment-method/', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': getCookie('csrftoken')
-        }
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            // Redirect to payment method setup
-            window.location.href = data.setup_url;
-        } else {
-            alert('Error: ' + data.error);
-            button.innerHTML = originalHtml;
-            button.disabled = false;
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        alert('Failed to setup payment method. Please try again.');
-        button.innerHTML = originalHtml;
-        button.disabled = false;
-    });
-}
-
-// Auto-refresh scan history every 30 seconds if there are running scans
-setInterval(() => {
-    if (document.getElementById('scanHistoryTable')) {
-        refreshScanHistory();
-    }
-}, 30000);
-
-// Scheduled Scans Functions
-function showScheduleModal() {
-    // Reset form for new schedule
-    document.getElementById('scheduleForm').reset();
-    document.getElementById('scheduleId').value = '';
-    
-    // Uncheck all domain checkboxes
-    document.querySelectorAll('input[name="domains"]').forEach(cb => cb.checked = false);
-    
-    // Reset checkboxes to their defaults
-    document.getElementById('emailNotifications').checked = true;
-    document.getElementById('notifyOnThreats').checked = true;
-    document.getElementById('notifyOnCompletion').checked = false;
-    document.getElementById('notifyOnFailure').checked = true;
-    
-    $('#scheduleModal').modal('show');
-}
-
-function loadScheduledScans() {
-    fetch('/aiscanner/scheduled-scans/')
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            displayScheduledScans(data.scheduled_scans);
-        } else {
-            console.error('Failed to load scheduled scans:', data.error);
-        }
-    })
-    .catch(error => {
-        console.error('Error loading scheduled scans:', error);
-    });
-}
-
-function displayScheduledScans(scans) {
-    const container = document.getElementById('scheduledScansContainer');
-    
-    if (!scans || scans.length === 0) {
-        container.innerHTML = '<p style="color: var(--text-muted, #94a3b8); text-align: center; padding: 20px;">No scheduled scans configured yet.</p>';
-        return;
-    }
-    
-    let html = '<div class="scheduled-scans-grid">';
-    
-    scans.forEach(scan => {
-        const statusClass = scan.status === 'active' ? 'success' : scan.status === 'paused' ? 'warning' : 'danger';
-        const nextRun = scan.next_run ? new Date(scan.next_run).toLocaleString() : 'Not scheduled';
-        const lastRun = scan.last_run ? new Date(scan.last_run).toLocaleString() : 'Never';
-        
-        html += `
-            <div class="scheduled-scan-card">
-                <div class="scheduled-scan-header">
-                    <h4>${scan.name}</h4>
-                    <span class="status-label ${statusClass}">${scan.status}</span>
-                </div>
-                <div class="scheduled-scan-info">
-                    <p><strong>Frequency:</strong> ${scan.frequency}</p>
-                    <p><strong>Scan Type:</strong> ${scan.scan_type}</p>
-                    <p><strong>Domains:</strong> ${scan.domains.join(', ')}</p>
-                    <p><strong>Next Run:</strong> ${nextRun}</p>
-                    <p><strong>Last Run:</strong> ${lastRun}</p>
-                </div>
-                <div class="scheduled-scan-actions">
-                    <button class="btn-xs btn-default" onclick="editScheduledScan(${scan.id})">
-                        <i class="fas fa-edit"></i> Edit
-                    </button>
-                    <button class="btn-xs btn-${scan.status === 'active' ? 'warning' : 'success'}" 
-                            onclick="toggleScheduledScan(${scan.id})">
-                        <i class="fas fa-${scan.status === 'active' ? 'pause' : 'play'}"></i> 
-                        ${scan.status === 'active' ? 'Pause' : 'Activate'}
-                    </button>
-                    <button class="btn-xs btn-danger" onclick="deleteScheduledScan(${scan.id})">
-                        <i class="fas fa-trash"></i> Delete
-                    </button>
-                </div>
-            </div>
-        `;
-    });
-    
-    html += '</div>';
-    container.innerHTML = html;
-}
-
-function saveScheduledScan() {
-    const form = document.getElementById('scheduleForm');
-    const formData = new FormData(form);
-    const data = {};
-    
-    // Process form data, excluding checkboxes and multi-select fields
-    for (let [key, value] of formData.entries()) {
-        if (!['email_notifications', 'notify_on_threats', 'notify_on_completion', 'notify_on_failure', 'domains'].includes(key)) {
-            data[key] = value;
-        }
-    }
-    
-    // Get selected domains
-    const selectedDomains = Array.from(document.querySelectorAll('input[name="domains"]:checked'))
-        .map(cb => cb.value);
-    
-    if (selectedDomains.length === 0) {
-        alert('Please select at least one domain to scan.');
-        return;
-    }
-    
-    data.domains = selectedDomains;
-    
-    // Get notification emails
-    const notificationEmails = document.getElementById('notificationEmails').value.split(',')
-        .map(email => email.trim())
-        .filter(email => email.length > 0);
-    
-    data.notification_emails = notificationEmails;
-    
-    // Convert checkbox values to booleans explicitly
-    data.email_notifications = document.getElementById('emailNotifications').checked;
-    data.notify_on_threats = document.getElementById('notifyOnThreats').checked;
-    data.notify_on_completion = document.getElementById('notifyOnCompletion').checked;
-    data.notify_on_failure = document.getElementById('notifyOnFailure').checked;
-    
-    fetch('/aiscanner/scheduled-scans/', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': getCookie('csrftoken')
-        },
-        body: JSON.stringify(data)
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            $('#scheduleModal').modal('hide');
-            loadScheduledScans();
-            document.getElementById('scheduleForm').reset();
-        } else {
-            alert('Error: ' + data.error);
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        alert('Failed to save scheduled scan. Please try again.');
-    });
-}
-
-function editScheduledScan(id) {
-    // Fetch scheduled scan details and populate form
-    fetch(`/aiscanner/scheduled-scans/${id}/`)
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            populateScheduleForm(data.scheduled_scan);
-            $('#scheduleModal').modal('show');
-        } else {
-            alert('Error: ' + data.error);
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        alert('Failed to load scheduled scan details.');
-    });
-}
-
-function populateScheduleForm(scan) {
-    document.getElementById('scheduleId').value = scan.id;
-    document.getElementById('scheduleName').value = scan.name;
-    document.getElementById('frequency').value = scan.frequency;
-    document.getElementById('scanType').value = scan.scan_type;
-    document.getElementById('timeOfDay').value = scan.time_of_day;
-    
-    if (scan.day_of_week !== null) {
-        document.getElementById('dayOfWeek').value = scan.day_of_week;
-    }
-    
-    if (scan.day_of_month !== null) {
-        document.getElementById('dayOfMonth').value = scan.day_of_month;
-    }
-    
-    // Select domains
-    scan.domains.forEach(domain => {
-        const checkbox = document.querySelector(`input[name="domains"][value="${domain}"]`);
-        if (checkbox) {
-            checkbox.checked = true;
-        }
-    });
-    
-    // Set notification settings
-    document.getElementById('emailNotifications').checked = scan.email_notifications;
-    document.getElementById('notifyOnThreats').checked = scan.notify_on_threats;
-    document.getElementById('notifyOnCompletion').checked = scan.notify_on_completion;
-    document.getElementById('notifyOnFailure').checked = scan.notify_on_failure;
-    
-    if (scan.notification_emails && scan.notification_emails.length > 0) {
-        document.getElementById('notificationEmails').value = scan.notification_emails.join(', ');
-    }
-    
-    updateFrequencyOptions();
-}
-
-function toggleScheduledScan(id) {
-    fetch(`/aiscanner/scheduled-scans/${id}/toggle/`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': getCookie('csrftoken')
-        }
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            loadScheduledScans();
-        } else {
-            alert('Error: ' + data.error);
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        alert('Failed to toggle scheduled scan.');
-    });
-}
-
-function deleteScheduledScan(id) {
-    if (confirm('Are you sure you want to delete this scheduled scan?')) {
-        fetch(`/aiscanner/scheduled-scans/${id}/`, {
-            method: 'DELETE',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': getCookie('csrftoken')
-            }
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                loadScheduledScans();
-            } else {
-                alert('Error: ' + data.error);
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('Failed to delete scheduled scan.');
+  if (startBtn) {
+    startBtn.addEventListener('click', function () {
+      startBtn.disabled = true; msg.textContent = 'Starting…';
+      request('POST', root.dataset.start, {domain: document.getElementById('ais-domain').value,
+                                           scan_type: document.getElementById('ais-type').value})
+        .then(function (d) {
+          if (!d.success) { msg.textContent = d.error; startBtn.disabled = false; return; }
+          msg.textContent = 'Scan ' + d.scan_id + ' started.';
+          if (pollTimer) { clearTimeout(pollTimer); }
+          poll(d.scan_id); loadHistory();
         });
-    }
-}
+    });
+  }
 
-function updateFrequencyOptions() {
-    const frequency = document.getElementById('frequency').value;
-    const dayOfWeekGroup = document.getElementById('dayOfWeekGroup');
-    const dayOfMonthGroup = document.getElementById('dayOfMonthGroup');
-    
-    // Hide all optional fields first
-    dayOfWeekGroup.style.display = 'none';
-    dayOfMonthGroup.style.display = 'none';
-    
-    // Show relevant fields based on frequency
-    if (frequency === 'weekly') {
-        dayOfWeekGroup.style.display = 'block';
-    } else if (frequency === 'monthly' || frequency === 'quarterly') {
-        dayOfMonthGroup.style.display = 'block';
-    }
-}
+  function loadHistory() {
+    request('GET', root.dataset.history).then(function (d) {
+      var table = document.getElementById('ais-history'); clear(table);
+      if (!d.success) { table.appendChild(el('tr')).appendChild(el('td', d.error)); return; }
+      if (!d.scans.length) { table.appendChild(el('tr')).appendChild(el('td', 'No scans yet.')); return; }
+      headerRow(table, ['Started', 'Website', 'Type', 'Status', 'Files', 'Issues', 'Mode', '']);
+      d.scans.forEach(function (s) {
+        var tr = el('tr');
+        [s.started_at, s.domain, s.scan_type, s.status, s.files_scanned, s.issues_found,
+         (s.summary && s.summary.mode) || ''].forEach(function (v) { tr.appendChild(el('td', v)); });
+        var td = el('td'), b = el('button', 'View', 'ais-btn ais-btn-secondary');
+        b.addEventListener('click', function () { loadScan(s.scan_id); });
+        td.appendChild(b); tr.appendChild(td); table.appendChild(tr);
+        if (s.status === 'pending' || s.status === 'running') { if (!pollTimer) { poll(s.scan_id); } }
+      });
+    });
+  }
 
-// Load scheduled scans when page loads
-document.addEventListener('DOMContentLoaded', function() {
-    if (document.getElementById('scheduledScansContainer')) {
-        loadScheduledScans();
+  // ------------------------------------------------------------- settings
+  function slotForm(container, name, data, allowCustom) {
+    var row = function (label, input) {
+      var r = el('div', null, 'ais-row'); r.appendChild(el('label', label)); r.appendChild(input); container.appendChild(r); return r;
+    };
+    var sel = el('select');
+    if (name === 'fallback' || name === 'own') { var none = el('option', '(none)'); none.value = ''; sel.appendChild(none); }
+    boot.presets.forEach(function (p) {
+      if (p.custom_url && !allowCustom) { return; }
+      var o = el('option', p.label); o.value = p.id; sel.appendChild(o);
+    });
+    sel.value = data.provider || '';
+    var model = el('input'); model.type = 'text'; model.value = data.model || ''; model.setAttribute('list', 'ais-models-' + name);
+    var list = el('datalist'); list.id = 'ais-models-' + name;
+    var account = el('input'); account.type = 'text'; account.value = data.account_id || ''; account.placeholder = '32-character account ID';
+    var base = el('input'); base.type = 'text'; base.value = data.base_url || ''; base.placeholder = 'http://127.0.0.1:11434/v1';
+    var key = el('input'); key.type = 'password'; key.autocomplete = 'new-password';
+    key.placeholder = data.key_set ? 'set (leave empty to keep)' : 'not set';
+    var keyState = el('span', data.key_set ? 'Key: set' : 'Key: not set', data.key_set ? 'ais-ok' : 'ais-muted');
+    var clearKey = el('input'); clearKey.type = 'checkbox';
+    var link = el('a'); link.target = '_blank'; link.rel = 'noopener noreferrer';
+    row('Provider', sel);
+    var modelRow = row('Model', model); container.appendChild(list);
+    var accRow = row('Cloudflare account ID', account);
+    var baseRow = row('Base URL', base);
+    var keyRow = row('API key', key); keyRow.appendChild(keyState);
+    var clr = el('span'); clr.appendChild(clearKey); clr.appendChild(document.createTextNode(' remove stored key')); keyRow.appendChild(clr);
+    var linkRow = el('div', null, 'ais-row'); linkRow.appendChild(el('label', '')); linkRow.appendChild(link); container.appendChild(linkRow);
+    var testRow = el('div', null, 'ais-row'); testRow.appendChild(el('label', ''));
+    var test = el('button', 'Test key', 'ais-btn ais-btn-secondary'); var testMsg = el('span', '', 'ais-muted');
+    testRow.appendChild(test); testRow.appendChild(testMsg); container.appendChild(testRow);
+
+    function refresh() {
+      var p = presets[sel.value];
+      [modelRow, keyRow, linkRow, testRow].forEach(function (r) { r.style.display = p ? '' : 'none'; });
+      accRow.style.display = p && p.needs_account_id ? '' : 'none';
+      baseRow.style.display = p && p.custom_url ? '' : 'none';
+      clear(list);
+      if (!p) { return; }
+      model.placeholder = p.default_model;
+      p.models.forEach(function (m) { var o = el('option'); o.value = m; list.appendChild(o); });
+      link.textContent = p.key_url ? 'Get a key: ' + p.key_url : ''; link.href = p.key_url || '#';
     }
-});
+    sel.addEventListener('change', refresh); refresh();
+
+    function value() {
+      return {provider: sel.value, model: model.value.trim(), account_id: account.value.trim(), base_url: base.value.trim()};
+    }
+    test.addEventListener('click', function () {
+      test.disabled = true; testMsg.textContent = 'Testing…';
+      request('POST', root.dataset.test, {settings: {slot: name, provider: value(), key: key.value}})
+        .then(function (d) { testMsg.textContent = d.success ? d.message : d.error;
+                             testMsg.className = d.success ? 'ais-ok' : 'ais-bad'; test.disabled = false; });
+    });
+    return {value: value, key: function () { return {value: key.value, clear: clearKey.checked}; }};
+  }
+
+  var forms = {};
+  function buildSettings() {
+    var s = boot.settings;
+    document.querySelectorAll('.ais-slot').forEach(function (box) {
+      var name = box.dataset.slot;
+      var data = name === 'own' ? (s.own || {}) : (s[name] || {});
+      forms[name] = slotForm(box, name, data, boot.is_admin);
+    });
+    if (!boot.is_admin) { return; }
+    document.getElementById('set-mode').value = s.mode;
+    document.getElementById('set-ack').checked = !!s.privacy_ack;
+    document.getElementById('set-rpd').value = s.budget.max_requests_per_day;
+    document.getElementById('set-tpd').value = s.budget.max_tokens_per_day;
+    document.getElementById('set-rpm').value = s.budget.requests_per_minute;
+    document.getElementById('set-files').value = s.limits.max_ai_files_per_scan;
+    document.getElementById('set-chars').value = s.limits.max_chars_per_request;
+    document.getElementById('set-out').value = s.limits.max_output_tokens;
+    document.getElementById('set-policy').value = s.key_policy;
+    document.getElementById('set-cap').value = s.user_daily_ai_scans;
+    request('GET', root.dataset.settings).then(function (d) {
+      if (!d.success || !d.usage) { return; }
+      var parts = [];
+      Object.keys(d.usage.buckets).forEach(function (b) {
+        parts.push(b + ': ' + d.usage.buckets[b].requests + ' requests, ' + d.usage.buckets[b].tokens + ' tokens');
+      });
+      document.getElementById('set-usage').textContent = 'Usage on ' + d.usage.day + ' (UTC): ' + (parts.join('; ') || 'none');
+    });
+  }
+
+  var saveBtn = document.getElementById('set-save');
+  if (saveBtn) {
+    buildSettings();
+    saveBtn.addEventListener('click', function () {
+      var payload;
+      if (boot.is_admin) {
+        var num = function (id) { return parseInt(document.getElementById(id).value, 10); };
+        payload = {
+          mode: document.getElementById('set-mode').value, privacy_ack: document.getElementById('set-ack').checked,
+          primary: forms.primary.value(), fallback: forms.fallback.value(),
+          budget: {max_requests_per_day: num('set-rpd'), max_tokens_per_day: num('set-tpd'), requests_per_minute: num('set-rpm')},
+          limits: {max_ai_files_per_scan: num('set-files'), max_chars_per_request: num('set-chars'), max_output_tokens: num('set-out')},
+          key_policy: document.getElementById('set-policy').value, user_daily_ai_scans: num('set-cap'),
+          keys: {primary: forms.primary.key(), fallback: forms.fallback.key()}
+        };
+      } else {
+        payload = {own: forms.own.value(), keys: {own: forms.own.key()}};
+      }
+      var out = document.getElementById('set-msg'); out.textContent = 'Saving…';
+      request('POST', root.dataset.save, {settings: payload}).then(function (d) {
+        out.textContent = d.success ? 'Saved.' : d.error; out.className = d.success ? 'ais-ok' : 'ais-bad';
+        if (d.success) {
+          boot.settings = d.settings; modeLine();
+          document.querySelectorAll('.ais-slot').forEach(function (box) { var h = box.querySelector('h2'); clear(box); if (h) { box.appendChild(h); } });
+          buildSettings();
+        }
+      });
+    });
+  }
+
+  // ------------------------------------------------------------ schedules
+  function loadSchedules() {
+    request('GET', root.dataset.scheduled).then(function (d) {
+      var table = document.getElementById('ais-sched'); clear(table);
+      if (!d.success) { table.appendChild(el('tr')).appendChild(el('td', d.error)); return; }
+      if (!d.scheduled_scans.length) { table.appendChild(el('tr')).appendChild(el('td', 'No scheduled scans.')); return; }
+      headerRow(table, ['Name', 'Websites', 'Frequency', 'Type', 'Status', 'Next run (UTC)', '']);
+      d.scheduled_scans.forEach(function (s) {
+        var tr = el('tr');
+        [s.name, (s.domains || []).join(', '), s.frequency + ' ' + s.time_of_day, s.scan_type, s.status, s.next_run || '']
+          .forEach(function (v) { tr.appendChild(el('td', v)); });
+        var td = el('td');
+        var t = el('button', s.status === 'active' ? 'Pause' : 'Resume', 'ais-btn ais-btn-secondary');
+        t.addEventListener('click', function () {
+          request('POST', root.dataset.scheduled + s.id + '/toggle/', {}).then(loadSchedules);
+        });
+        var del = el('button', 'Delete', 'ais-btn ais-btn-danger'); del.style.marginLeft = '6px';
+        del.addEventListener('click', function () {
+          if (window.confirm('Delete this schedule?')) { request('DELETE', root.dataset.scheduled + s.id + '/').then(loadSchedules); }
+        });
+        td.appendChild(t); td.appendChild(del); tr.appendChild(td); table.appendChild(tr);
+      });
+    });
+  }
+  var addBtn = document.getElementById('sch-add');
+  if (addBtn) {
+    addBtn.addEventListener('click', function () {
+      var domains = Array.prototype.map.call(document.getElementById('sch-domains').selectedOptions, function (o) { return o.value; });
+      var email = document.getElementById('sch-email').value.trim();
+      var body = {name: document.getElementById('sch-name').value.trim(), domains: domains,
+                  frequency: document.getElementById('sch-freq').value, scan_type: document.getElementById('sch-type').value,
+                  time_of_day: document.getElementById('sch-time').value, day_of_week: 0, day_of_month: 1,
+                  notification_emails: email ? [email] : []};
+      var out = document.getElementById('sch-msg');
+      request('POST', root.dataset.scheduled, body).then(function (d) {
+        out.textContent = d.success ? 'Schedule added.' : d.error; if (d.success) { loadSchedules(); }
+      });
+    });
+  }
+
+  modeLine(); loadHistory(); loadSchedules();
+})();
 </script>
-
-<!-- Scheduled Scan Modal -->
-<div class="modal fade" id="scheduleModal" tabindex="-1" role="dialog" aria-labelledby="scheduleModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg" role="document">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="scheduleModalLabel">Schedule New Scan</h5>
-                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                    <span aria-hidden="true">&times;</span>
-                </button>
-            </div>
-            <form id="scheduleForm">
-                <div class="modal-body">
-                    <input type="hidden" id="scheduleId" name="id" value="">
-                    
-                    <div class="form-group">
-                        <label for="scheduleName">Schedule Name</label>
-                        <input type="text" class="form-control" id="scheduleName" name="name" required>
-                        <small class="form-text text-muted">Give this scheduled scan a descriptive name</small>
-                    </div>
-                    
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="form-group">
-                                <label for="frequency">Frequency</label>
-                                <select class="form-control" id="frequency" name="frequency" onchange="updateFrequencyOptions()" required>
-                                    <option value="daily">Daily</option>
-                                    <option value="weekly" selected>Weekly</option>
-                                    <option value="monthly">Monthly</option>
-                                    <option value="quarterly">Quarterly</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="form-group">
-                                <label for="scanType">Scan Type</label>
-                                <select class="form-control" id="scanType" name="scan_type" required>
-                                    <option value="full">Full Scan</option>
-                                    <option value="quick">Quick Scan</option>
-                                </select>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="row">
-                        <div class="col-md-4">
-                            <div class="form-group">
-                                <label for="timeOfDay">Time of Day (UTC)</label>
-                                <input type="time" class="form-control" id="timeOfDay" name="time_of_day" value="02:00" required>
-                                <small class="form-text text-muted">Time in UTC timezone</small>
-                            </div>
-                        </div>
-                        <div class="col-md-4" id="dayOfWeekGroup" style="display: none;">
-                            <div class="form-group">
-                                <label for="dayOfWeek">Day of Week</label>
-                                <select class="form-control" id="dayOfWeek" name="day_of_week">
-                                    <option value="0">Monday</option>
-                                    <option value="1">Tuesday</option>
-                                    <option value="2">Wednesday</option>
-                                    <option value="3">Thursday</option>
-                                    <option value="4">Friday</option>
-                                    <option value="5">Saturday</option>
-                                    <option value="6" selected>Sunday</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="col-md-4" id="dayOfMonthGroup" style="display: none;">
-                            <div class="form-group">
-                                <label for="dayOfMonth">Day of Month</label>
-                                <input type="number" class="form-control" id="dayOfMonth" name="day_of_month" min="1" max="31" value="1">
-                                <small class="form-text text-muted">1-31 (will adjust for shorter months)</small>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label>Websites to Scan</label>
-                        <div class="checkbox-group" style="max-height: 200px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; border-radius: 4px;">
-                            {% for website in websites %}
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" name="domains" value="{{ website.domain }}" id="domain_{{ forloop.counter }}">
-                                <label class="form-check-label" for="domain_{{ forloop.counter }}">
-                                    {{ website.domain }}
-                                </label>
-                            </div>
-                            {% endfor %}
-                        </div>
-                    </div>
-                    
-                    <div class="form-group">
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" id="emailNotifications" name="email_notifications" checked>
-                            <label class="form-check-label" for="emailNotifications">
-                                Enable Email Notifications
-                            </label>
-                        </div>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="notificationEmails">Notification Email Addresses</label>
-                        <input type="text" class="form-control" id="notificationEmails" name="notification_emails" placeholder="email1@example.com, email2@example.com">
-                        <small class="form-text text-muted">Separate multiple emails with commas. Leave empty to use your account email.</small>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label>Notification Preferences</label>
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" id="notifyOnThreats" name="notify_on_threats" checked>
-                            <label class="form-check-label" for="notifyOnThreats">
-                                Notify when threats are found
-                            </label>
-                        </div>
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" id="notifyOnCompletion" name="notify_on_completion">
-                            <label class="form-check-label" for="notifyOnCompletion">
-                                Notify when scan completes successfully
-                            </label>
-                        </div>
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" id="notifyOnFailure" name="notify_on_failure" checked>
-                            <label class="form-check-label" for="notifyOnFailure">
-                                Notify when scan fails
-                            </label>
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-primary" onclick="saveScheduledScan()">Save Schedule</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
-<style>
-.scheduled-scans-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-    gap: 20px;
-}
-
-.scheduled-scan-card {
-    border: 1px solid var(--border-primary, #e8e9ff);
-    border-radius: 8px;
-    padding: 20px;
-    background: var(--bg-primary, white);
-}
-
-.scheduled-scan-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 15px;
-}
-
-.scheduled-scan-header h4 {
-    margin: 0;
-    color: var(--text-primary, #2f3640);
-    font-size: 16px;
-}
-
-.scheduled-scan-info p {
-    margin: 5px 0;
-    color: var(--text-secondary, #64748b);
-    font-size: 14px;
-}
-
-.scheduled-scan-actions {
-    display: flex;
-    gap: 10px;
-    margin-top: 15px;
-    flex-wrap: wrap;
-}
-
-.checkbox-group {
-    background: var(--bg-secondary, #f8f9fa);
-    border-color: var(--border-primary, #ddd);
-}
-
-.form-check {
-    margin-bottom: 5px;
-}
-</style>
 {% endblock %}

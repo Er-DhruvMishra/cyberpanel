@@ -66,6 +66,9 @@ MODULES = (
     Module('htaccess', '.htaccess for OpenLiteSpeed', 'fa-file-code',
            'Apache .htaccess directives translated into OpenLiteSpeed configuration.',
            'ua-htaccess', 'ready'),
+    Module('freesub', 'Free subdomains', 'fa-globe',
+           'Give new websites a free name under your own domain: local PowerDNS zone, Cloudflare or deSEC.',
+           'ua-freesub', 'ready'),
 )
 
 

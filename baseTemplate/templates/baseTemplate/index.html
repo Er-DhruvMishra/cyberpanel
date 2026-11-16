@@ -127,7 +127,7 @@
                             <div class="cp-notif-ic ic-accent"><i class="fas fa-brain" aria-hidden="true"></i></div>
                             <div class="cp-notif-body">
                                 <div class="cp-notif-title">{% trans "AI-powered malware detection" %}</div>
-                                <div class="cp-notif-desc">{% trans "Advanced threat detection, real-time scanning, zero false positives." %}</div>
+                                <div class="cp-notif-desc">{% trans "Local malware checks, with optional AI review using your own provider key." %}</div>
                                 <a class="cp-notif-action" href="/aiscanner/">{% trans "Start AI Security Scan" %}</a>
                             </div>
                             <button class="cp-notif-x" type="button" aria-label="{% trans 'Dismiss' %}"><i class="fas fa-times" aria-hidden="true"></i></button>
@@ -280,10 +280,6 @@
         <!-- ============================ HELP ============================ -->
         <div class="section-header">{% trans "HELP" %}</div>
 
-        <a href="https://platform.cyberpersons.com/" class="menu-item" target="_blank" rel="noopener">
-            <div class="icon-wrapper"><i class="fas fa-link"></i></div>
-            <span>{% trans "Connect" %}</span>
-        </a>
         <a href="{% url 'helpIndex' %}" class="menu-item">
             <div class="icon-wrapper"><i class="fas fa-circle-question"></i></div>
             <span>{% trans "Help centre" %}</span>
@@ -298,32 +294,6 @@
             <span class="cp-bc-chevron" aria-hidden="true">/</span>
             <span id="cp-bc-page" class="cp-bc-page" aria-current="page"></span>
         </nav>
-        <aside id="cyberedge-panel-promo" style="display:none;margin:0 24px 20px;padding:16px 18px;border:1px solid var(--border-color);border-left:4px solid var(--cp-action);border-radius:8px;background:var(--bg-secondary);align-items:center;gap:16px;justify-content:space-between;" aria-label="{% trans 'CyberEdge Cache' %}">
-            <div>
-                <strong>{% trans "Make every WordPress site faster with CyberEdge Cache" %}</strong>
-                <div style="margin-top:4px;color:var(--text-secondary);">{% trans "Install from WordPress Manager, connect your account, and verify the live Edge route without leaving IndiansCloud." %}</div>
-            </div>
-            <div style="display:flex;align-items:center;gap:10px;white-space:nowrap;">
-                <a href="https://platform.cyberpersons.com/edge/get-started/" target="_blank" rel="noopener" class="btn btn-primary btn-sm">{% trans "Get CyberEdge" %}</a>
-                <button type="button" id="cyberedge-panel-promo-dismiss" class="btn btn-default btn-sm" aria-label="{% trans 'Dismiss CyberEdge promotion' %}">&times;</button>
-            </div>
-        </aside>
-        <script>
-        (function () {
-            var key = 'cyberedge-panel-promo-v1-dismissed';
-            var promo = document.getElementById('cyberedge-panel-promo');
-            if (!promo) return;
-            try {
-                if (window.localStorage.getItem(key) !== '1') promo.style.display = 'flex';
-            } catch (e) {
-                promo.style.display = 'flex';
-            }
-            document.getElementById('cyberedge-panel-promo-dismiss').addEventListener('click', function () {
-                promo.style.display = 'none';
-                try { window.localStorage.setItem(key, '1'); } catch (e) {}
-            });
-        }());
-        </script>
         {% block content %}{% endblock %}
     </main>
     
@@ -390,6 +360,7 @@
             {% if admin %}{l:'{% trans "MySQL Manager" %}', h:'{% url "MysqlManager" %}', i:'fa-sliders', g:'{% trans "Data" %}'},{% endif %}
             {% if admin or listFTPAccounts %}{l:'{% trans "FTP Accounts" %}', h:'{% url "listFTPAccounts" %}', i:'fa-folder', g:'{% trans "Data" %}'},{% endif %}
             // Backups
+            {l:'{% trans "Backup destinations" %}', h:'{% url "ua-destinations" %}', i:'fa-cloud-arrow-up', g:'{% trans "Backups" %}'},
             {% if admin or createBackup %}{l:'{% trans "Cloud Backups (Backup V2)" %}', h:'{% url "OneClickBackups" %}', i:'fa-cloud-arrow-up', g:'{% trans "Backups" %}'},
             {l:'{% trans "Incremental Backups" %}', h:'{% url "backupDestinationsInc" %}', i:'fa-layer-group', g:'{% trans "Backups" %}'},
             {l:'{% trans "Create Backup" %}', h:'{% url "backupSite" %}', i:'fa-box-archive', g:'{% trans "Backups" %}'},{% endif %}

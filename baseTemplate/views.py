@@ -952,24 +952,6 @@ def analyzeSSHSecurity(request):
         if not currentACL.get('admin', 0):
             return HttpResponse(json.dumps({'error': 'Admin only'}), content_type='application/json', status=403)
         
-        # Check if user has CyberPanel addons
-        if not ACLManager.CheckForPremFeature('all'):
-            return HttpResponse(json.dumps({
-                'status': 0,
-                'addon_required': True,
-                'feature_title': 'SSH Security Analysis',
-                'feature_description': 'Advanced SSH security monitoring and threat detection that helps protect your server from brute force attacks, port scanning, and unauthorized access attempts.',
-                'features': [
-                    'Real-time detection of brute force attacks',
-                    'Identification of dictionary attacks and invalid login attempts',
-                    'Port scanning detection',
-                    'Root login attempt monitoring',
-                    'Automatic security recommendations',
-                    'Integration with CSF and Firewalld',
-                    'Detailed threat analysis and reporting'
-                ],
-                'addon_url': '/addons/'
-            }), content_type='application/json')
         
         from plogical.processUtilities import ProcessUtilities
         import re
@@ -1270,12 +1252,6 @@ def blockIPAddress(request):
         if not currentACL.get('admin', 0):
             return HttpResponse(json.dumps({'error': 'Admin only'}), content_type='application/json', status=403)
         
-        # Check if user has CyberPanel addons
-        if not ACLManager.CheckForPremFeature('all'):
-            return HttpResponse(json.dumps({
-                'status': 0,
-                'error': 'Premium feature required'
-            }), content_type='application/json', status=403)
         
         data = json.loads(request.body)
         ip_address = data.get('ip_address', '').strip()

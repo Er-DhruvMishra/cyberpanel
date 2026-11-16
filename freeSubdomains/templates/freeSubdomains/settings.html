@@ -1,0 +1,159 @@
+{% extends "universalAddons/base.html" %}
+{% load i18n %}
+{% block title %}{% trans "Free Subdomains" %} - IndiansCloud{% endblock %}
+{% block content %}
+<div class="ua-wrap" id="ua-freesub" data-base="{% url 'ua-freesub' %}">
+  <div class="ua-header">
+    <h1><i class="fas fa-globe"></i> {% trans "Free Subdomains" %}</h1>
+    <p>{% trans "New websites can use a free name such as mysite.hostedon.example.com. IndiansCloud creates the A record (and AAAA when this server has IPv6) with the provider chosen here, and removes it when the website is deleted." %}</p>
+  </div>
+
+  <div class="ua-card">
+    <h2>{% trans "Settings" %}</h2>
+    <div class="ua-row">
+      <label class="ua-check"><input type="checkbox" id="fs-enabled"> <span><strong>{% trans "Offer free subdomains when creating a website" %}</strong></span></label>
+    </div>
+    <div class="ua-row">
+      <label>{% trans "Provider" %}
+        <select id="fs-provider"></select></label>
+      <label>{% trans "Base domain" %}
+        <input id="fs-base" placeholder="hostedon.example.com" autocomplete="off"></label>
+      <label>{% trans "TTL (seconds)" %}
+        <input id="fs-ttl" type="number" min="60" max="86400"></label>
+    </div>
+    <div class="ua-row">
+      <label>{% trans "IPv4 address" %}
+        <input id="fs-ipv4" placeholder="{% trans 'blank: this server' %}" autocomplete="off"></label>
+      <label>{% trans "IPv6" %}
+        <input id="fs-ipv6" placeholder="auto / off / 2001:db8::1" autocomplete="off"></label>
+      <label>{% trans "Per-user limit" %}
+        <input id="fs-limit" type="number" min="0" max="1000" title="{% trans '0 = no limit; administrators are never limited' %}"></label>
+    </div>
+    <div class="ua-row">
+      <label style="flex:1">{% trans "Extra reserved names (comma separated)" %}
+        <input id="fs-reserved" autocomplete="off" style="width:100%"></label>
+    </div>
+
+    <div class="fs-provider" data-provider="powerdns">
+      <p class="ua-muted">{% trans "Records go into a zone this server's PowerDNS is authoritative for (DNS > Create Zone), using the panel's own DNS code; the zone's SOA serial is increased on every change." %}</p>
+    </div>
+    <div class="fs-provider" data-provider="cloudflare">
+      <p class="ua-muted">{% trans "Create an API token with Zone.DNS Edit for the zone that contains the base domain. The token is stored on this server, readable only by the panel, and is never shown again." %}</p>
+      <div class="ua-row">
+        <label>{% trans "Zone ID" %} <input id="fs-cf-zone" autocomplete="off" size="36"></label>
+        <label>{% trans "API token" %} <input id="fs-cf-token" type="password" autocomplete="new-password" size="44"></label>
+        <span class="ua-muted" id="fs-cf-note"></span>
+        <button type="button" class="ua-btn ua-btn-secondary" data-forget="cloudflare">{% trans "Forget token" %}</button>
+      </div>
+    </div>
+    <div class="fs-provider" data-provider="desec">
+      <p class="ua-muted">{% trans "Use a free yourname.dedyn.io domain or your own zone hosted at deSEC. The base domain must be that domain or a name inside it. Create a token at desec.io (Token management); it is stored on this server and never shown again." %}</p>
+      <div class="ua-row">
+        <label>{% trans "API token" %} <input id="fs-desec-token" type="password" autocomplete="new-password" size="44"></label>
+        <span class="ua-muted" id="fs-desec-note"></span>
+        <button type="button" class="ua-btn ua-btn-secondary" data-forget="desec">{% trans "Forget token" %}</button>
+      </div>
+    </div>
+
+    <div class="ua-row">
+      <button type="button" class="ua-btn ua-btn-secondary" id="fs-test">{% trans "Apply (test settings)" %}</button>
+      <button type="button" class="ua-btn" id="fs-save">{% trans "Save" %}</button>
+    </div>
+    <div id="fs-out" aria-live="polite"></div>
+    <p class="ua-muted" id="fs-reserved-builtin"></p>
+  </div>
+
+  <div class="ua-card">
+    <h2>{% trans "Subdomains in use" %}</h2>
+    <div id="fs-list" class="ua-muted">{% trans "Loading…" %}</div>
+  </div>
+</div>
+<script>
+(function () {
+    'use strict';
+    var root = document.getElementById('ua-freesub'), base = root.dataset.base;
+    var out = document.getElementById('fs-out');
+    function $(id) { return document.getElementById(id); }
+
+    function showProvider() {
+        var chosen = $('fs-provider').value;
+        Array.prototype.forEach.call(document.querySelectorAll('.fs-provider'), function (el) {
+            el.style.display = el.dataset.provider === chosen ? '' : 'none';
+        });
+    }
+    function fill(config) {
+        var select = $('fs-provider');
+        if (!select.options.length) {
+            config.providers.forEach(function (p) {
+                var option = document.createElement('option');
+                option.value = p.key; option.textContent = p.title; select.appendChild(option);
+            });
+        }
+        select.value = config.provider;
+        $('fs-enabled').checked = !!config.enabled;
+        $('fs-base').value = config.base;
+        $('fs-ttl').value = config.ttl;
+        $('fs-ipv4').value = config.ipv4;
+        $('fs-ipv6').value = config.ipv6;
+        $('fs-limit').value = config.per_user_limit;
+        $('fs-reserved').value = (config.extra_reserved || []).join(', ');
+        $('fs-cf-zone').value = config.cloudflare_zone_id;
+        $('fs-cf-token').value = ''; $('fs-desec-token').value = '';
+        $('fs-cf-note').textContent = config.tokens.cloudflare ? 'A token is saved (leave blank to keep it).' : 'No token saved.';
+        $('fs-desec-note').textContent = config.tokens.desec ? 'A token is saved (leave blank to keep it).' : 'No token saved.';
+        $('fs-reserved-builtin').textContent = 'Always reserved: ' + config.reserved.join(', ') + '.';
+        showProvider();
+    }
+    function list(rows) {
+        var target = $('fs-list');
+        if (!rows.length) { target.textContent = 'No free subdomains yet.'; return; }
+        target.innerHTML = '<table class="ua-table"><thead><tr><th>Name</th><th>Owner</th><th>Provider</th>' +
+            '<th>Created</th><th>Website</th><th></th></tr></thead><tbody>' + rows.map(function (r) {
+                return '<tr><td>' + UA.esc(r.fqdn) + '</td><td>' + UA.esc(r.owner) + '</td><td>' + UA.esc(r.provider) +
+                    '</td><td>' + UA.esc(r.created.slice(0, 10)) + '</td><td>' + (r.in_use ? 'in use' : 'no website') +
+                    '</td><td>' + (r.in_use ? '' : '<button type="button" class="ua-btn ua-btn-secondary" data-release="' +
+                    UA.esc(r.fqdn) + '">Release</button>') + '</td></tr>';
+            }).join('') + '</tbody></table>';
+    }
+    function body() {
+        var secrets = {};
+        if ($('fs-cf-token').value) { secrets.cloudflare = $('fs-cf-token').value; }
+        if ($('fs-desec-token').value) { secrets.desec = $('fs-desec-token').value; }
+        return {config: {enabled: $('fs-enabled').checked, provider: $('fs-provider').value, base: $('fs-base').value,
+                         ttl: $('fs-ttl').value, ipv4: $('fs-ipv4').value, ipv6: $('fs-ipv6').value,
+                         per_user_limit: $('fs-limit').value, extra_reserved: $('fs-reserved').value,
+                         cloudflare_zone_id: $('fs-cf-zone').value}, secrets: secrets};
+    }
+    function note(text, bad) {
+        out.innerHTML = '<div class="' + (bad ? 'ua-alert' : 'ua-muted') + '">' + UA.esc(text) + '</div>';
+    }
+    function load() {
+        UA.api(base + 'ajax/overview').then(function (d) { fill(d.config); list(d.subdomains); })
+            .catch(function (e) { UA.showError(out, e); });
+    }
+    $('fs-provider').addEventListener('change', showProvider);
+    $('fs-test').addEventListener('click', function () {
+        var button = this; UA.busy(button, true);
+        UA.api(base + 'ajax/test', body()).then(function (d) { note(d.message); })
+            .catch(function (e) { note(e.message, true); }).then(function () { UA.busy(button, false); });
+    });
+    $('fs-save').addEventListener('click', function () {
+        var button = this; UA.busy(button, true);
+        UA.api(base + 'ajax/save', body()).then(function (d) { fill(d.config); note('Saved.'); })
+            .catch(function (e) { note(e.message, true); }).then(function () { UA.busy(button, false); });
+    });
+    root.addEventListener('click', function (event) {
+        var target = event.target;
+        if (target.dataset.forget) {
+            UA.api(base + 'ajax/forget', {provider: target.dataset.forget}).then(function (d) { fill(d.config); note('Token removed.'); })
+                .catch(function (e) { note(e.message, true); });
+        } else if (target.dataset.release) {
+            if (!window.confirm('Delete the DNS records of ' + target.dataset.release + '?')) { return; }
+            UA.api(base + 'ajax/release', {fqdn: target.dataset.release}).then(function (d) { list(d.subdomains); note('Released.'); })
+                .catch(function (e) { note(e.message, true); });
+        }
+    });
+    load();
+})();
+</script>
+{% endblock %}

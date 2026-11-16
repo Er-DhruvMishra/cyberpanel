@@ -331,7 +331,8 @@ class ClientSettingsTests(SimpleTestCase):
             self.assertEqual(data['client_secret'], 'set')
             self.assertEqual(data['client_id'], CLIENT['client_id'])
             self.assertEqual(data['redirect_uris'], ['https://' + HOST + '/backup/gDriveSetup',
-                                                     'https://' + HOST + '/IncrementalBackups/ConfigureV2BackupSetup'])
+                                                     'https://' + HOST + '/IncrementalBackups/ConfigureV2BackupSetup',
+                                                     'https://' + HOST + '/addons/destinations/oauth/gdrive/callback'])
             self.assertEqual(data['scope'], 'https://www.googleapis.com/auth/drive.file')
 
     def test_blank_secret_keeps_saved_one_only_for_same_client(self):

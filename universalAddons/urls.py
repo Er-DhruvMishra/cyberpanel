@@ -10,6 +10,7 @@ urlpatterns = [
     path('rspamd/', include('universalAddons.rspamd.urls')),
     path('ssl/', include('universalAddons.sslv2.urls')),
     path('backup/', include('universalAddons.backupv2.urls')),
+    path('destinations/', include('universalAddons.destinations.urls')),
     path('wordpress/', include('universalAddons.wordpress.urls')),
     path('htaccess/', include('universalAddons.htaccess.urls')),
     path('apps/', include('universalAddons.apps.urls')),
@@ -24,4 +25,5 @@ urlpatterns = [
     path('apache/', include('universalAddons.apache.urls')),
     path('terminal/', include('universalAddons.webterm.urls')),
     path('applications/', include('universalAddons.appsvc.urls')),
+    path('free-subdomains/', include('freeSubdomains.urls')),
 ]

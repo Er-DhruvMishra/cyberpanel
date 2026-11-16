@@ -201,8 +201,14 @@ class WebsiteManager:
 
         rnpss = randomPassword.generate_pass(10)
 
+        try:
+            from freeSubdomains import service as free_subdomains
+            free_subdomain_base = free_subdomains.offered_base()
+        except Exception:
+            free_subdomain_base = ''
+
         Data = {'packageList': packagesName, "owernList": adminNames, 'phps': phps, 'Randam_String': rnpss.lower(),
-                'test_domain_data': test_domain_status}
+                'test_domain_data': test_domain_status, 'free_subdomain_base': free_subdomain_base}
         proc = httpProc(request, 'websiteFunctions/createWebsite.html',
                         Data, 'createWebsite')
         return proc.render()
@@ -507,9 +513,8 @@ class WebsiteManager:
         return proc.render()
 
     def WordpressPricing(self, request=None, userID=None, ):
-        Data = {}
-        proc = httpProc(request, 'websiteFunctions/CyberpanelPricing.html', Data, 'createWebsite')
-        return proc.render()
+        # The vendor's add-on pricing page is gone: every feature is included.
+        return redirect('index')
 
     @wordpress_entitlement_required(page=True)
     def RestoreBackups(self, request=None, userID=None, DeleteID=None):
@@ -2284,24 +2289,6 @@ Require valid-user
             packageName = data['package']
             websiteOwner = data['websiteOwner'].lower()
 
-            if conversionPreflight is None and data['domainName'].find("cyberpanel.website") > -1:
-                url = "https://platform.cyberpersons.com/CyberpanelAdOns/CreateDomain"
-
-                domain_data = {
-                    "name": "test-domain",
-                    "IP": ACLManager.GetServerIP(),
-                    "domain": data['domainName']
-                }
-
-                import requests
-                response = requests.post(url, data=json.dumps(domain_data))
-                domain_status = response.json()['status']
-
-                if domain_status == 0:
-                    data_ret = {'status': 0, 'installStatus': 0, 'error_message': response.json()['error_message']}
-                    json_data = json.dumps(data_ret)
-                    return HttpResponse(json_data)
-
             loggedUser = Administrator.objects.get(pk=userID)
             newOwner = Administrator.objects.get(userName=websiteOwner)
 
@@ -2326,6 +2313,12 @@ Require valid-user
                 data_ret = {'status': 0, 'createWebSiteStatus': 0, 'error_message': "Invalid email."}
                 json_data = json.dumps(data_ret)
                 return HttpResponse(json_data)
+
+            # Free subdomain (<label>.<base>): checked here, DNS records created just before the worker starts.
+            from freeSubdomains import service as free_subdomains
+            free_subdomain = free_subdomains.creation_request(data, domain)
+            if free_subdomain and conversionPreflight is not None:
+                raise ValueError('A free subdomain cannot be used to convert a child domain.')
 
             if conversionPreflight is not None:
                 # Run the normal request validations above without reserving a
@@ -2381,6 +2374,10 @@ Require valid-user
 
             import pwd
             counter = 0
+
+            if free_subdomain:
+                free_subdomains.reserve(domain, newOwner.pk, newOwner.userName, loggedUser.pk,
+                                        is_admin=currentACL['admin'] == 1)
 
             ## Create Configurations
 
@@ -2449,23 +2446,8 @@ Require valid-user
                 json_data = json.dumps(data_ret)
                 return HttpResponse(json_data)
 
-            if data['domainName'].find("cyberpanel.website") > -1:
-                url = "https://platform.cyberpersons.com/CyberpanelAdOns/CreateDomain"
-
-                domain_data = {
-                    "name": "test-domain",
-                    "IP": ACLManager.GetServerIP(),
-                    "domain": data['domainName']
-                }
-
-                import requests
-                response = requests.post(url, data=json.dumps(domain_data))
-                domain_status = response.json()['status']
-
-                if domain_status == 0:
-                    data_ret = {'status': 0, 'installStatus': 0, 'error_message': response.json()['error_message']}
-                    json_data = json.dumps(data_ret)
-                    return HttpResponse(json_data)
+            from freeSubdomains import service as free_subdomains
+            free_subdomain = free_subdomains.creation_request(data, domain)
 
             if ACLManager.checkOwnership(masterDomain, admin, currentACL) == 1:
                 pass
@@ -2474,6 +2456,11 @@ Require valid-user
 
             if data['path'].find('..') > -1:
                 return ACLManager.loadErrorJson('createWebSiteStatus', 0)
+
+            if free_subdomain:
+                site_owner = Websites.objects.get(domain=masterDomain).admin
+                free_subdomains.reserve(domain, site_owner.pk, site_owner.userName, admin.pk,
+                                        is_admin=currentACL['admin'] == 1)
 
             if currentACL['admin'] != 1:
                 data['openBasedir'] = 1
@@ -2941,18 +2928,6 @@ Require valid-user
 
     def submitWebsiteDeletion(self, userID=None, data=None):
         try:
-            if data['websiteName'].find("cyberpanel.website") > -1:
-                url = "https://platform.cyberpersons.com/CyberpanelAdOns/DeleteDomain"
-
-                domain_data = {
-                    "name": "test-domain",
-                    "IP": ACLManager.GetServerIP(),
-                    "domain": data['websiteName']
-                }
-
-                import requests
-                response = requests.post(url, data=json.dumps(domain_data))
-
             currentACL = ACLManager.loadedACL(userID)
             if ACLManager.currentContextPermission(currentACL, 'deleteWebsite') == 0:
                 return ACLManager.loadErrorJson('websiteDeleteStatus', 0)
@@ -2964,6 +2939,8 @@ Require valid-user
                 pass
             else:
                 return ACLManager.loadErrorJson('websiteDeleteStatus', 0)
+
+            child_domains = list(ChildDomains.objects.filter(master__domain=websiteName).values_list('domain', flat=True))
 
             ## Deleting master domain
 
@@ -2987,6 +2964,15 @@ Require valid-user
                     'status': 0, 'websiteDeleteStatus': 0, 'state': 'failed',
                     'error_message': 'Website deletion did not complete. Some resources may already have been removed. Check the panel log before retrying.'}))
 
+            ### release free subdomains of the site and its child domains (ownership checked above)
+
+            try:  # site_deleted logs its own failures; a cleanup problem never fails the deletion
+                from freeSubdomains import service as free_subdomains
+                for released in [websiteName] + child_domains:
+                    free_subdomains.site_deleted(released)
+            except Exception:
+                pass
+
             ### delete site from dgdrive backups
 
             try:
@@ -3007,18 +2993,6 @@ Require valid-user
 
     def submitDomainDeletion(self, userID=None, data=None):
         try:
-
-            if data['websiteName'].find("cyberpanel.website") > -1:
-                url = "https://platform.cyberpersons.com/CyberpanelAdOns/DeleteDomain"
-
-                domain_data = {
-                    "name": "test-domain",
-                    "IP": ACLManager.GetServerIP(),
-                    "domain": data['websiteName']
-                }
-
-                import requests
-                response = requests.post(url, data=json.dumps(domain_data))
 
             currentACL = ACLManager.loadedACL(userID)
             admin = Administrator.objects.get(pk=userID)
@@ -3045,6 +3019,12 @@ Require valid-user
                 raise ValueError(output.strip() if output else 'Domain deletion did not complete.')
             if ChildDomains.objects.filter(domain=websiteName).exists():
                 raise ValueError('Domain deletion did not remove the child domain. Please check the IndiansCloud log.')
+
+            try:  # site_deleted logs its own failures; a cleanup problem never fails the deletion
+                from freeSubdomains import service as free_subdomains
+                free_subdomains.site_deleted(websiteName)
+            except Exception:
+                pass
 
             data_ret = {'status': 1, 'websiteDeleteStatus': 1, 'error_message': "None"}
             json_data = json.dumps(data_ret)
@@ -3741,21 +3721,8 @@ context /cyberpanel_suspension_page.html {
             else:
                 Data['ftp'] = 0
 
-            # Add-on check logic (copied from sshAccess)
-            url = "https://platform.cyberpersons.com/CyberpanelAdOns/Adonpermission"
-            addon_data = {
-                "name": "all",
-                "IP": ACLManager.GetServerIP()
-            }
-            import requests
-            import json
-            try:
-                # Bounded: an unreachable licence server must not stall the site's management page.
-                response = requests.post(url, data=json.dumps(addon_data), timeout=8)
-                Status = response.json().get('status', 0)
-            except Exception:
-                Status = 0
-            Data['has_addons'] = bool((Status == 1) or ProcessUtilities.decideServer() == ProcessUtilities.ent)
+            # Add-on features are available locally; no vendor licence lookup.
+            Data['has_addons'] = ACLManager.CheckForPremFeature('all') == 1
 
             # SSL check (self-signed logic)
             cert_path = '/etc/letsencrypt/live/%s/fullchain.pem' % (self.domain)
@@ -5909,20 +5876,8 @@ StrictHostKeyChecking no
         except Exception:
             pass
 
-        # Add-on check logic
-        url = "https://platform.cyberpersons.com/CyberpanelAdOns/Adonpermission"
-        data = {
-            "name": "all",
-            "IP": ACLManager.GetServerIP()
-        }
-        import requests
-        import json
-        try:
-            response = requests.post(url, data=json.dumps(data), timeout=8)
-            Status = response.json().get('status', 0)
-        except Exception:
-            Status = 0
-        has_addons = (Status == 1) or ProcessUtilities.decideServer() == ProcessUtilities.ent
+        # Add-on features are available locally; no vendor licence lookup.
+        has_addons = ACLManager.CheckForPremFeature('all') == 1
 
         from plogical.CyberCPLogFileWriter import CyberCPLogFileWriter
 

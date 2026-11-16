@@ -27,6 +27,12 @@ class ApacheEntitlementTests(unittest.TestCase):
         self.manager, self.ns, self.services = load_wordpress_manager()
         self.acl = self.services['ACLManager']
         self.acl.CheckForPremFeature.return_value = 0
+        # The creation body reserves a status file in /home/cyberpanel; keep that inert here.
+        for target, value in (('plogical.statusUtilities.create_status_file', '/home/cyberpanel/inert-status'),
+                              ('freeSubdomains.service.load_config', {'enabled': False, 'base': ''})):
+            patcher = mock.patch(target, return_value=value)
+            patcher.start()
+            self.addCleanup(patcher.stop)
 
     def no_effects(self):
         for name, service in self.services.items():
@@ -59,7 +65,7 @@ class ApacheEntitlementTests(unittest.TestCase):
                     self.assertEqual(self.acl.mock_calls, [mock.call.CheckForPremFeature('all')])
                     self.no_effects()
                     if name == 'ApacheManager':
-                        self.assertEqual((response.status_code, response.url), (302, 'pricing'))
+                        self.assertEqual((response.status_code, response.url), (302, 'index'))
                     else:
                         payload = json.loads(response.content)
                         for key in ('status', 'saveStatus', 'configstatus', 'createWebSiteStatus', 'installStatus'):

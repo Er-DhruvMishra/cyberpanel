@@ -1105,33 +1105,14 @@ class ACLManager:
 
     @staticmethod
     def CheckForPremFeature(feature):
-        try:
+        """Every feature shipped in this GPL fork is available locally.
 
-            if ProcessUtilities.decideServer() == ProcessUtilities.ent:
-                return 1
-
-            url = "https://platform.cyberpersons.com/CyberpanelAdOns/Adonpermission"
-            data = {
-                "name": feature,
-                "IP": ACLManager.GetServerIP()
-            }
-
-            import requests
-            response = requests.post(
-                url, data=json.dumps(data), timeout=(3.05, 10),
-                allow_redirects=False,
-            )
-            if response.status_code != 200:
-                return 0
-            payload = response.json()
-            # The addon service returns integer 0/1. A failed lookup or a
-            # truthy malformed value must never enable paid functionality.
-            if not isinstance(payload, dict):
-                return 0
-            status = payload.get('status')
-            return int(type(status) is int and status == 1)
-        except Exception:
-            return 0
+        Upstream asked platform.cyberpersons.com (sending the server IP)
+        whether a paid add-on was licensed. IndiansCloud never contacts the
+        vendor: the answer is always 1. This is a licence answer only; callers
+        must still enforce ACLs and ownership as before.
+        """
+        return 1
 
     @staticmethod
     def CheckIPBackupObjectOwner(currentACL, backupobj, user):

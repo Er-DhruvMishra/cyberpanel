@@ -51,7 +51,16 @@ class GatewayTests(unittest.TestCase):
     def setUp(self):
         self.factory = RequestFactory()
         cache.clear()
+        # webmail.roundcube may already be imported (URL resolution in other suites) with the real
+        # ACLManager; always use the inert one here.
+        for name, value in (('ACLManager', acl_module.ACLManager), ('httpProc', http_module.httpProc),
+                            ('loadLoginPage', login_module.loadLoginPage)):
+            patcher = patch.object(roundcube, name, value)
+            patcher.start()
+            self.addCleanup(patcher.stop)
         roundcube.ACLManager.reset_mock()
+        roundcube.ACLManager.CheckForPremFeature.side_effect = None
+        roundcube.ACLManager.CheckForPremFeature.return_value = 1
 
     def request(self, path='/roundcube/', **kw):
         return self.factory.get(path, secure=True, **kw)
@@ -68,28 +77,48 @@ class GatewayTests(unittest.TestCase):
                 status.assert_not_called()
                 entitlement.assert_not_called()
 
-    def test_named_and_all_entitlements_accept_only_integer_one(self):
-        for malformed in (True, '1', {'status': 1}, None, 0, -1):
-            cache.clear()
-            roundcube.ACLManager.CheckForPremFeature.return_value = malformed
-            self.assertFalse(roundcube.entitled())
-        cache.clear()
-        roundcube.ACLManager.CheckForPremFeature.side_effect = [0, 1]
+    def test_roundcube_is_available_from_the_local_answer(self):
+        roundcube.ACLManager.CheckForPremFeature.return_value = 1
         self.assertTrue(roundcube.entitled())
         self.assertEqual(('roundcube',), roundcube.ACLManager.CheckForPremFeature.call_args.args)
-        roundcube.ACLManager.CheckForPremFeature.side_effect = None
 
-    def test_lookup_failure_is_denied_and_cached_for_bounded_time(self):
-        roundcube.ACLManager.CheckForPremFeature.side_effect = RuntimeError('offline')
-        with patch.object(roundcube.cache, 'set', wraps=cache.set) as save:
+    def test_local_answer_is_still_read_fail_closed(self):
+        for malformed in (True, '1', {'status': 1}, None, 0, -1):
+            roundcube.ACLManager.CheckForPremFeature.return_value = malformed
             self.assertFalse(roundcube.entitled())
-            self.assertEqual(10, save.call_args.args[2])
-        roundcube.ACLManager.CheckForPremFeature.side_effect = None
-        cache.clear()
-        roundcube.ACLManager.CheckForPremFeature.return_value = 1
-        with patch.object(roundcube.cache, 'set', wraps=cache.set) as save:
-            self.assertTrue(roundcube.entitled())
-            self.assertEqual(60, save.call_args.args[2])
+        roundcube.ACLManager.CheckForPremFeature.side_effect = RuntimeError('broken')
+        self.assertFalse(roundcube.entitled())
+
+    def test_real_licence_answer_grants_without_network(self):
+        from plogical.acl import ACLManager as RealACL
+        with patch('requests.post', side_effect=AssertionError('no vendor call')) as post:
+            self.assertEqual(1, RealACL.CheckForPremFeature('roundcube'))
+        post.assert_not_called()
+
+    def test_management_page_renders_for_admin_without_sales_redirect(self):
+        request = self.request('/webmail/roundcube')
+        request.session = {'userID': 1}
+        roundcube.ACLManager.loadedACL.return_value = {'admin': 1}
+        from django.http import HttpResponse
+        rendered = HttpResponse('page')
+        roundcube.httpProc.return_value.render.return_value = rendered
+        with patch.object(roundcube, 'runtime_status', return_value={'phase': 'ready'}), \
+                patch('plogical.universalAlternatives.preferred_keys', return_value=set()):
+            self.assertIs(rendered, roundcube.manage(request))
+        args = roundcube.httpProc.call_args.args
+        self.assertEqual('webmail/roundcube.html', args[1])
+        self.assertTrue(args[2]['roundcube_entitled'])
+
+    def test_management_page_still_requires_administrator(self):
+        request = self.request('/webmail/roundcube')
+        request.session = {'userID': 1}
+        roundcube.ACLManager.loadedACL.return_value = {'admin': 0}
+        self.assertEqual(403, roundcube.manage(request).status_code)
+
+    def test_template_has_no_purchase_or_licence_links(self):
+        text = (Path(__file__).parent / 'templates' / 'webmail' / 'roundcube.html').read_text()
+        for needle in ('cyberpersons', '$99', '$169', 'Buy ', 'license'):
+            self.assertNotIn(needle, text)
 
     def test_unlicensed_direct_entry_and_assets_never_reach_php(self):
         with patch.object(roundcube, 'entitled', return_value=False), patch.object(roundcube, 'fastcgi') as backend:

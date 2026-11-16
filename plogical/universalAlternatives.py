@@ -1,8 +1,14 @@
-"""Free Universal Add-ons that stand in for unlicensed paid pages.
+"""Free Universal Add-ons that stand in for upstream pages.
 
-The licence checks are left exactly as they are. When a paid page is not
-licensed, the user is sent to the matching free add-on (if this install has it)
-instead of a sales page. Licensed servers never reach this code.
+IndiansCloud no longer checks a vendor licence: every upstream page whose code
+runs locally is simply available. A page is sent to its free add-on only when
+
+* the upstream page still depends on vendor-hosted services (VENDOR_DEPENDENT), or
+* the administrator prefers the free add-on for that feature: one add-on key per
+  line in /etc/cyberpanel/prefer_free_addons.
+
+This decision does not depend on licensing (see `preferred_alternative`). ACL
+and ownership checks in the upstream views are unaffected.
 """
 import re
 
@@ -32,8 +38,52 @@ def _available(key):
     return any(module.key == key and module.state == 'ready' for module in MODULES)
 
 
+# Add-on keys whose upstream page still needs vendor-hosted services or closed
+# vendor downloads. Every page listed in ALTERNATIVES was reviewed: all of them
+# now run from code in this repository, so none is forced to its add-on.
+# (Vendor-only services outside this table already redirect in their own views:
+# emailDelivery -> SMTP Relay, one-click backups -> backup home.)
+VENDOR_DEPENDENT = frozenset()
+
+PREFERENCE_FILE = '/etc/cyberpanel/prefer_free_addons'
+
+
+def preferred_keys(path=PREFERENCE_FILE):
+    """Add-on keys the administrator wants shown instead of the upstream page."""
+    try:
+        with open(path) as handle:
+            return {line.strip() for line in handle if line.strip() and not line.startswith('#')}
+    except OSError:
+        return set()
+
+
+def _key_for(path):
+    for pattern, key, url in ALTERNATIVES:
+        match = re.match(pattern, path or '')
+        if match:
+            return key
+    return None
+
+
+def preferred_alternative(path, available=_available, preferred=None, vendor_dependent=None):
+    """Add-on URL to show instead of the upstream page at `path`, or None.
+
+    Licence-independent: fires for vendor-dependent pages and for features the
+    administrator chose to replace; otherwise the upstream page is shown.
+    """
+    key = _key_for(path)
+    if key is None:
+        return None
+    vendor_dependent = VENDOR_DEPENDENT if vendor_dependent is None else vendor_dependent
+    if key not in vendor_dependent:
+        chosen = preferred_keys() if preferred is None else preferred
+        if key not in chosen:
+            return None
+    return alternative_for(path, available)
+
+
 def alternative_for(path, available=_available):
-    """URL of the free add-on that replaces the paid page at `path`, or None."""
+    """URL of the free add-on matching the upstream page at `path`, or None."""
     from urllib.parse import quote
     for pattern, key, url in ALTERNATIVES:
         match = re.match(pattern, path or '')

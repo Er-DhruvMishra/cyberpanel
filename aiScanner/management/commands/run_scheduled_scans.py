@@ -178,156 +178,97 @@ class Command(BaseCommand):
             self.stderr.write(f'Scheduled scan with ID {scan_id} not found')
 
     def execute_scheduled_scan(self, scheduled_scan):
-        """Execute a scheduled scan"""
+        """Run a scheduled scan through the same local + AI pipeline as the scanner page."""
+        import uuid
         from aiScanner.models import ScheduledScanExecution, ScanHistory
-        from aiScanner.aiScannerManager import AIScannerManager
-        from loginSystem.models import Administrator
+        from aiScanner.aiScannerManager import load_actor, AccessDenied
+        from aiScanner import pipeline
         from websiteFunctions.models import Websites
+        from plogical.acl import ACLManager
         from plogical.CyberCPLogFileWriter import CyberCPLogFileWriter as logging
-        
-        # Create execution record
+
         execution = ScheduledScanExecution.objects.create(
             scheduled_scan=scheduled_scan,
             status='running',
             started_at=timezone.now()
         )
-        
+
         try:
-            # Update last run time
             scheduled_scan.last_run = timezone.now()
             scheduled_scan.next_run = scheduled_scan.calculate_next_run()
             scheduled_scan.save()
-            
-            # Get domains to scan
-            domains_to_scan = []
+
             admin = scheduled_scan.admin
-            
-            # Validate domains still exist and user has access
+            try:
+                admin, acl, is_admin = load_actor(admin.pk)
+            except AccessDenied:
+                raise RuntimeError('The owner of this schedule no longer has AI Scanner access')
+
+            # Re-check ownership at run time: sites may have changed hands.
+            websites = []
             for domain in scheduled_scan.domain_list:
                 try:
-                    website = Websites.objects.get(domain=domain, admin=admin)
-                    domains_to_scan.append(domain)
+                    website = Websites.objects.get(domain=domain)
+                    if ACLManager.checkOwnership(domain, admin, acl):
+                        websites.append(website)
+                        continue
                 except Websites.DoesNotExist:
-                    logging.writeToFile(f'[Scheduled Scan] Domain {domain} no longer accessible for user {admin.userName}')
-                    continue
-            
-            if not domains_to_scan:
+                    pass
+                logging.writeToFile(f'[Scheduled Scan] Domain {domain} no longer accessible for user {admin.userName}')
+
+            if not websites:
                 execution.status = 'failed'
                 execution.error_message = 'No accessible domains found for scanning'
                 execution.completed_at = timezone.now()
                 execution.save()
                 self.stderr.write(f'No accessible domains for scheduled scan {scheduled_scan.name}')
                 return
-            
-            execution.set_scanned_domains(domains_to_scan)
-            execution.total_scans = len(domains_to_scan)
+
+            execution.set_scanned_domains([w.domain for w in websites])
+            execution.total_scans = len(websites)
             execution.save()
-            
-            # Initialize scanner manager
-            sm = AIScannerManager()
-            scan_ids = []
-            successful_scans = 0
-            failed_scans = 0
-            total_cost = 0.0
-            
-            # Execute scans for each domain
-            for domain in domains_to_scan:
-                try:
-                    self.stdout.write(f'Starting scan for domain: {domain}')
-                    
-                    # Create a fake request object for the scanner manager
-                    class FakeRequest:
-                        def __init__(self, admin_id, domain, scan_type):
-                            self.session = {'userID': admin_id}
-                            self.method = 'POST'
-                            self.POST = {
-                                'domain': domain,
-                                'scan_type': scan_type
-                            }
-                            # Create JSON body that startScan expects
-                            import json
-                            self.body = json.dumps({
-                                'domain': domain,
-                                'scan_type': scan_type
-                            }).encode('utf-8')
-                            
-                        def get_host(self):
-                            # Get the hostname from CyberPanel settings
-                            try:
-                                from plogical.acl import ACLManager
-                                server_ip = ACLManager.fetchIP()
-                                return f"{server_ip}:8090"  # Default CyberPanel port
-                            except:
-                                return "localhost:8090"  # Fallback
-                    
-                    fake_request = FakeRequest(admin.pk, domain, scheduled_scan.scan_type)
-                    
-                    # Start the scan
-                    result = sm.startScan(fake_request, admin.pk)
-                    
-                    if hasattr(result, 'content'):
-                        # It's an HTTP response, parse the JSON
-                        import json
-                        response_data = json.loads(result.content.decode('utf-8'))
-                    else:
-                        # It's already a dict
-                        response_data = result
-                    
-                    if response_data.get('success'):
-                        scan_id = response_data.get('scan_id')
-                        if scan_id:
-                            scan_ids.append(scan_id)
-                            successful_scans += 1
-                            
-                            # Get cost estimate if available
-                            if 'cost_estimate' in response_data:
-                                total_cost += float(response_data['cost_estimate'])
-                            
-                            logging.writeToFile(f'[Scheduled Scan] Successfully started scan {scan_id} for {domain}')
-                        else:
-                            failed_scans += 1
-                            logging.writeToFile(f'[Scheduled Scan] Failed to get scan ID for {domain}')
-                    else:
-                        failed_scans += 1
-                        error_msg = response_data.get('error', 'Unknown error')
-                        logging.writeToFile(f'[Scheduled Scan] Failed to start scan for {domain}: {error_msg}')
-                
-                except Exception as e:
+
+            scan_ids, successful_scans, failed_scans, threats = [], 0, 0, 0
+            for website in websites:
+                self.stdout.write(f'Scanning {website.domain}')
+                scan = ScanHistory.objects.create(admin=admin, scan_id='ic_%s' % uuid.uuid4().hex[:16],
+                                                  domain=website.domain, scan_type=scheduled_scan.scan_type,
+                                                  status='pending')
+                scan_ids.append(scan.scan_id)
+                pipeline.run_scan(scan, website, admin.pk, is_admin)
+                if scan.status == 'completed':
+                    successful_scans += 1
+                    threats += scan.issues_found
+                else:
                     failed_scans += 1
-                    error_msg = str(e)
-                    logging.writeToFile(f'[Scheduled Scan] Exception starting scan for {domain}: {error_msg}')
-                    
-                # Small delay between scans to avoid overwhelming the system
-                time.sleep(2)
-            
-            # Update execution record
+                    logging.writeToFile(f'[Scheduled Scan] Scan of {website.domain} failed: {scan.error_message}')
+                time.sleep(2)  # keep the load low between sites
+
             execution.successful_scans = successful_scans
             execution.failed_scans = failed_scans
-            execution.total_cost = total_cost
+            execution.total_cost = 0
             execution.set_scan_ids(scan_ids)
-            execution.status = 'completed' if failed_scans == 0 else 'completed'  # Always completed if we tried all
+            execution.status = 'completed'
             execution.completed_at = timezone.now()
             execution.save()
-            
-            # Send notifications if configured
+            self.threats_found = threats
+
             if scheduled_scan.email_notifications:
                 self.send_notifications(scheduled_scan, execution)
-            
+
             self.stdout.write(
-                f'Scheduled scan completed: {successful_scans} successful, {failed_scans} failed'
+                f'Scheduled scan completed: {successful_scans} successful, {failed_scans} failed, {threats} issues'
             )
-            
+
         except Exception as e:
-            # Update execution record with error
             execution.status = 'failed'
-            execution.error_message = str(e)
+            execution.error_message = str(e)[:500]
             execution.completed_at = timezone.now()
             execution.save()
-            
+
             logging.writeToFile(f'[Scheduled Scan] Failed to execute scheduled scan {scheduled_scan.name}: {str(e)}')
             self.stderr.write(f'Failed to execute scheduled scan {scheduled_scan.name}: {str(e)}')
-            
-            # Send failure notification
+
             if scheduled_scan.email_notifications and scheduled_scan.notify_on_failure:
                 self.send_failure_notification(scheduled_scan, str(e))
 
@@ -342,11 +283,8 @@ class Command(BaseCommand):
             elif execution.status == 'completed':
                 if scheduled_scan.notify_on_completion:
                     should_notify = True
-                elif scheduled_scan.notify_on_threats and execution.successful_scans > 0:
-                    # Check if any scans found threats
-                    # This would require checking the scan results, which might not be available immediately
-                    # For now, we'll just send completion notifications
-                    should_notify = scheduled_scan.notify_on_completion
+                elif scheduled_scan.notify_on_threats and getattr(self, 'threats_found', 0) > 0:
+                    should_notify = True
             
             if should_notify:
                 self.send_execution_notification(scheduled_scan, execution)
@@ -368,7 +306,7 @@ class Command(BaseCommand):
                 return
             
             # Prepare email content
-            subject = f'AI Scanner: Scheduled Scan "{scheduled_scan.name}" Completed'
+            subject = f'IndiansCloud AI Scanner: Scheduled Scan "{scheduled_scan.name}" Completed'
             
             status_text = execution.status.title()
             if execution.status == 'completed':
@@ -388,7 +326,7 @@ Results:
 - Total Domains: {execution.total_scans}
 - Successful Scans: {execution.successful_scans}
 - Failed Scans: {execution.failed_scans}
-- Total Cost: ${execution.total_cost:.4f}
+- Issues Found: {getattr(self, 'threats_found', 0)}
 
 Domains Scanned: {', '.join(execution.scanned_domains)}
 
@@ -425,7 +363,7 @@ View detailed results in your IndiansCloud AI Scanner dashboard.
                 return
             
             # Prepare email content
-            subject = f'AI Scanner: Scheduled Scan "{scheduled_scan.name}" Failed'
+            subject = f'IndiansCloud AI Scanner: Scheduled Scan "{scheduled_scan.name}" Failed'
             
             message = f"""
 Scheduled AI Security Scan Failure

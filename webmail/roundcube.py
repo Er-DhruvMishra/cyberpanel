@@ -1,4 +1,4 @@
-"""Paid Roundcube management and the only public gateway to its private FPM pool."""
+"""Roundcube management and the only public gateway to its private FPM pool."""
 import json
 import re
 import socket
@@ -7,7 +7,6 @@ import subprocess
 from http.cookies import SimpleCookie
 from pathlib import Path
 
-from django.core.cache import cache
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import redirect
 from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
@@ -20,27 +19,21 @@ from plogical.roundcubeRuntime import ROOT, STATE, ENABLED, SOCKET, VERSION
 
 MAX_REQUEST = 24 * 1024 * 1024
 MAX_RESPONSE = 64 * 1024 * 1024
-ENTITLEMENT_KEY = 'roundcube-entitlement-v1'
 COOKIE_NAMES = frozenset(('cp_roundcube_session', 'cp_roundcube_auth'))
 PANEL_PYTHON = '/usr/local/CyberPanel/bin/python'
 
 
 def entitled():
-    """Fail closed; positive results expire after 60 seconds (including revocation)."""
-    known = cache.get(ENTITLEMENT_KEY)
-    if type(known) is bool:
-        return known
-    available = False
-    for feature in ('all', 'roundcube'):
-        try:
-            value = ACLManager.CheckForPremFeature(feature)
-        except Exception:
-            value = 0
-        if type(value) is int and value == 1:
-            available = True
-            break
-    cache.set(ENTITLEMENT_KEY, available, 60 if available else 10)
-    return available
+    """Roundcube management is part of this fork; no vendor licence lookup.
+
+    Kept as a single seam so callers (and tests) can still model a disabled
+    state. Administrator checks are enforced separately by every view.
+    """
+    try:
+        value = ACLManager.CheckForPremFeature('roundcube')
+    except Exception:
+        return False
+    return type(value) is int and value == 1
 
 
 def administrator(request):
@@ -84,11 +77,10 @@ def manage(request):
         return redirect(loadLoginPage)
     if not administrator(request):
         return HttpResponse('Server administrator access is required.', status=403)
-    if not entitled():
-        from plogical.universalAlternatives import alternative_for
-        alternative = alternative_for(request.path)
-        if alternative:
-            return redirect(alternative)
+    from plogical.universalAlternatives import preferred_alternative
+    replacement = preferred_alternative(request.path)
+    if replacement:
+        return redirect(replacement)
     data = runtime_status()
     data['roundcube_entitled'] = entitled()
     return httpProc(request, 'webmail/roundcube.html', data, 'admin').render()

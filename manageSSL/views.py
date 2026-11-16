@@ -36,15 +36,16 @@ def v2ManageSSL(request):
 
     data = {}
 
-    if ACLManager.CheckForPremFeature('all'):
-        data['PremStat'] = 1
-    else:
-        data['PremStat'] = 0
-        data['websiteList'] = websitesName
-        proc = httpProc(request, 'manageSSL/v2ManageSSL.html', data, 'manageSSL')
-        return proc.render()
+    # SSL v2 runs locally (acme.sh DNS-01); no licence lookup or sales page. The licence gate used to
+    # keep unlicensed servers away from the code below, so check the panel ACL before any work.
+    if ACLManager.currentContextPermission(currentACL, 'manageSSL') != 1:
+        return ACLManager.loadError()
+    data['PremStat'] = 1
 
     if request.method == 'POST':
+        # The saved key is server-wide (acme.sh account): administrators only.
+        if currentACL.get('admin') != 1:
+            return ACLManager.loadError()
         SAVED_CF_Key = request.POST.get('SAVED_CF_Key')
         SAVED_CF_Email = request.POST.get('SAVED_CF_Email')
         from plogical.dnsUtilities import DNS

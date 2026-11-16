@@ -587,6 +587,36 @@
         </div>
 
 
+        <!-- Backups to a backup destination (any account: own, site owner's or reseller's storage) -->
+        <div class="main-card" id="site-destination-backup" data-base="{% url 'ua-destinations' %}">
+            <div class="card-header">
+                <h2 class="card-title">
+                    <i class="fas fa-cloud-arrow-up"></i>
+                    {% trans "Back up to a backup destination" %}
+                </h2>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label class="form-label" for="site-destination-select">{% trans "Destination" %}</label>
+                            <select id="site-destination-select" class="form-control">
+                                <option value="">{% trans "Choose a website first" %}</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-6" style="display:flex;align-items:flex-end;gap:1rem;">
+                        <button type="button" id="site-destination-backup-now" class="btn-primary" disabled>
+                            <i class="fas fa-cloud-arrow-up"></i> {% trans "Back up now" %}
+                        </button>
+                        <a href="{% url 'ua-destinations' %}" class="btn-secondary">{% trans "Destinations and schedules" %}</a>
+                    </div>
+                </div>
+                <p id="site-destination-status" role="status" aria-live="polite" class="text-muted" style="margin:0"></p>
+            </div>
+        </div>
+        <script defer src="{% static 'universalAddons/destinations-site.js' %}?v={{ CP_VERSION }}-1"></script>
+
         <!-- Existing Backups -->
         <div class="main-card">
             <div class="card-header">

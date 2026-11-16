@@ -1,11 +1,11 @@
-"""Enforce the WordPress entitlement before page or manager work begins."""
+"""WordPress Manager gate. The licence answer is local (always granted); ACLs stay in the views."""
 from functools import wraps
 
 from django.http import JsonResponse
 from django.shortcuts import redirect
 
 from plogical.acl import ACLManager
-from plogical.universalAlternatives import alternative_for, request_from
+from plogical.universalAlternatives import alternative_for, preferred_alternative, request_from
 
 
 def wordpress_manager_available():
@@ -20,10 +20,16 @@ def wordpress_entitlement_required(page=False):
     def decorate(method):
         @wraps(method)
         def checked(*args, **kwargs):
+            if page:
+                # Licence-independent: only vendor-dependent pages or features the
+                # administrator chose to replace go to the free add-on.
+                request = request_from(args, kwargs)
+                replacement = preferred_alternative(request.path) if request is not None else None
+                if replacement:
+                    return redirect(replacement)
             if not wordpress_manager_available():
                 if page:
-                    request = request_from(args, kwargs)
-                    return redirect(alternative_for(request.path if request else '') or 'pricing')
+                    return redirect(alternative_for(request.path if request else '') or 'index')
                 # Existing AJAX and direct API callers use these numeric fields.
                 # Denial must never look like a started installer or worker.
                 return JsonResponse({

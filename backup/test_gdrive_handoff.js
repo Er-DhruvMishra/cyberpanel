@@ -4,10 +4,14 @@
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const ORIGIN='https://panel.example.test:8090';
 const template=fs.readFileSync(__dirname+'/templates/backup/googleDrive.html','utf8');
-assert.match(template,/gdrive-own-client-3/);
+assert.match(template,/gdrive-own-client-4/);
 assert.match(template,/Connect Google Drive/);
 assert.match(template,/type="password" autocomplete="new-password"/);
-assert.match(template,/ng-disabled="!gdriveSetupEnabled/);
+// Regression: Reconnect was rendered disabled (ng-disabled="!gdriveSetupEnabled ...") when the panel had
+// no Google OAuth client, so clicking it did nothing and the reason was only inside the Connect modal.
+assert.match(template,/ng-click="reconnectAccount\(\)" class="btn-secondary"\s+ng-disabled="gdriveSetupPending"/);
+assert.match(template,/selectedAccount && !gdriveSetupEnabled[^>]*>\s*<span ng-bind="gdriveSetupReason">/);
+assert.match(template,/addons\/destinations|ua-destinations/,'new connections go to Backup destinations');
 assert.match(template,/drive\.file/);
 assert.ok(!template.includes('ng-model="client_secret"'),'no per-account secret field');
 for(const file of ['/static/backup/backup.js','/../static/backup/backup.js']){
@@ -37,6 +41,12 @@ function fixture(enabled=true,blocked=false,admin=false){
 let f=fixture(false);f.scope.setupAccount();assert.equal(f.calls.length,0);
 assert.equal(f.scope.gdriveSetupReason,'Admin must save a client');
 assert.deepEqual(f.gets,['/backup/GDriveSetupStatus'],'non-admin never loads client settings');
+f=fixture(false);f.scope.selectedAccount='old';f.scope.reconnectAccount();
+assert.equal(f.calls.length,0,'no request without a client');
+assert.equal(f.notices.length,1,'Reconnect explains why it cannot start');
+assert.match(f.notices[0].text,/Admin must save a client/);
+f=fixture(false,false,true);f.scope.selectedAccount='old';f.scope.reconnectAccount();
+assert.match(f.notices[0].text,/Google OAuth client/,'admins are pointed at the client form');
 f=fixture();
 assert.equal(f.scope.accountState('old').connection,'vendor');
 assert.equal(f.scope.accountState('mine').reconnect,true);

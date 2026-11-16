@@ -110,6 +110,7 @@ INSTALLED_APPS = [
     'aiScanner',
     'webmail',
     'emailDelivery',
+    'freeSubdomains',
     #    'WebTerminal'
 ]
 

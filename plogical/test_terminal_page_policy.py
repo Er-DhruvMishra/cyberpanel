@@ -1,4 +1,4 @@
-"""The real page method must not reopen ports or override a stopped service."""
+"""The real page method must not reopen ports, override a stopped service or call the vendor."""
 import ast
 import ipaddress
 from pathlib import Path
@@ -20,6 +20,7 @@ class TerminalPagePolicyTests(unittest.TestCase):
         acl.checkOwnership.return_value = 1 if owns else 0
         acl.GetServerIP.return_value = '192.0.2.4'
         acl.loadError.return_value = 'denied'
+        acl.CheckForPremFeature.return_value = entitlement
         sites.objects.get.return_value = SimpleNamespace(externalApp='owneduser')
         process.decideServer.return_value = 0
         process.ent = 1
@@ -59,7 +60,7 @@ class TerminalPagePolicyTests(unittest.TestCase):
             process.executioner.assert_not_called()
             self.assertEqual(['systemctl is-active fastapi_ssh_server','cat /usr/local/lscp/conf/cert.pem'],
                              [c.args[0] for c in process.outputExecutioner.call_args_list])
-            self.assertEqual(8,requests.post.call_args.kwargs['timeout'])
+            requests.post.assert_not_called()  # the licence answer is local; no vendor request
 
     def test_unentitled_page_does_not_provision_access(self):
         result,process,requests,sites=self.page(entitlement=0)

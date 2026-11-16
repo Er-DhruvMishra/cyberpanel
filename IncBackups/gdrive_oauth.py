@@ -38,6 +38,9 @@ TTL = 600
 OPAQUE = re.compile(r'^[A-Za-z0-9_-]{43,128}$')
 CODE = re.compile(r'^[A-Za-z0-9/_.~+-]{10,2048}$')
 ACCOUNT = re.compile(r'^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$')
+# Names of accounts created before the stricter rule above (the old setup form accepted spaces,
+# dots, "@"...). They may still be reconnected by their owner; new names must match ACCOUNT.
+LEGACY_ACCOUNT = re.compile(r'^[^\x00-\x1f\x7f]{1,50}$')
 TOKEN = re.compile(r'^[A-Za-z0-9._~+/=-]{1,8192}$')
 SCOPE = 'https://www.googleapis.com/auth/drive.file'
 GOOGLE_AUTH_URI = 'https://accounts.google.com/o/oauth2/v2/auth'
@@ -225,7 +228,9 @@ def _client_view_data(request):
     from plogical.gdriveClient import public_status
     data = public_status()
     data.update(status=1, scope=SCOPE,
-                redirect_uris=[redirect_uri(request, 'normal'), redirect_uri(request, 'v2')],
+                # The third is for Google Drive destinations on the Backup destinations page.
+                redirect_uris=[redirect_uri(request, 'normal'), redirect_uri(request, 'v2'),
+                               'https://' + request.get_host() + '/addons/destinations/oauth/gdrive/callback'],
                 javascript_origin='https://' + request.get_host())
     return data
 
@@ -275,9 +280,12 @@ def begin(request, mode='v2'):
         data = _data(request)
         website = data['Selectedwebsite'] if mode == 'v2' else NORMAL_DOMAIN
         account = data['accountName']
-        if (not isinstance(website, str) or len(website) > 253 or
-                not isinstance(account, str) or not ACCOUNT.fullmatch(account) or
-                (mode == 'normal' and len(account) > 50)):
+        if not isinstance(website, str) or len(website) > 253 or not isinstance(account, str):
+            return _error(400, 'Use 1-50 letters, digits, "-" or "_" for the account name.')
+        legacy_reconnect = (mode == 'normal' and not ACCOUNT.fullmatch(account) and
+                            LEGACY_ACCOUNT.fullmatch(account) is not None and
+                            _account_owner(account) == request.session.get('userID'))
+        if not legacy_reconnect and (not ACCOUNT.fullmatch(account) or (mode == 'normal' and len(account) > 50)):
             return _error(400, 'Use 1-50 letters, digits, "-" or "_" for the account name.')
         _check_access(request, website, mode)
         client = _client()

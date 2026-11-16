@@ -49,7 +49,8 @@ class EntitlementTests(unittest.TestCase):
             'wraps': __import__('functools').wraps,
             'redirect': lambda name: {'redirect': name},
             # The gate looks up a free Universal Add-on alternative; none in these entitlement tests.
-            'request_from': lambda args, kwargs: None, 'alternative_for': lambda path: None}
+            'request_from': lambda args, kwargs: None, 'alternative_for': lambda path: None,
+            'preferred_alternative': lambda path: None}
         actual('plogical/premiumEntitlements.py', ['premium_entitlement_required'], self.env)
         self.env.update(Administrator=SimpleNamespace(objects=SimpleNamespace(get=Mock(return_value='owner'))),
             CPBackupsV2=Mock(side_effect=forbidden),
@@ -116,15 +117,43 @@ class EntitlementTests(unittest.TestCase):
         self.assertEqual('IncBackups/CreateV2Backup.html', result[1])
         self.assertEqual('createBackup', result[3])
 
-    def test_unpaid_advanced_ssl_get_and_post_render_without_reading_or_configuring_secrets(self):
+    def ssl_page(self, method='GET', acl=None, permission=1):
+        import sys
+        from unittest import mock as _mock
         actual('manageSSL/views.py', ['v2ManageSSL'], self.env)
+        self.acl.loadedACL.return_value = acl or {'admin': 1, 'manageSSL': 1}
+        self.acl.currentContextPermission = Mock(return_value=permission)
+        self.acl.FetchCloudFlareAPIKeyFromAcme = Mock(return_value=(1, 'saved-key', 'admin@example.test'))
+        dns = SimpleNamespace(DNS=SimpleNamespace(ConfigurePowerDNSInAcme=Mock(), ConfigureCloudflareInAcme=Mock()))
+        request = SimpleNamespace(session={'userID': 7}, method=method,
+                                  POST={'SAVED_CF_Key': 'k', 'SAVED_CF_Email': 'e@example.test'})
+        with _mock.patch.dict(sys.modules, {'plogical.dnsUtilities': dns}):
+            return self.env['v2ManageSSL'](request), dns.DNS
+
+    def test_advanced_ssl_renders_locally_without_sales_branch(self):
+        result, dns = self.ssl_page()
+        self.assertEqual('manageSSL/v2ManageSSL.html', result[1])
+        self.assertEqual(1, result[2]['PremStat'])
+        self.assertEqual('saved-key', result[2]['SAVED_CF_Key'])
+        self.acl.CheckForPremFeature.assert_not_called()
+        dns.ConfigureCloudflareInAcme.assert_not_called()
+
+    def test_advanced_ssl_still_requires_manage_ssl_permission(self):
         for method in ('GET', 'POST'):
             with self.subTest(method=method):
-                request = SimpleNamespace(session={'userID': 7}, method=method)
-                result = self.env['v2ManageSSL'](request)
-                self.assertEqual('manageSSL/v2ManageSSL.html', result[1])
-                self.assertEqual({'PremStat': 0, 'websiteList': ['fixture.invalid']}, result[2])
-        self.acl.FetchCloudFlareAPIKeyFromAcme.assert_not_called()
+                result, dns = self.ssl_page(method, acl={'admin': 0, 'manageSSL': 0}, permission=0)
+                self.assertEqual({'ownership_denied': True}, result)
+                self.acl.FetchCloudFlareAPIKeyFromAcme.assert_not_called()
+                dns.ConfigureCloudflareInAcme.assert_not_called()
+                dns.ConfigurePowerDNSInAcme.assert_not_called()
+
+    def test_saving_the_server_wide_cloudflare_key_is_admin_only(self):
+        result, dns = self.ssl_page('POST', acl={'admin': 0, 'manageSSL': 1}, permission=1)
+        self.assertEqual({'ownership_denied': True}, result)
+        dns.ConfigureCloudflareInAcme.assert_not_called()
+        result, dns = self.ssl_page('POST')
+        dns.ConfigureCloudflareInAcme.assert_called_once_with('k', 'e@example.test')
+        self.assertEqual(1, result[2]['SaveSuccess'])
 
     def test_unpaid_ssl_issue_returns_legacy_failure_before_request_access(self):
         actual('manageSSL/views.py', ['v2IssueSSL'], self.env)
