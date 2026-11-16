@@ -55,15 +55,60 @@ MEMCACHED_SYSCONFIG = '/etc/sysconfig/memcached'
 APPS = {
     'elasticsearch': {'title': 'Elasticsearch', 'package': 'elasticsearch', 'unit': 'elasticsearch',
                       'data_dir': '/var/lib/elasticsearch', 'min_ram_mb': 1024, 'min_disk_mb': 2048,
-                      'legacy': 'Elasticsearch', 'about': 'Full-text search engine (7.x, from Elastic\'s repository).'},
+                      'legacy': 'Elasticsearch', 'about': 'Full-text search engine (7.x, from Elastic\'s repository).',
+                      'packages': ('elasticsearch',), 'log_dirs': ('/var/log/elasticsearch',)},
     'redis': {'title': 'Redis', 'package': 'redis', 'unit': 'redis', 'data_dir': '/var/lib/redis',
               'min_ram_mb': 128, 'min_disk_mb': 256, 'legacy': 'Redis',
-              'about': 'In-memory key-value store (the OS AppStream package), e.g. for WordPress object cache.'},
+              'about': 'In-memory key-value store (the OS AppStream package), e.g. for WordPress object cache.',
+              'packages': ('redis',), 'log_dirs': ('/var/log/redis',)},
     'memcached': {'title': 'Memcached', 'package': 'memcached', 'unit': 'memcached', 'data_dir': None,
                   'min_ram_mb': 96, 'min_disk_mb': 64, 'legacy': None,
-                  'about': 'Simple in-memory cache (the OS package); no persistence and no authentication.'},
+                  'about': 'Simple in-memory cache (the OS package); no persistence and no authentication.',
+                  'packages': ('memcached',), 'log_dirs': ()},
+    # SQL Server is installed and its databases managed by the SQL Server add-on; Applications shows
+    # its status, the memory cap, service controls and uninstall, through that add-on's own functions.
+    'mssql': {'title': 'SQL Server 2022 Express', 'package': 'mssql-server', 'unit': 'mssql-server',
+              'data_dir': '/var/opt/mssql', 'min_ram_mb': 2000, 'min_disk_mb': 6144, 'legacy': None,
+              'kind': 'bridge', 'link': '/addons/mssql/', 'link_title': 'SQL Server add-on (databases and users)',
+              'about': 'Microsoft SQL Server 2022 Express (Microsoft\'s repository). Install it and manage databases '
+                       'and users in the SQL Server add-on; here: status, memory cap, service and uninstall.',
+              'packages': ('mssql-server', 'mssql-tools18'), 'log_dirs': ('/var/opt/mssql/log',)},
+    'postgresql': {'title': 'PostgreSQL', 'package': None, 'unit': None, 'data_dir': None,
+                   'min_ram_mb': 256, 'min_disk_mb': 512, 'legacy': None,
+                   'about': 'PostgreSQL 16 or 17 from the official PGDG repository (signed packages).',
+                   'packages': (), 'log_dirs': ()},
+    'mongodb': {'title': 'MongoDB Community', 'package': 'mongodb-org-server', 'unit': 'mongod',
+                'data_dir': '/var/lib/mongo', 'min_ram_mb': 1024, 'min_disk_mb': 2048, 'legacy': None,
+                'about': 'MongoDB Community 8.0 from MongoDB\'s official repository, with authentication on.',
+                'packages': ('mongodb-org-server', 'mongodb-mongosh'), 'log_dirs': ('/var/log/mongodb',)},
+    'rabbitmq': {'title': 'RabbitMQ', 'package': 'rabbitmq-server', 'unit': 'rabbitmq-server',
+                 'data_dir': '/var/lib/rabbitmq', 'min_ram_mb': 384, 'min_disk_mb': 1024, 'legacy': None,
+                 'about': 'Message broker (AMQP) from Team RabbitMQ\'s signed repositories, with their Erlang.',
+                 'packages': ('rabbitmq-server', 'erlang'), 'log_dirs': ('/var/log/rabbitmq',)},
+    'oracle_client': {'title': 'Oracle Instant Client', 'package': 'oracle-instantclient-basic', 'unit': None,
+                      'data_dir': None, 'min_ram_mb': 0, 'min_disk_mb': 512, 'legacy': None, 'kind': 'client',
+                      'about': 'Oracle Instant Client 23 (Basic + SQL*Plus) from Oracle\'s yum repository, for '
+                               'PHP oci8 and apps that connect to a remote Oracle Database. No server runs here.',
+                      'packages': ('oracle-instantclient-basic', 'oracle-instantclient-sqlplus'),
+                      'install_dirs': ('/usr/lib/oracle',), 'log_dirs': ()},
+    'docker': {'title': 'Docker', 'package': 'docker-ce', 'unit': 'docker', 'data_dir': '/var/lib/docker',
+               'min_ram_mb': 0, 'min_disk_mb': 0, 'legacy': None, 'kind': 'status',
+               'link': '/docker/', 'link_title': 'Docker manager',
+               'about': 'Docker Engine. Containers, images and the service are managed in the panel\'s Docker manager.',
+               'packages': (), 'log_dirs': ()},
 }
-ORDER = ('elasticsearch', 'redis', 'memcached')
+ORDER = ('elasticsearch', 'redis', 'memcached', 'mssql', 'postgresql', 'mongodb', 'rabbitmq', 'oracle_client', 'docker')
+# kind: 'service' (installed, configured and controlled here), 'bridge' (another add-on installs it),
+# 'client' (libraries only, no service), 'status' (shown only; managed elsewhere).
+for _key, _info in APPS.items():
+    _info.setdefault('kind', 'service')
+
+PG_MAJORS = (17, 16)          # offered majors, newest first
+PG_DEFAULT_MAJOR = 17
+
+
+def pg_unit(major):
+    return 'postgresql-%d' % int(major)
 
 SKIPPED = [{
     'key': 'opensearch', 'title': 'OpenSearch',
@@ -71,6 +116,20 @@ SKIPPED = [{
               'same Java memory budget as Elasticsearch, so the two cannot share this server, and OpenSearch 2.x '
               'turns on its security plugin with TLS certificates and an admin password that would need a '
               'manager of their own. Elasticsearch 7 covers the same uses (ElasticPress, Magento, site search).',
+}, {
+    'key': 'oracle_db', 'title': 'Oracle Database 23ai Free',
+    'reason': 'Not offered on this server; Oracle Instant Client is offered instead (for PHP oci8 and apps that use '
+              'a remote Oracle Database). Oracle supports Database Free only on Oracle Linux and RHEL 8/9/10, not '
+              'CentOS. Its RPM is a direct download, not a repository, and it needs oracle-database-preinstall-23ai, '
+              'which only Oracle Linux repositories carry. That package changes server-wide kernel settings (shared '
+              'memory, semaphores, the local port range) and limits for a new oracle account. Oracle recommends '
+              '2 GB of RAM and asks for 10 GB of disk. With 3.7 GB of RAM, SQL Server already running and swap in '
+              'use, the database would push the web stack into swap.',
+}, {
+    'key': 'valkey', 'title': 'Valkey / KeyDB',
+    'reason': 'Not offered. Both are drop-in Redis replacements on the same port (6379), and Redis is already '
+              'offered above. KeyDB has no maintained, signed EL8 repository. Valkey on EL8 would come from EPEL '
+              'and would replace Redis, not run beside it.',
 }]
 
 REDIS_POLICIES = ('noeviction', 'allkeys-lru', 'volatile-lru', 'allkeys-lfu', 'volatile-lfu',
@@ -1103,3 +1162,147 @@ FIELDS = {
         {'name': 'port', 'label': 'Port (-p)', 'type': 'number'},
     ],
 }
+
+FIELDS.update({
+    'mssql': [
+        {'name': 'memory_limit_mb', 'label': 'Memory cap (MB)', 'type': 'number',
+         'help': 'memory.memorylimitmb plus the systemd ceiling (cap + 512 MB); max server memory is set to 80% of '
+                 'the cap with sp_configure. Express uses at most about 1.4 GB for its buffer pool anyway.'},
+    ],
+    'postgresql': [
+        {'name': 'shared_buffers_mb', 'label': 'shared_buffers (MB)', 'type': 'number',
+         'help': 'Shared page cache. About 1/16 of RAM on a shared hosting server; at most a quarter of RAM.'},
+        {'name': 'work_mem_mb', 'label': 'work_mem (MB)', 'type': 'number',
+         'help': 'Per sort or hash operation, per connection: keep it small when max_connections is high.'},
+        {'name': 'max_connections', 'label': 'max_connections', 'type': 'number'},
+        {'name': 'listen_addresses', 'label': 'listen_addresses (space-separated)', 'type': 'list',
+         'help': '127.0.0.1 keeps PostgreSQL on this server (sites connect locally).'},
+        {'name': 'auth_method', 'label': 'Password method for local and TCP logins (pg_hba.conf)', 'type': 'select',
+         'options': ['scram-sha-256', 'md5'], 'help': 'scram-sha-256 unless an old client library needs md5.'},
+    ],
+    'mongodb': [
+        {'name': 'cache_gb', 'label': 'storage.wiredTiger.engineConfig.cacheSizeGB', 'type': 'number', 'step': '0.05',
+         'help': 'WiredTiger cache in GB (MongoDB\'s own default is half of RAM minus 1 GB).'},
+        {'name': 'bind_ip', 'label': 'net.bindIp (space-separated)', 'type': 'list',
+         'help': '127.0.0.1 keeps MongoDB on this server.'},
+        {'name': 'auth', 'label': 'security.authorization (admin user with a generated password)', 'type': 'bool'},
+        {'name': 'rotate_password', 'label': 'Generate a new admin password', 'type': 'bool', 'transient': True},
+    ],
+    'rabbitmq': [
+        {'name': 'memory_mb', 'label': 'vm_memory_high_watermark.absolute (MB)', 'type': 'number',
+         'help': 'Above this RabbitMQ blocks publishers until consumers catch up.'},
+        {'name': 'bind', 'label': 'AMQP listener address (port 5672)', 'type': 'text',
+         'help': '127.0.0.1 keeps RabbitMQ on this server. The default guest user can only log in from 127.0.0.1.'},
+        {'name': 'disk_free_limit_mb', 'label': 'disk_free_limit.absolute (MB)', 'type': 'number'},
+    ],
+    'oracle_client': [],
+    'docker': [],
+})
+
+
+# ----------------------------------------------------------------------------- registry for other pages
+
+APP_UNIT_PREFIX = 'cp-app-'
+APP_UNIT_RE = re.compile(r'^cp-app-[a-z][a-z0-9-]{1,30}$')    # per-site app units (Universal Apps)
+SERVICE_ACTIONS = ('start', 'stop', 'restart')
+
+
+def service_units():
+    """(unit, label, actions) for every application here that runs a service, for the Services page.
+
+    Docker is left out (the Services page has its own Docker card) and so are libraries without a
+    service. The Services page shows only the units that are installed."""
+    out = []
+    for key in ORDER:
+        info = APPS[key]
+        if info['kind'] in ('status', 'client'):
+            continue
+        if key == 'postgresql':
+            out += [(pg_unit(major), 'PostgreSQL %d' % major, SERVICE_ACTIONS) for major in PG_MAJORS]
+        elif info.get('unit'):
+            out.append((info['unit'], info['title'], SERVICE_ACTIONS))
+    return tuple(out)
+
+
+# ----------------------------------------------------------------------------- memory budget
+
+BUDGET_SHARE = 0.7
+
+
+def cap_mb(key, current):
+    """The memory the panel lets `key` take, from its current settings (0 = no cap known)."""
+    current = current or {}
+    if key == 'elasticsearch':
+        return int(current.get('heap_mb') or 0)
+    if key == 'redis':
+        return int(current.get('maxmemory_mb') or 0)
+    if key == 'memcached':
+        return int(current.get('memory_mb') or 0)
+    if key == 'mssql':
+        return int(current.get('memory_limit_mb') or 0)
+    if key == 'postgresql':
+        # shared memory plus a modest allowance for backends
+        return int(current.get('shared_buffers_mb') or 0) + (64 if current.get('shared_buffers_mb') else 0)
+    if key == 'mongodb':
+        return int(round(float(current.get('cache_gb') or 0) * 1024))
+    if key == 'rabbitmq':
+        return int(current.get('memory_mb') or 0)
+    return 0
+
+
+def budget_warning(caps, ram_mb, share=BUDGET_SHARE):
+    """A warning when the applications' memory caps together exceed `share` of RAM, else None."""
+    total = sum(caps.values())
+    if not ram_mb or total <= ram_mb * share:
+        return None
+    detail = ', '.join('%s %d MB' % (name, mb) for name, mb in sorted(caps.items()) if mb)
+    return ('Together the applications\' memory caps come to %d MB (%s), over %d%% of the %d MB of RAM. '
+            'Leave room for MariaDB, PHP and the page cache.' % (total, detail, int(share * 100), ram_mb))
+
+
+# ----------------------------------------------------------------------------- package removal preview
+
+def parse_dnf_removal(text):
+    """{'packages': [...], 'freed': '...'} from `dnf remove --assumeno` output (exit status 1 is normal)."""
+    packages, freed, section, pending = [], '', False, None
+    for line in (text or '').splitlines():
+        stripped = line.strip()
+        match = re.match(r'^Freed space:\s*(.+)$', stripped)
+        if match:
+            freed = match.group(1).strip()
+        if not stripped or not line.startswith(' '):
+            # a heading such as "Removing:" or "Removing unused dependencies:" opens a list of packages
+            section = bool(re.match(r'^(Removing|Erasing)[A-Za-z ]*:$', stripped))
+            pending = None
+            continue
+        if not section:
+            continue
+        tokens = stripped.split()
+        if len(tokens) == 1:
+            pending = tokens[0]          # a long name that dnf wrapped onto a line of its own
+            continue
+        name, pending = pending or tokens[0], None
+        if re.match(r'^[A-Za-z0-9][A-Za-z0-9._+-]*$', name) and name not in packages:
+            packages.append(name)
+    return {'packages': packages, 'freed': freed}
+
+
+def apply_block_top(text, body_lines):
+    """Like apply_block, but a new block goes at the top (for first-match files such as pg_hba.conf)."""
+    before, block, after = split_block(text)
+    if block is not None:
+        return apply_block(text, body_lines)
+    if not body_lines:
+        return text
+    rest = (text or '').lstrip('\n')
+    return '\n'.join([MARK_BEGIN] + list(body_lines) + [MARK_END]) + '\n' + rest
+
+
+def _float(value, low, high, what):
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        raise AppError('%s must be a number.' % what)
+    if isinstance(value, bool) or number != number or not low <= number <= high:
+        raise AppError('%s must be between %g and %g.' % (what, low, high))
+    return round(number, 2)

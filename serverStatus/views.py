@@ -36,7 +36,18 @@ SERVICE_PROCESS_NAMES = {
 
 # More services an administrator can see and control on the Services page, when installed.
 # (unit, label, allowed actions). The panel itself (lscpd) and sshd are deliberately absent:
-# stopping either from the panel would cut the administrator off.
+# stopping either from the panel would cut the administrator off. The server applications
+# (Elasticsearch, Redis, Memcached, SQL Server, PostgreSQL, MongoDB, RabbitMQ) come from the
+# Applications add-on's registry, so both pages always list the same ones.
+try:
+    from universalAddons.appsvc.service import APP_UNIT_PREFIX, APP_UNIT_RE, service_units as _app_service_units
+except Exception:  # the add-on is optional for this page
+    import re as _re
+    APP_UNIT_PREFIX, APP_UNIT_RE = 'cp-app-', _re.compile(r'^cp-app-[a-z][a-z0-9-]{1,30}$')
+
+    def _app_service_units():
+        return ()
+
 EXTRA_SERVICES = (
     ('dovecot', 'Dovecot (IMAP/POP3)', ('start', 'stop', 'restart')),
     ('mailscanner', 'MailScanner', ('start', 'stop', 'restart')),
@@ -44,10 +55,7 @@ EXTRA_SERVICES = (
     ('spamassassin', 'SpamAssassin', ('start', 'stop', 'restart')),
     ('rspamd', 'Rspamd', ('start', 'stop', 'restart')),
     ('cpecs', 'Email limits policy (cpecs)', ('start', 'stop', 'restart')),
-    ('redis', 'Redis', ('start', 'stop', 'restart')),
-    ('memcached', 'Memcached', ('start', 'stop', 'restart')),
-    ('elasticsearch', 'Elasticsearch', ('start', 'stop', 'restart')),
-    ('mssql-server', 'SQL Server', ('start', 'stop', 'restart')),
+) + tuple(_app_service_units()) + (
     ('cp-webterm', 'Web Terminal', ('start', 'stop', 'restart')),
     ('httpd', 'Apache httpd', ('start', 'stop', 'restart')),
     ('php-fpm', 'PHP-FPM (system)', ('start', 'stop', 'restart')),
@@ -58,6 +66,29 @@ EXTRA_SERVICES = (
     ('crond', 'Cron', ('restart',)),
 )
 EXTRA_ACTIONS = {unit: actions for unit, _, actions in EXTRA_SERVICES}
+APP_UNIT_ACTIONS = ('restart',)   # per-site app units (Universal Apps): status, and restart for admins
+
+
+def extra_services(table, executor=None):
+    """The installed EXTRA_SERVICES and per-site cp-app-* units, with their state and memory."""
+    executor = executor or ProcessUtilities.outputExecutioner
+    units = [unit for unit, _, _ in EXTRA_SERVICES]
+    installed = executor("systemctl list-unit-files --no-legend %s '%s*.service'"
+                         % (' '.join(u + '.service' for u in units), APP_UNIT_PREFIX)) or ''
+    present = {line.split()[0][:-len('.service')] for line in installed.splitlines()
+               if line.split() and line.split()[0].endswith('.service')}
+    app_units = sorted(u for u in present if APP_UNIT_RE.match(u))
+    listed = [u for u in units if u in present] + app_units
+    states = (executor('systemctl is-active %s' % ' '.join(listed)) or '').split() if listed else []
+    active = dict(zip(listed, states))
+    entries = [(unit, label, actions) for unit, label, actions in EXTRA_SERVICES if unit in present]
+    entries += [(unit, 'Site app %s' % unit[len(APP_UNIT_PREFIX):], APP_UNIT_ACTIONS) for unit in app_units]
+    extra = []
+    for unit, label, actions in entries:
+        state = active.get(unit, 'unknown')
+        extra.append({'unit': unit, 'label': label, 'state': state, 'running': state == 'active',
+                      'mem': unit_memory(table, unit) if state == 'active' else 0, 'actions': list(actions)})
+    return extra
 
 
 def process_table(executor=None):
@@ -329,20 +360,7 @@ def servicesStatus(request):
         else:
             mailStatus.append(0)
 
-        extra = []
-        units = [unit for unit, _, _ in EXTRA_SERVICES]
-        installed = ProcessUtilities.outputExecutioner('systemctl list-unit-files --no-legend %s'
-                                                       % ' '.join(u + '.service' for u in units)) or ''
-        present = {line.split()[0][:-len('.service')] for line in installed.splitlines()
-                   if line.split() and line.split()[0].endswith('.service')}
-        states = (ProcessUtilities.outputExecutioner('systemctl is-active %s' % ' '.join(u for u in units if u in present))
-                  or '').split() if present else []
-        active = dict(zip([u for u in units if u in present], states))
-        for unit, label, actions in EXTRA_SERVICES:
-            if unit in present:
-                state = active.get(unit, 'unknown')
-                extra.append({'unit': unit, 'label': label, 'state': state, 'running': state == 'active',
-                              'mem': unit_memory(table, unit) if state == 'active' else 0, 'actions': list(actions)})
+        extra = extra_services(table)
 
         json_data = {'extra': extra,
                      'status':
@@ -388,8 +406,8 @@ def servicesAction(request):
                 else:
                     pass
 
-                if service in EXTRA_ACTIONS:
-                    if action not in EXTRA_ACTIONS[service]:
+                if service in EXTRA_ACTIONS or APP_UNIT_RE.match(str(service)):
+                    if action not in EXTRA_ACTIONS.get(service, APP_UNIT_ACTIONS):
                         return HttpResponse(json.dumps({'serviceAction': 0,
                                                         'error_message': 'That action is not offered for this service.'}))
                 elif service not in ["lsws", "mysql", "pdns", "pure-ftpd", "docker"]:

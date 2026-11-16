@@ -30,6 +30,39 @@ Java
 - /tmp is noexec on some hosts. Libraries that unpack native code into java.io.tmpdir and load it
   from there (e.g. snappy-java, netty-tcnative) then fail; point -Djava.io.tmpdir at a directory
   inside the app directory for those.
+- Kotlin (JVM): Ktor, Spring Boot (Kotlin) and http4k apps are JARs, so they are Java apps with
+  flavor "kotlin" and the same runner. Optional Gradle build on deploy (`./gradlew shadowJar` or
+  `bootJar`, as the site user, --no-daemon, Kotlin compiler in-process so nothing lingers) with
+  JAVA_HOME at the selected Java, which must be a JDK (install "Temurin JDK"). The wrapper
+  downloads Gradle itself (into ~/.gradle); set distributionSha256Sum in gradle-wrapper.properties
+  to have it verified. Ktor's EngineMain takes `-host=` / `-port=` arguments, which the panel adds
+  when "Ktor arguments" is on (it binds 0.0.0.0 otherwise). Ktor embeddedServer(...) and http4k
+  apps read the port themselves: System.getenv("PORT"), host "127.0.0.1" (HOST).
+
+Ruby
+- `rack`: config.ru on puma; `rails`: the same plus Rails conventions. Deploy (as the site user):
+  `bundle config set --local deployment true`, path vendor/bundle, without development:test,
+  `bundle install`, then for Rails `rails assets:precompile` (when app/assets or app/javascript
+  exists) and `rails db:migrate` (both can be switched off). Gemfile.lock and puma are required.
+- puma gets `--bind tcp://127.0.0.1:$PORT` on the command line, which takes precedence over
+  `port`/`bind` in config/puma.rb (Rails' default would listen on 0.0.0.0).
+- RAILS_ENV/RACK_ENV=production, RAILS_LOG_TO_STDOUT, RAILS_SERVE_STATIC_FILES (OpenLiteSpeed
+  forwards everything to puma), RAILS_RELATIVE_URL_ROOT=APP_BASE_PATH under a sub-path. Rails does
+  not strip the prefix by itself: config.ru needs `map ENV.fetch("RAILS_RELATIVE_URL_ROOT", "/") do
+  run Rails.application end` (Rack apps: map ENV["APP_BASE_PATH"]). Behind the proxy, set
+  config.assume_ssl = true when force_ssl is on.
+- SECRET_KEY_BASE is generated once (128 hex characters) and kept in the app's root-only env file;
+  it is never returned by list or save. Deploy commands get the app environment through sudo's
+  environment (--preserve-env with names only), never on a command line other users could read.
+
+Go, Deno, Bun
+- Go: runs a compiled binary from the app directory (no runtime needed). Optional `go build` on
+  deploy with a panel-installed toolchain, GOTOOLCHAIN=local (go.mod cannot fetch another
+  toolchain), CGO_ENABLED=0. GOMAXPROCS/GOMEMLIMIT follow the CPU and memory limits.
+- Deno: `deno run` (Deno.serve on PORT) or `deno serve --host 127.0.0.1 --port $PORT`, with
+  permissions limited to network, environment and the app directory unless "all" is chosen;
+  DENO_DIR is inside the app directory (the only writable path).
+- Bun: `bun <entry>` or `bun run start`; dependencies with `bun install --production`.
 """
 import json
 import os
@@ -43,10 +76,16 @@ UNIT_DIR = '/etc/systemd/system'
 PORT_RANGE = (20000, 29999)
 MARK_BEGIN = '# BEGIN cp-ua-apps (managed by CyberPanel; do not edit)'
 MARK_END = '# END cp-ua-apps'
-KINDS = ('node', 'python', 'dotnet', 'java')
+KINDS = ('node', 'python', 'dotnet', 'java', 'ruby', 'go', 'deno', 'bun')
 PY_MODES = ('wsgi', 'asgi', 'script')
 JAVA_MODES = ('jar', 'war')
+JAVA_FLAVORS = ('java', 'kotlin')
+GRADLE_TASKS = ('', 'shadowJar', 'bootJar')
+RUBY_MODES = ('rack', 'rails')
+DENO_MODES = ('run', 'serve')
+DENO_PERMS = ('scoped', 'all')
 MAX_JVM_OPTS = 10
+GO_PACKAGE_RE = re.compile(r'^\.(/[A-Za-z0-9._-]+)*(/\.\.\.)?$')  # ., ./cmd/server
 
 APP_ID_RE = re.compile(r'^[a-z][a-z0-9-]{1,30}$')
 DOMAIN_RE = re.compile(r'^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$')
@@ -58,7 +97,9 @@ ENV_KEY_RE = re.compile(r'^[A-Za-z_][A-Za-z0-9_]{0,127}$')  # .NET uses Section_
 VERSION_RE = re.compile(r'^\d{1,3}(\.\d{1,4}){1,3}$')
 RESERVED_ENV = {'PORT', 'HOST', 'APP_BASE_PATH', 'SCRIPT_NAME', 'ASPNETCORE_URLS', 'PATH', 'HOME', 'USER', 'LD_PRELOAD', 'LD_LIBRARY_PATH',
                 'PYTHONPATH', 'NODE_OPTIONS', 'DOTNET_ROOT', 'SERVER_PORT', 'SERVER_ADDRESS',
-                'SERVER_SERVLET_CONTEXT_PATH', 'JAVA_TOOL_OPTIONS', 'JDK_JAVA_OPTIONS', '_JAVA_OPTIONS'}
+                'SERVER_SERVLET_CONTEXT_PATH', 'JAVA_TOOL_OPTIONS', 'JDK_JAVA_OPTIONS', '_JAVA_OPTIONS',
+                'RAILS_RELATIVE_URL_ROOT', 'BUNDLE_GEMFILE', 'BUNDLE_PATH', 'BUNDLE_DEPLOYMENT', 'BUNDLE_WITHOUT',
+                'DENO_DIR', 'GOTOOLCHAIN'}
 JVM_VALUE = r'[A-Za-z0-9._:/=-]'
 JVM_OPT_RES = (
     re.compile(r'^-X[a-z][A-Za-z0-9]*(:%s+)?$' % JVM_VALUE),                      # -Xss512k, -Xmx384m, -Xlog:gc
@@ -74,10 +115,11 @@ class AppError(ValueError):
     pass
 
 
-def run(argv, runner=subprocess.run, timeout=600, env=None):
+def run(argv, runner=subprocess.run, timeout=600, env=None, cwd=None):
+    extra = {'cwd': cwd} if cwd else {}
     try:
         out = runner(argv, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True,
-                     timeout=timeout, env=env)
+                     timeout=timeout, env=env, **extra)
     except FileNotFoundError:
         return 127, '%s: not installed' % argv[0]
     except subprocess.TimeoutExpired:
@@ -121,9 +163,12 @@ def validate(spec, site, policy, existing_apps, runtimes_installed):
             raise AppError('This site already has the maximum of %d apps.' % policy['max_apps_per_site'])
     kind = spec.get('kind')
     if kind not in KINDS:
-        raise AppError('Choose Node.js, Python, .NET or Java.')
-    version = str(spec.get('runtime', ''))
-    if not any(r['version'] == version for r in runtimes_installed.get(kind, [])):
+        raise AppError('Choose Node.js, Python, .NET, Java/Kotlin, Ruby, Go, Deno or Bun.')
+    version = str(spec.get('runtime') or '')
+    go_build = kind == 'go' and bool(spec.get('build', current.get('build') if current else False))
+    if kind == 'go' and not go_build and not version:
+        pass  # a compiled binary needs no toolchain
+    elif not any(r['version'] == version for r in runtimes_installed.get(kind, [])):
         raise AppError('Runtime %s %s is not installed. Ask the administrator to install it.' % (kind, version))
     directory = os.path.normpath(str(spec.get('dir') or os.path.join(site['home'], 'apps', app_id)))
     if not directory.startswith(site['home'].rstrip('/') + '/') or directory.startswith(
@@ -145,13 +190,7 @@ def validate(spec, site, policy, existing_apps, runtimes_installed):
             raise AppError('Script must be a relative path such as main.py.')
         if mode != 'script' and not MODULE_RE.match(target):
             raise AppError('Use module:callable, e.g. app:app or myproject.wsgi:application.')
-        try:
-            workers = int(spec.get('workers', 2))
-        except (TypeError, ValueError):
-            raise AppError('Workers must be a number.')
-        if not 1 <= workers <= 8:
-            raise AppError('Workers must be between 1 and 8.')
-        record.update(mode=mode, entry=target, workers=workers)
+        record.update(mode=mode, entry=target, workers=_workers(spec))
     elif kind == 'java':
         mode = spec.get('mode') or 'jar'
         if mode not in JAVA_MODES:
@@ -161,6 +200,49 @@ def validate(spec, site, policy, existing_apps, runtimes_installed):
             raise AppError('Name the .%s to run as a relative path, e.g. app.%s.' % (mode, mode))
         options = spec.get('jvm_opts', current.get('jvm_opts', []) if current else [])
         record.update(mode=mode, entry=entry, jvm_opts=validate_jvm_opts(options))
+        keep = (lambda key, default: spec.get(key, current.get(key, default) if current else default))
+        flavor = keep('flavor', 'java') or 'java'
+        build = keep('build', '') or ''
+        if flavor not in JAVA_FLAVORS:
+            raise AppError('Java apps are Java or Kotlin (JVM).')
+        if build not in GRADLE_TASKS:
+            raise AppError('The Gradle build task is shadowJar or bootJar (or none).')
+        if build and mode != 'jar':
+            raise AppError('Gradle builds produce a JAR; choose the JAR mode.')
+        record.update(flavor=flavor, build=build, ktor_args=keep('ktor_args', False) is True and mode == 'jar')
+    elif kind == 'ruby':
+        mode = spec.get('mode') or 'rails'
+        if mode not in RUBY_MODES:
+            raise AppError('Ruby apps are Rack (config.ru) or Rails.')
+        entry = str(spec.get('entry') or 'config.ru')
+        if not REL_PATH_RE.match(entry) or not entry.endswith('.ru'):
+            raise AppError('Name the rackup file as a relative path, e.g. config.ru.')
+        record.update(mode=mode, entry=entry, workers=_workers(spec, 1))  # 1: puma single mode, least memory
+        if mode == 'rails':
+            keep = (lambda key: spec.get(key, current.get(key, True) if current else True) is not False)
+            record.update(precompile=keep('precompile'), migrate=keep('migrate'))
+    elif kind == 'go':
+        entry = str(spec.get('entry') or 'app')
+        if not REL_PATH_RE.match(entry):
+            raise AppError('Name the compiled binary as a relative path, e.g. app or bin/server.')
+        package = str(spec.get('package') or (current.get('package') if current else '') or '.')
+        if not GO_PACKAGE_RE.match(package) or '..' in package.replace('/...', ''):
+            raise AppError('The Go package to build must be . or a path such as ./cmd/server.')
+        record.update(entry=entry, build=go_build, package=package)
+    elif kind == 'deno':
+        mode = spec.get('mode') or 'run'
+        perms = spec.get('deno_perms') or (current.get('deno_perms') if current else '') or 'scoped'
+        if mode not in DENO_MODES or perms not in DENO_PERMS:
+            raise AppError('Deno apps use deno run or deno serve, with scoped or all permissions.')
+        entry = str(spec.get('entry') or 'main.ts')
+        if not REL_PATH_RE.match(entry):
+            raise AppError('Entry file must be a relative path such as main.ts.')
+        record.update(mode=mode, entry=entry, deno_perms=perms)
+    elif kind == 'bun':
+        entry = str(spec.get('entry') or 'index.ts')
+        if entry != 'bun-start' and not REL_PATH_RE.match(entry):
+            raise AppError('Entry file must be a relative path such as index.ts, or "bun-start".')
+        record['entry'] = entry
     else:
         entry = str(spec.get('entry') or '')
         if not REL_PATH_RE.match(entry) or not entry.endswith('.dll'):
@@ -190,8 +272,26 @@ def validate(spec, site, policy, existing_apps, runtimes_installed):
         raise AppError('CPU limit must be between 5 and %d%%.' % policy['max_cpu_percent'])
     record.update(memory_mb=memory, cpu_percent=cpu)
     record['env'] = validate_env(spec.get('env', current.get('env', {}) if current else {}))
+    if kind == 'ruby' and record['mode'] == 'rails' and not record['env'].get('SECRET_KEY_BASE'):
+        # Generated once; a new env list without it keeps the stored key (it is never sent to the browser).
+        record['env']['SECRET_KEY_BASE'] = ((current or {}).get('env') or {}).get('SECRET_KEY_BASE') or new_secret_key_base()
     record['port'] = current['port'] if current else None
     return record
+
+
+def new_secret_key_base():
+    import secrets
+    return secrets.token_hex(64)  # what `rails secret` produces: 128 hex characters
+
+
+def _workers(spec, default=2):
+    try:
+        workers = int(spec.get('workers', default))
+    except (TypeError, ValueError):
+        raise AppError('Workers must be a number.')
+    if not 1 <= workers <= 8:
+        raise AppError('Workers must be between 1 and 8.')
+    return workers
 
 
 def validate_env(env):
@@ -274,7 +374,33 @@ def exec_argv(app, runtime):
         return [os.path.join(venv, 'python'), os.path.join(directory, app['entry'])]
     if app['kind'] == 'java':
         return java_argv(app, runtime)
+    if app['kind'] == 'ruby':
+        # The CLI bind wins over port/bind in config/puma.rb, so the app stays on loopback.
+        argv = [ruby_tool(runtime, 'bundle'), 'exec', 'puma', '--bind', 'tcp://127.0.0.1:%d' % app['port']]
+        if app.get('workers', 1) > 1:
+            argv += ['--workers', str(app['workers'])]
+        return argv + [os.path.join(directory, app['entry'])]
+    if app['kind'] == 'go':
+        return [os.path.join(directory, app['entry'])]
+    if app['kind'] == 'deno':
+        if app.get('deno_perms') == 'all':
+            perms = ['--allow-all']
+        else:
+            perms = ['--allow-net', '--allow-env', '--allow-read=%s' % directory, '--allow-write=%s' % directory]
+        if app.get('mode') == 'serve':
+            return [runtime['path'], 'serve', '--host', '127.0.0.1', '--port', str(app['port'])] + perms + \
+                [os.path.join(directory, app['entry'])]
+        return [runtime['path'], 'run', '--no-prompt'] + perms + [os.path.join(directory, app['entry'])]
+    if app['kind'] == 'bun':
+        if app['entry'] == 'bun-start':
+            return [runtime['path'], 'run', 'start']
+        return [runtime['path'], os.path.join(directory, app['entry'])]
     return [runtime['path'], os.path.join(directory, app['entry'])]
+
+
+def ruby_tool(runtime, name):
+    """bundle/gem/rake next to the selected ruby."""
+    return os.path.join(os.path.dirname(runtime['path']), name)
 
 
 def java_argv(app, runtime):
@@ -293,7 +419,10 @@ def java_argv(app, runtime):
         if base_path(app):
             argv += ['--path', base_path(app)]
         return argv + [target]
-    return argv + ['-jar', target]
+    argv += ['-jar', target]
+    if app.get('ktor_args'):
+        argv += ['-host=127.0.0.1', '-port=%d' % app['port']]  # Ktor EngineMain (commandLineEnvironment)
+    return argv
 
 
 def systemd_version(runner=subprocess.run):
@@ -308,6 +437,30 @@ def cgroup_v2():
 
 def unit_name(app_id):
     return 'cp-app-%s.service' % app_id
+
+
+def runtime_environment(app, runtime):
+    """Unit environment for the Ruby, Go, Deno and Bun app kinds (the others are set in render_unit)."""
+    directory, kind = app['dir'], app['kind']
+    if kind == 'ruby':
+        environment = {'PATH': os.path.dirname(runtime['path']) + ':/usr/bin:/bin', 'RAILS_ENV': 'production',
+                       'RACK_ENV': 'production', 'RAILS_LOG_TO_STDOUT': '1', 'RAILS_SERVE_STATIC_FILES': '1',
+                       'BUNDLE_GEMFILE': os.path.join(directory, 'Gemfile'), 'BUNDLE_DEPLOYMENT': '1',
+                       'BUNDLE_PATH': os.path.join(directory, 'vendor', 'bundle'), 'BUNDLE_WITHOUT': 'development:test',
+                       'MALLOC_ARENA_MAX': '2'}  # glibc arenas otherwise inflate threaded Ruby's memory
+        if base_path(app):
+            environment['RAILS_RELATIVE_URL_ROOT'] = base_path(app)
+        return environment
+    if kind == 'go':
+        return {'PATH': '/usr/bin:/bin', 'GOMAXPROCS': str(max(1, -(-app['cpu_percent'] // 100))),
+                'GOMEMLIMIT': '%dMiB' % (app['memory_mb'] * 9 // 10)}
+    if kind == 'deno':
+        return {'PATH': os.path.dirname(runtime['path']) + ':/usr/bin:/bin', 'DENO_DIR': os.path.join(directory, '.deno'),
+                'DENO_NO_UPDATE_CHECK': '1', 'DENO_NO_PROMPT': '1', 'NO_COLOR': '1'}
+    if kind == 'bun':
+        return {'PATH': os.path.dirname(runtime['path']) + ':/usr/bin:/bin', 'BUN_RUNTIME_TRANSPILER_CACHE_PATH': '0',
+                'BUN_INSTALL_CACHE_DIR': '/tmp/.bun-cache', 'DO_NOT_TRACK': '1'}
+    return {}
 
 
 def render_unit(app, runtime, version=239, unified=False):
@@ -342,6 +495,7 @@ def render_unit(app, runtime, version=239, unified=False):
                            SERVER_FORWARD_HEADERS_STRATEGY='native')
         if base_path(app):
             environment['SERVER_SERVLET_CONTEXT_PATH'] = base_path(app)
+    environment.update(runtime_environment(app, runtime))
     lines = [
         '# Managed by CyberPanel Universal (Apps). Changes are overwritten.',
         '[Unit]',
@@ -453,10 +607,155 @@ def as_user(app, argv, extra_env=None):
     return ['sudo', '-u', app['user'], '--'] + env + argv
 
 
-def install_dependencies(app, runtime, runner=subprocess.run, log=None):
-    """Prepare the app directory as the site user (venv + pip, npm ci, or .dll/.jar/.war check)."""
+def as_user_env(app, argv, env):
+    """(argv, environment) running argv as the site user with `env` passed through the process environment.
+
+    Only variable names reach sudo's command line (--preserve-env); values such as SECRET_KEY_BASE or
+    DATABASE_URL stay out of /proc/<pid>/cmdline, which every local user can read. PATH is set after
+    sudo because sudoers' secure_path would replace it.
+    """
+    path = env.get('PATH', '/usr/bin:/bin')
+    full = {'HOME': app['home'], 'USER': app['user'], 'LOGNAME': app['user'], 'LANG': 'C.UTF-8'}
+    full.update((key, value) for key, value in env.items() if key != 'PATH')
+    argv = ['sudo', '-u', app['user'], '--preserve-env=%s' % ','.join(sorted(full)), '--', 'env', 'PATH=' + path] + argv
+    return argv, full
+
+
+def _require_files(app, names):
+    for name, hint in names:
+        if not os.path.isfile(os.path.join(app['dir'], name)):
+            raise AppError('%s was not found in %s. %s' % (name, app['dir'], hint))
+
+
+def ruby_deploy(app, runtime, runner=subprocess.run, log=None):
+    """bundle install in deployment mode into vendor/bundle; Rails: assets:precompile and db:migrate."""
     say = log or (lambda text: None)
     directory = app['dir']
+    _require_files(app, (('Gemfile', 'Upload the app files first.'),
+                         ('Gemfile.lock', 'Deployment mode installs exactly the locked gems: run "bundle lock" and '
+                                          'upload Gemfile.lock.'),
+                         (app['entry'], 'puma serves the rackup file (config.ru).')))
+    with open(os.path.join(directory, 'Gemfile.lock'), errors='replace') as handle:
+        if not re.search(r'^    puma \(', handle.read(), re.M):
+            raise AppError('puma is not in Gemfile.lock: run "bundle add puma" and upload Gemfile and Gemfile.lock.')
+    env = dict(runtime_environment(app, runtime))
+    env.update(app.get('env', {}))  # DATABASE_URL, SECRET_KEY_BASE, ... for precompile and migrations
+    bundle = ruby_tool(runtime, 'bundle')
+
+    def step(title, argv, timeout=1800):
+        say('--> ' + title)
+        command, environment = as_user_env(app, argv, env)
+        code, out = run(command, runner, timeout=timeout, env=environment, cwd=directory)
+        say(out[-4000:])
+        if code != 0:
+            raise AppError('%s failed; see the log.' % title)
+    step('bundle config set --local deployment true', [bundle, 'config', 'set', '--local', 'deployment', 'true'], 120)
+    step('bundle config set --local path vendor/bundle', [bundle, 'config', 'set', '--local', 'path', 'vendor/bundle'], 120)
+    step('bundle config set --local without development test',
+         [bundle, 'config', 'set', '--local', 'without', 'development test'], 120)
+    step('bundle install', [bundle, 'install', '--jobs', '2'])
+    if app.get('mode') == 'rails':
+        if not app.get('precompile', True):
+            say('assets:precompile is switched off.')
+        elif any(os.path.isdir(os.path.join(directory, 'app', name)) for name in ('assets', 'javascript')):
+            step('rails assets:precompile', [bundle, 'exec', 'rails', 'assets:precompile'])
+        else:
+            say('No app/assets or app/javascript (API-only app): assets:precompile skipped.')
+        if app.get('migrate', True):
+            step('rails db:migrate', [bundle, 'exec', 'rails', 'db:migrate'], 900)
+        else:
+            say('db:migrate is switched off.')
+    return True
+
+
+def gradle_build(app, runtime, runner=subprocess.run, log=None):
+    """./gradlew <shadowJar|bootJar> as the site user, JAVA_HOME at the app's (JDK) runtime."""
+    from universalAddons.apps import runtimes as rt
+    say = log or (lambda text: None)
+    directory = app['dir']
+    _require_files(app, (('gradlew', 'Gradle builds use the project wrapper: upload gradlew and gradle/wrapper/ '
+                                      'with the sources.'),))
+    home = rt.java_home(runtime)
+    if not rt.has_javac(home):
+        raise AppError('Gradle needs a JDK, and Java %s on this server is a JRE. Ask the administrator to install '
+                       '"Java %s (Temurin JDK)" and select it.' % (app['runtime'], app['runtime'].split('.')[0]))
+    env = {'JAVA_HOME': home, 'PATH': os.path.join(home, 'bin') + ':/usr/bin:/bin',
+           'GRADLE_USER_HOME': os.path.join(app['home'], '.gradle')}
+    # No daemons left behind on a small server: --no-daemon, and the Kotlin compiler in-process.
+    argv = ['/bin/sh', os.path.join(directory, 'gradlew'), '--no-daemon', '--console=plain', '-p', directory,
+            '-Pkotlin.compiler.execution.strategy=in-process', app['build']]
+    say('--> ./gradlew %s (JAVA_HOME=%s)' % (app['build'], home))
+    code, out = run(as_user(app, argv, env), runner, timeout=2700, cwd=directory)
+    say(out[-4000:])
+    if code != 0:
+        raise AppError('./gradlew %s failed; see the log.' % app['build'])
+    return True
+
+
+def go_build(app, runtime, runner=subprocess.run, log=None):
+    say = log or (lambda text: None)
+    directory = app['dir']
+    if not runtime:
+        raise AppError('Choose a Go toolchain to build with.')
+    _require_files(app, (('go.mod', 'go build needs the module sources.'),))
+    env = {'PATH': os.path.dirname(runtime['path']) + ':/usr/bin:/bin', 'GOPATH': os.path.join(app['home'], 'go'),
+           'GOCACHE': os.path.join(app['home'], '.cache', 'go-build'), 'GOTOOLCHAIN': 'local', 'CGO_ENABLED': '0',
+           'GOFLAGS': '-buildvcs=false'}
+    argv = [runtime['path'], 'build', '-trimpath', '-o', os.path.join(directory, app['entry']), app['package']]
+    say('--> go build -o %s %s' % (app['entry'], app['package']))
+    code, out = run(as_user(app, argv, env), runner, timeout=1800, cwd=directory)
+    say(out[-4000:])
+    if code != 0:
+        raise AppError('go build failed; see the log.')
+    run(as_user(app, [runtime['path'], 'clean', '-cache'], env), runner, timeout=300, cwd=directory)  # keep modules only
+    return True
+
+
+def install_dependencies(app, runtime, runner=subprocess.run, log=None):
+    """Prepare the app directory as the site user (venv + pip, npm ci, bundle install, builds, entry checks)."""
+    say = log or (lambda text: None)
+    directory = app['dir']
+    if app['kind'] == 'ruby':
+        return ruby_deploy(app, runtime, runner, log)
+    if app['kind'] == 'go':
+        if app.get('build'):
+            go_build(app, runtime, runner, log)
+        entry = os.path.join(directory, app['entry'])
+        if not os.path.isfile(entry):
+            raise AppError('%s was not found. Upload the compiled binary (GOOS=linux) or turn on go build.' % app['entry'])
+        code, out = run(['sudo', '-u', app['user'], '--', 'test', '-x', entry], runner, timeout=30)
+        if code != 0:
+            raise AppError('%s is not executable by %s (chmod 755 it).' % (app['entry'], app['user']))
+        return True
+    if app['kind'] in ('deno', 'bun'):
+        tool = runtime['path']
+        if app['kind'] == 'deno':
+            _require_files(app, ((app['entry'], 'Upload the app files first.'),))
+            env = {'PATH': os.path.dirname(tool) + ':/usr/bin:/bin', 'DENO_DIR': os.path.join(directory, '.deno'),
+                   'DENO_NO_UPDATE_CHECK': '1', 'NO_COLOR': '1'}
+            code, out = run(as_user(app, [tool, 'cache', os.path.join(directory, app['entry'])], env), runner,
+                            timeout=1800, cwd=directory)
+            say(out[-4000:])
+            if code != 0:
+                raise AppError('deno cache failed; see the log.')
+            return True
+        if os.path.exists(os.path.join(directory, 'package.json')):
+            cache = os.path.join(directory, '.bun-cache')
+            frozen = any(os.path.exists(os.path.join(directory, n)) for n in ('bun.lock', 'bun.lockb'))
+            env = {'PATH': os.path.dirname(tool) + ':/usr/bin:/bin', 'BUN_INSTALL_CACHE_DIR': cache, 'DO_NOT_TRACK': '1'}
+            code, out = run(as_user(app, [tool, 'install', '--production'] + (['--frozen-lockfile'] if frozen else []),
+                                    env), runner, timeout=1800, cwd=directory)
+            say(out[-4000:])
+            shutil.rmtree(cache, ignore_errors=True)
+            if code != 0:
+                raise AppError('bun install failed; see the log.')
+        elif app['entry'] == 'bun-start':
+            raise AppError('"bun run start" needs a package.json in the app directory.')
+        if app['entry'] != 'bun-start':
+            _require_files(app, ((app['entry'], 'Upload the app files first.'),))
+        return True
+    if app['kind'] == 'java' and app.get('build'):
+        gradle_build(app, runtime, runner, log)
     if app['kind'] == 'python':
         venv = os.path.join(directory, '.venv')
         if not os.path.exists(os.path.join(venv, 'bin', 'python')):

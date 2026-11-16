@@ -37,6 +37,9 @@ MODULES = {
     'apache': 'universalAddons.apache.actions',
     'webterm': 'universalAddons.webterm.actions',
     'appsvc': 'universalAddons.appsvc.actions',
+    'cloudflare': 'universalAddons.cloudflare.actions',
+    'laravel': 'universalAddons.laravel.actions',
+    'gitdeploy': 'universalAddons.gitdeploy.actions',
     'hub': 'universalAddons.hub_actions',
 }
 

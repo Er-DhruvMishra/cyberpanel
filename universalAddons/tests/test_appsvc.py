@@ -433,7 +433,7 @@ class Page(SimpleTestCase):
         status, values = helpers.page(views.page, admin=True)
         self.assertEqual(status, 200)
         self.assertEqual(values['_template'], 'universalAddons/appsvc.html')
-        self.assertEqual([a['key'] for a in values['apps']], ['elasticsearch', 'redis', 'memcached'])
+        self.assertEqual([a['key'] for a in values['apps']][:3], ['elasticsearch', 'redis', 'memcached'])
         request = RequestFactory().get('/addons/applications/')
         request.session = {}
         html = render_to_string('universalAddons/appsvc.html', dict(values, request=request))

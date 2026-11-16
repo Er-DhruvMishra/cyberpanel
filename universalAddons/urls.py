@@ -26,4 +26,7 @@ urlpatterns = [
     path('terminal/', include('universalAddons.webterm.urls')),
     path('applications/', include('universalAddons.appsvc.urls')),
     path('free-subdomains/', include('freeSubdomains.urls')),
+    path('cloudflare/', include('universalAddons.cloudflare.urls')),
+    path('laravel/', include('universalAddons.laravel.urls')),
+    path('git-deploy/', include('universalAddons.gitdeploy.urls')),
 ]

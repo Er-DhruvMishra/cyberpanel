@@ -156,6 +156,43 @@ def default_memory_limit_mb(ram_mb):
     return max(512, min(4096, ram_mb // 3))
 
 
+MSSQL_CONF_FILE = os.path.join(DATA_DIR, 'mssql.conf')    # written by mssql-conf
+
+
+def memory_limit_bounds(ram_mb):
+    """(low, high) for memory.memorylimitmb: at least 512 MB, and 512 MB left for the rest of the server."""
+    return 512, max(512, ram_mb - 512)
+
+
+def validate_memory_limit(value, ram_mb):
+    low, high = memory_limit_bounds(ram_mb)
+    if isinstance(value, bool) or not isinstance(value, int):
+        try:
+            value = int(str(value).strip())
+        except (TypeError, ValueError):
+            raise SQLError('The memory cap must be a whole number of MB.')
+    if not low <= value <= high:
+        raise SQLError('The memory cap must be between %d and %d MB (leaving at least 512 MB for the rest of the '
+                       'server).' % (low, high))
+    return value
+
+
+def max_server_memory_mb(memory_limit_mb):
+    """sp_configure 'max server memory' for a cap: 80% of it (room for SQL Server's own overhead), 64 MB steps."""
+    return max(256, int(memory_limit_mb) * 4 // 5 // 64 * 64)
+
+
+def max_server_memory_sql(mb):
+    mb = int(mb)
+    return ("SET NOCOUNT ON;\nEXEC sp_configure 'show advanced options', 1;\nRECONFIGURE;\n"
+            "EXEC sp_configure 'max server memory (MB)', %d;\nRECONFIGURE;\n"
+            "SELECT CAST(value_in_use AS int) FROM sys.configurations WHERE name = 'max server memory (MB)';\nGO\n" % mb)
+
+
+MAX_SERVER_MEMORY_QUERY = ("SET NOCOUNT ON;\nSELECT CAST(value_in_use AS int) FROM sys.configurations "
+                           "WHERE name = 'max server memory (MB)';\nGO\n")
+
+
 # ----------------------------------------------------------------------------- secrets
 
 def strong_password(length=24):

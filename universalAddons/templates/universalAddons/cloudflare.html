@@ -1,0 +1,138 @@
+{% extends "universalAddons/base.html" %}
+{% load i18n static %}
+{% block title %}{% trans "Cloudflare" %} - IndiansCloud{% endblock %}
+{% block addon_scripts %}<script src="{% static 'universalAddons/cloudflare.js' %}?v={{ CP_VERSION }}"></script>{% endblock %}
+{% block content %}
+<div class="ua-wrap" id="ua-cloudflare" data-base="{% url 'ua-cloudflare' %}" data-admin="{{ is_admin|yesno:'1,0' }}">
+  <div class="ua-header">
+    <h1><i class="fas fa-cloud"></i> {% trans "Cloudflare" %}</h1>
+    <p>{% trans "Manage your Cloudflare zones from IndiansCloud with your own API token: DNS records, cache, SSL/TLS, security, speed and traffic analytics. Your token is stored on this server, readable only by the panel, and is never shown again." %}</p>
+  </div>
+
+  <div class="ua-card">
+    <h2>{% trans "API token" %}</h2>
+    <p class="ua-muted">{% trans "Create a scoped API token at dash.cloudflare.com > My Profile > API Tokens > Create Token > Custom token, for the zones you want to manage here. Grant these permissions:" %}</p>
+    <table class="ua-table" style="margin-bottom:12px">
+      <thead><tr><th>{% trans "Type" %}</th><th>{% trans "Permission" %}</th><th>{% trans "Access" %}</th><th>{% trans "Used for" %}</th></tr></thead>
+      <tbody>{% for scope, name, level, used in permissions %}<tr><td>{{ scope }}</td><td><strong>{{ name }}</strong></td><td>{{ level }}</td><td class="ua-muted">{{ used }}</td></tr>{% endfor %}</tbody>
+    </table>
+    <div class="ua-row">
+      <strong>{% trans "Your token" %}:</strong> <span id="cf-token-own" class="ua-muted">{% trans "Loading…" %}</span>
+    </div>
+    <div class="ua-row">
+      <input type="password" id="cf-token-input" autocomplete="off" placeholder="{% trans 'Paste a Cloudflare API token' %}">
+      <button type="button" class="ua-btn" id="cf-token-save">{% trans "Verify and save" %}</button>
+      <button type="button" class="ua-btn ua-btn-secondary" id="cf-token-verify">{% trans "Check again" %}</button>
+      <button type="button" class="ua-btn ua-btn-secondary" id="cf-token-forget">{% trans "Forget token" %}</button>
+    </div>
+    {% if is_admin %}
+    <div class="ua-row" style="margin-top:14px">
+      <strong>{% trans "Server-wide token (administrators only)" %}:</strong> <span id="cf-token-server" class="ua-muted"></span>
+    </div>
+    <div class="ua-row">
+      <input type="password" id="cf-server-input" autocomplete="off" placeholder="{% trans 'Server-wide API token' %}">
+      <button type="button" class="ua-btn" id="cf-server-save">{% trans "Verify and save" %}</button>
+      <button type="button" class="ua-btn ua-btn-secondary" id="cf-server-verify">{% trans "Check again" %}</button>
+      <button type="button" class="ua-btn ua-btn-secondary" id="cf-server-forget">{% trans "Forget token" %}</button>
+    </div>
+    {% endif %}
+    <div id="cf-token-out"></div>
+  </div>
+
+  <div class="ua-card">
+    <h2>{% trans "Zones" %}</h2>
+    <div class="ua-row">
+      {% if is_admin %}<select id="cf-source"><option value="own">{% trans "My token" %}</option><option value="server">{% trans "Server-wide token" %}</option></select>{% endif %}
+      <button type="button" class="ua-btn ua-btn-secondary" id="cf-zones-load">{% trans "Refresh" %}</button>
+      <span class="ua-muted">{% trans "Results are cached for under a minute to stay within Cloudflare's API limits." %}</span>
+    </div>
+    <div id="cf-zones" style="overflow-x:auto"></div>
+  </div>
+
+  <div class="ua-card" id="cf-zone" style="display:none">
+    <h2 id="cf-zone-title"></h2>
+    <div class="ua-tabs" id="cf-tabs">
+      <button type="button" data-tab="overview" class="active">{% trans "Overview" %}</button>
+      <button type="button" data-tab="dns">{% trans "DNS" %}</button>
+      <button type="button" data-tab="cache">{% trans "Cache" %}</button>
+      <button type="button" data-tab="ssl">{% trans "SSL/TLS" %}</button>
+      <button type="button" data-tab="security">{% trans "Security" %}</button>
+      <button type="button" data-tab="analytics">{% trans "Analytics" %}</button>
+      <button type="button" data-tab="speed">{% trans "Speed" %}</button>
+      <button type="button" data-tab="origin">{% trans "Origin certificate" %}</button>
+      <button type="button" data-tab="activity">{% trans "Activity" %}</button>
+    </div>
+    <div id="cf-out"></div>
+
+    <div class="ua-pane active" data-pane="overview"><div id="cf-overview"></div>
+      <h3>{% trans "Linked site" %}</h3>
+      <p class="ua-muted">{% trans "Link the zone to one of your sites to import its DNS records and install an Origin certificate. You can link only sites you manage, and only the zone name itself or a name inside it." %}</p>
+      <div class="ua-row"><select id="cf-link-site"></select>
+        <button type="button" class="ua-btn" id="cf-link-save">{% trans "Save link" %}</button></div>
+    </div>
+
+    <div class="ua-pane" data-pane="dns">
+      <div class="ua-row">
+        <input type="search" id="cf-dns-filter" placeholder="{% trans 'Filter records' %}">
+        <button type="button" class="ua-btn ua-btn-secondary" id="cf-dns-new">{% trans "Add record" %}</button>
+        <button type="button" class="ua-btn ua-btn-secondary" id="cf-import">{% trans "Import from this server's DNS" %}</button>
+      </div>
+      <div class="ua-row"><strong>{% trans "Point to this server" %}</strong>
+        <input type="text" id="cf-point-name" value="@" style="min-width:160px">
+        <label><input type="checkbox" id="cf-point-proxied" checked> {% trans "Proxied" %}</label>
+        <button type="button" class="ua-btn ua-btn-secondary" id="cf-point">{% trans "Set A record" %}</button>
+        <span class="ua-muted" id="cf-point-ip"></span></div>
+      <div id="cf-dns-form" style="display:none" class="ua-card"></div>
+      <div id="cf-import-out"></div>
+      <div id="cf-dns" style="overflow-x:auto"></div>
+    </div>
+
+    <div class="ua-pane" data-pane="cache">
+      <div class="ua-row"><button type="button" class="ua-btn" id="cf-purge-all" style="background:#dc2626">{% trans "Purge everything" %}</button></div>
+      <p class="ua-muted">{% trans "Purge by URL: one full URL per line, at most 30 per purge." %}</p>
+      <textarea id="cf-purge-urls" placeholder="https://example.com/style.css"></textarea>
+      <div class="ua-row" style="margin-top:8px"><button type="button" class="ua-btn ua-btn-secondary" id="cf-purge-urls-go">{% trans "Purge these URLs" %}</button></div>
+      <div data-settings="cache"></div>
+    </div>
+
+    <div class="ua-pane" data-pane="ssl">
+      <div class="ua-alert" style="background:#fef3c7;color:#92400e;margin-bottom:12px">{% trans "Flexible connects to your server over plain HTTP. If the site redirects HTTP to HTTPS on this server, visitors get an endless redirect loop. With a certificate on this server (Let's Encrypt or an Origin certificate) use Full (strict)." %}</div>
+      <div data-settings="ssl"></div>
+    </div>
+
+    <div class="ua-pane" data-pane="security">
+      <div class="ua-row"><strong>{% trans "Under Attack mode" %}</strong> <span id="cf-uam-state" class="ua-muted"></span>
+        <button type="button" class="ua-btn ua-btn-secondary" id="cf-uam">{% trans "Toggle" %}</button></div>
+      <div data-settings="security"></div>
+      <h3>{% trans "IP access rules" %}</h3>
+      <div class="ua-row">
+        <select id="cf-rule-mode"><option value="block">{% trans "Block" %}</option><option value="challenge">{% trans "Challenge" %}</option><option value="allow">{% trans "Allow" %}</option></select>
+        <input type="text" id="cf-rule-value" placeholder="{% trans 'IP, CIDR range or country code (IN)' %}">
+        <input type="text" id="cf-rule-notes" placeholder="{% trans 'Note (optional)' %}">
+        <button type="button" class="ua-btn ua-btn-secondary" id="cf-rule-add">{% trans "Add rule" %}</button>
+      </div>
+      <div id="cf-rules" style="overflow-x:auto"></div>
+    </div>
+
+    <div class="ua-pane" data-pane="analytics">
+      <div class="ua-row"><select id="cf-range"><option value="24h">{% trans "Last 24 hours" %}</option><option value="7d">{% trans "Last 7 days" %}</option><option value="30d">{% trans "Last 30 days" %}</option></select>
+        <button type="button" class="ua-btn ua-btn-secondary" id="cf-analytics-load">{% trans "Show" %}</button></div>
+      <div id="cf-analytics"></div>
+    </div>
+
+    <div class="ua-pane" data-pane="speed">
+      <p class="ua-muted">{% trans "Some settings depend on your Cloudflare plan; Cloudflare refuses those your plan does not allow." %}</p>
+      <div data-settings="speed"></div>
+    </div>
+
+    <div class="ua-pane" data-pane="origin">
+      <p>{% trans "Create a Cloudflare Origin CA certificate (15 years, for the linked site and *.site) and install it on that site with the panel's SSL install code. A new private key is made on this server and never leaves it." %}</p>
+      <p class="ua-muted">{% trans "Origin certificates are trusted only by Cloudflare: keep the site's DNS records proxied and the SSL/TLS mode on Full (strict). The token needs Zone > SSL and Certificates > Edit. Installing restarts the web server gracefully." %}</p>
+      <div class="ua-row"><button type="button" class="ua-btn" id="cf-origin">{% trans "Create and install" %}</button></div>
+      <div id="cf-origin-out"></div>
+    </div>
+
+    <div class="ua-pane" data-pane="activity"><div id="cf-audit"></div></div>
+  </div>
+</div>
+{% endblock %}

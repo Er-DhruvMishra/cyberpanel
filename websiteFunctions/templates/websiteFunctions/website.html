@@ -2471,6 +2471,32 @@
                     </div>
                 </a>
                 
+                <!-- Git deploy add-on card (IndiansCloud) -->
+                <a href="/addons/git-deploy/?site={{ domain|urlencode }}" class="app-card git">
+                    <div class="app-icon-wrapper"><i class="fas fa-code-branch app-icon" style="font-size:40px;line-height:64px;"></i></div>
+                    <h3 class="app-name">{% trans "Git Deploy & Webhooks" %}</h3>
+                    <p class="app-description">{% trans "Deploy on every push from GitHub, GitLab, Bitbucket or Gitea, with releases and rollback" %}</p>
+                    <div class="app-features">
+                        <span class="feature-tag">Webhooks</span>
+                        <span class="feature-tag">Deploy key</span>
+                        <span class="feature-tag">Rollback</span>
+                    </div>
+                    <div class="install-btn"><i class="fas fa-rocket"></i> {% trans "Set up deploys" %}</div>
+                </a>
+
+                <!-- Laravel Toolkit add-on card (IndiansCloud) -->
+                <a href="/addons/laravel/?site={{ domain|urlencode }}" class="app-card laravel">
+                    <div class="app-icon-wrapper"><i class="fas fa-layer-group app-icon" style="font-size:40px;line-height:64px;"></i></div>
+                    <h3 class="app-name">{% trans "Laravel Toolkit" %}</h3>
+                    <p class="app-description">{% trans "Install Laravel, run artisan and composer, scheduler, queue worker, .env and logs" %}</p>
+                    <div class="app-features">
+                        <span class="feature-tag">Artisan</span>
+                        <span class="feature-tag">Queue</span>
+                        <span class="feature-tag">.env</span>
+                    </div>
+                    <div class="install-btn"><i class="fas fa-toolbox"></i> {% trans "Open toolkit" %}</div>
+                </a>
+
                 <!-- PrestaShop Card -->
                 <a href="{$ installPrestaURL $}" class="app-card prestashop">
                     <div class="quick-badge">E-Commerce</div>

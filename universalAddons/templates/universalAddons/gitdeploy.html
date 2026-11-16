@@ -1,0 +1,86 @@
+{% extends "universalAddons/base.html" %}
+{% load i18n static %}
+{% block title %}{% trans "Git deploy" %} - IndiansCloud{% endblock %}
+{% block addon_scripts %}<script src="{% static 'universalAddons/gitdeploy.js' %}?v={{ CP_VERSION }}"></script>{% endblock %}
+{% block content %}
+<div class="ua-wrap" id="ua-gitdeploy" data-base="{% url 'ua-gitdeploy' %}" data-admin="{{ is_admin|yesno:'1,0' }}" data-site="{{ site }}">
+  <div class="ua-header">
+    <h1><i class="fas fa-code-branch"></i> {% trans "Git deploy" %}</h1>
+    <p>{% trans "Deploy a site from GitHub, GitLab, Bitbucket or Gitea, by hand or on every push. Git, builds and your deploy script run as the site's own Linux user, never as root." %}</p>
+  </div>
+
+  <div class="ua-card">
+    <div class="ua-row"><label>{% trans "Site" %} <select id="gd-site"></select></label><span id="gd-site-state" class="ua-muted"></span></div>
+  </div>
+
+  <div class="ua-card" id="gd-overview" style="display:none">
+    <h2>{% trans "Deployments" %}</h2>
+    <div id="gd-summary"></div>
+    <div class="ua-row">
+      <button class="ua-btn" id="gd-deploy">{% trans "Deploy now" %}</button>
+      <button class="ua-btn ua-btn-secondary" id="gd-rollback" style="display:none">{% trans "Roll back to the previous release" %}</button>
+    </div>
+    <div id="gd-history"></div>
+    <div class="ua-pre" id="gd-log" style="display:none"></div>
+  </div>
+
+  <div class="ua-card" id="gd-webhook-card" style="display:none">
+    <h2>{% trans "Webhook" %}</h2>
+    <p class="ua-muted">{% trans "Add this URL as a push webhook (content type application/json) in your Git host, with the secret below. GitHub, Gitea and Bitbucket sign each delivery with it (HMAC-SHA256); GitLab sends it as the secret token. Only pushes to the configured branch deploy." %}</p>
+    <div id="gd-webhook"></div>
+    <div class="ua-row">
+      <button class="ua-btn ua-btn-secondary" id="gd-secret-show">{% trans "Show secret" %}</button>
+      <button class="ua-btn ua-btn-secondary" id="gd-secret-new">{% trans "New secret" %}</button>
+      <code id="gd-secret"></code>
+    </div>
+  </div>
+
+  <div class="ua-card" id="gd-key-card" style="display:none">
+    <h2>{% trans "Deploy key" %}</h2>
+    <p class="ua-muted">{% trans "Add this public key as a read-only deploy key of the repository. The private key stays in the site user's ~/.ssh and is never shown." %}</p>
+    <div class="ua-pre" id="gd-key"></div>
+    <div class="ua-row"><button class="ua-btn ua-btn-secondary" id="gd-key-new">{% trans "Replace the key" %}</button></div>
+  </div>
+
+  <div class="ua-card" id="gd-settings" style="display:none">
+    <h2>{% trans "Repository" %}</h2>
+    <div class="ua-row">
+      <input id="gd-url" placeholder="https://github.com/owner/repo.git  or  git@github.com:owner/repo.git" style="min-width:420px">
+      <input id="gd-branch" placeholder="main" value="main" style="min-width:120px">
+    </div>
+    <div class="ua-row">
+      <label><input type="radio" name="gd-auth" value="public" checked> {% trans "Public (HTTPS, nothing extra)" %}</label>
+      <label><input type="radio" name="gd-auth" value="key"> {% trans "Private: deploy key (SSH URL)" %}</label>
+      <label><input type="radio" name="gd-auth" value="token"> {% trans "Private: HTTPS access token" %}</label>
+    </div>
+    <div class="ua-row" id="gd-token-row" style="display:none">
+      <input id="gd-token" type="password" autocomplete="new-password" placeholder="{% trans 'access token (stored root-only, never shown again)' %}">
+      <input id="gd-token-user" placeholder="x-access-token" style="min-width:160px" title="{% trans 'GitHub: x-access-token, GitLab: oauth2, Bitbucket: your username' %}">
+      <span class="ua-muted" id="gd-token-state"></span>
+    </div>
+    <div class="ua-row">
+      <label>{% trans "Deploy into" %} <input id="gd-target" placeholder="public_html" style="min-width:200px"></label>
+      <select id="gd-mode">
+        <option value="pull">{% trans "Pull into the directory (git working tree)" %}</option>
+        <option value="releases">{% trans "Build to releases, switch a symlink (with rollback)" %}</option>
+      </select>
+      <label id="gd-keep-row">{% trans "keep" %} <input id="gd-keep" type="number" min="2" max="20" value="5" style="min-width:70px"> {% trans "releases" %}</label>
+    </div>
+    <p class="ua-muted">{% trans "The directory must be empty the first time (a default index.html is fine). In releases mode it becomes a link to the current release; .env and storage/ in the shared folder are linked into every release." %}</p>
+    <h3>{% trans "After each deploy" %}</h3>
+    <div class="ua-row" id="gd-steps"></div>
+    <div class="ua-row">
+      <label>{% trans "App to restart" %} <select id="gd-app"></select></label>
+      <label><input type="checkbox" id="gd-script"> {% trans "Run .indianscloud/deploy.sh from the repository" %}</label>
+      <label>{% trans "timeout (s)" %} <input id="gd-script-timeout" type="number" min="10" max="1800" value="600" style="min-width:80px"></label>
+    </div>
+    <div class="ua-row">
+      <button class="ua-btn" id="gd-save">{% trans "Save" %}</button>
+      <button class="ua-btn ua-btn-secondary" id="gd-disconnect" style="display:none">{% trans "Disconnect" %}</button>
+      <span id="gd-save-out"></span>
+    </div>
+  </div>
+
+  <div class="ua-card" id="gd-job" style="display:none"><h2>{% trans "Progress" %}</h2><div id="gd-job-out"></div></div>
+</div>
+{% endblock %}

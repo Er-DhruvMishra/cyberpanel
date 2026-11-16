@@ -55,8 +55,17 @@ def release(request, data):
     return ok(subdomains=service.listing())
 
 
+def _manages_a_website(acl, user_id):
+    """Child domains need no ACL permission, only a website of one's own (submitDomainCreation)."""
+    from plogical.acl import ACLManager
+    try:
+        return bool(ACLManager.findAllSites(acl, user_id))
+    except Exception:
+        return False
+
+
 def check(request):
-    """Is <label>.<base> free? For any logged-in user who may create websites."""
+    """Is <label>.<base> free? For any logged-in user who may create websites or child domains."""
     from plogical.acl import ACLManager
     try:
         user_id = request.session['userID']
@@ -68,8 +77,8 @@ def check(request):
         acl = ACLManager.loadedACL(user_id)
     except Exception:
         return error('Could not load your account.', status=403)
-    if ACLManager.currentContextPermission(acl, 'createWebsite') == 0:
-        return error('You may not create websites.', status=403)
+    if ACLManager.currentContextPermission(acl, 'createWebsite') == 0 and not _manages_a_website(acl, user_id):
+        return error('You may not create websites or domains.', status=403)
     try:
         body = json.loads(request.body or b'{}')
     except ValueError:

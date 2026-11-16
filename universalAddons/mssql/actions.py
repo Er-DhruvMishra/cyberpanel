@@ -67,7 +67,8 @@ def install(accept_eula, memory_limit_mb=None):
     if failed:
         raise SQLError('Cannot install: ' + ' '.join(failed))
     limit = int(memory_limit_mb or state['default_memory_limit_mb'])
-    if not 512 <= limit <= max(512, state['ram_mb'] - 512):
+    low, high = sq.memory_limit_bounds(state['ram_mb'])
+    if not low <= limit <= high:
         raise SQLError('Memory limit must leave at least 512 MB for the rest of the server.')
     return jobs.spawn('mssql', 'install_run', {'memory_limit_mb': limit})
 
@@ -328,6 +329,59 @@ def protect():
         if code != 0:
             raise SQLError('%s failed: %s' % (' '.join(argv), out.strip()[-300:]))
     return {'dropin': sq.PROTECT_DROPIN, 'memory_limit_mb': limit}
+
+
+def _meta():
+    return sq._load(os.path.join(sq.STATE_DIR, 'sa.json'), {})
+
+
+def memory_state():
+    """The panel's memory cap and, when SQL Server answers, the max server memory in use."""
+    meta = _meta()
+    state = {'memory_limit_mb': meta.get('memory_limit_mb'), 'max_server_memory_mb': None}
+    if meta.get('password'):
+        try:
+            out = sq.sqlcmd(sq.MAX_SERVER_MEMORY_QUERY, meta['password'], timeout=15)
+            numbers = [line.strip() for line in out.splitlines() if line.strip().isdigit()]
+            state['max_server_memory_mb'] = int(numbers[-1]) if numbers else None
+        except SQLError:
+            pass
+    return state
+
+
+def write_memory_limit(memory_limit_mb):
+    """Store a new memory cap: mssql-conf memory.memorylimitmb, the systemd ceiling drop-in and the
+    panel's record. Takes effect when SQL Server restarts (Applications restarts and checks it)."""
+    if not _installed():
+        raise SQLError('SQL Server is not set up by the panel.')
+    limit = sq.validate_memory_limit(memory_limit_mb, sq.total_ram_mb())
+    code, out = sq.run([sq.MSSQL_CONF, 'set', 'memory.memorylimitmb', str(limit)], timeout=120)
+    if code != 0:
+        raise SQLError('mssql-conf set memory.memorylimitmb failed: %s' % out.strip()[-300:])
+    sq.write_protect_dropin(limit)
+    meta = _meta()
+    meta['memory_limit_mb'] = limit
+    sq._private_write(os.path.join(sq.STATE_DIR, 'sa.json'), meta)
+    return limit
+
+
+def apply_max_server_memory(memory_limit_mb):
+    """sp_configure 'max server memory' for the cap (needs SQL Server running); returns the value in use."""
+    mb = sq.max_server_memory_mb(memory_limit_mb)
+    out = sq.sqlcmd(sq.max_server_memory_sql(mb), sq.sa_password(), timeout=60)
+    numbers = [line.strip() for line in out.splitlines() if line.strip().isdigit()]
+    if not numbers or int(numbers[-1]) != mb:
+        raise SQLError('max server memory is not %d MB after sp_configure: %s' % (mb, out.strip()[-300:]))
+    return mb
+
+
+def ping():
+    """(healthy, detail): SQL Server accepts the panel's sa login."""
+    try:
+        out = sq.sqlcmd("SET NOCOUNT ON; SELECT 'ok';\nGO\n", sq.sa_password(), timeout=20)
+    except SQLError as exc:
+        return False, str(exc)[-200:]
+    return 'ok' in out, 'sa login answered'
 
 
 ACTIONS = {

@@ -1,0 +1,95 @@
+{% extends "universalAddons/base.html" %}
+{% load i18n static %}
+{% block title %}{% trans "Laravel Toolkit" %} - IndiansCloud{% endblock %}
+{% block addon_scripts %}<script src="{% static 'universalAddons/laravel.js' %}?v={{ CP_VERSION }}"></script>{% endblock %}
+{% block content %}
+<div class="ua-wrap" id="ua-laravel" data-base="{% url 'ua-laravel' %}" data-admin="{{ is_admin|yesno:'1,0' }}" data-site="{{ site }}">
+  <div class="ua-header">
+    <h1><i class="fas fa-layer-group"></i> {% trans "Laravel Toolkit" %}</h1>
+    <p>{% trans "Every command runs as the site's own Linux user with the site's PHP. Only the listed commands can run." %}
+      {% if not is_admin %}{% trans "You see the websites of your account only." %}{% endif %}</p>
+  </div>
+
+  <div class="ua-card" id="lv-composer-card" style="display:none">
+    <h2>{% trans "Composer" %}</h2>
+    <div id="lv-composer"></div>
+  </div>
+
+  <div class="ua-card">
+    <h2>{% trans "Laravel apps" %}</h2>
+    <div class="ua-row"><label>{% trans "Site" %} <select id="lv-filter"><option value="">{% trans "all my sites" %}</option></select></label></div>
+    <div id="lv-apps"><p class="ua-muted">{% trans "Scanning…" %}</p></div>
+  </div>
+
+  <div class="ua-card" id="lv-app" style="display:none">
+    <h2 id="lv-app-title"></h2>
+    <div class="ua-tabs">
+      <button class="active" data-pane="overview">{% trans "Overview" %}</button>
+      <button data-pane="commands">{% trans "Commands" %}</button>
+      <button data-pane="background">{% trans "Scheduler & queue" %}</button>
+      <button data-pane="env">{% trans ".env" %}</button>
+      <button data-pane="logs">{% trans "Logs" %}</button>
+    </div>
+    <div class="ua-pane active" id="lv-pane-overview">
+      <div id="lv-overview"></div>
+      <h3>{% trans "Web root" %}</h3>
+      <p class="ua-muted">{% trans "Laravel must be served from its public/ directory so .env, vendor/ and storage/ are never reachable over the web. For an app at the document root, IndiansCloud moves the site's document root to public/ (the same vhost docRoot edit the panel uses, with a backup and rollback if the web server does not restart). For an app in a subdirectory it adds a rewrite to public/ in the app's .htaccess instead." %}</p>
+      <div class="ua-row">
+        <button class="ua-btn" data-public="auto">{% trans "Serve public/" %}</button>
+        <button class="ua-btn ua-btn-secondary" data-public="htaccess">{% trans "Use the .htaccess rewrite" %}</button>
+        <button class="ua-btn ua-btn-secondary" data-public="undo">{% trans "Undo" %}</button>
+        <span id="lv-public-out"></span>
+      </div>
+    </div>
+    <div class="ua-pane" id="lv-pane-commands">
+      <h3>artisan</h3><div class="ua-row" id="lv-artisan"></div>
+      <div class="ua-row">
+        <label><input type="checkbox" id="lv-seed"> {% trans "migrate: also run seeders (--seed)" %}</label>
+        <input id="lv-down-secret" placeholder="{% trans 'down: bypass secret (optional)' %}" maxlength="64">
+      </div>
+      <h3>composer</h3><div class="ua-row" id="lv-composer-cmds"></div>
+      <p class="ua-muted">{% trans "Commands marked with * change the app or its database and ask for confirmation." %}</p>
+    </div>
+    <div class="ua-pane" id="lv-pane-background">
+      <div id="lv-background"></div>
+      <div class="ua-row">
+        <label>{% trans "Worker memory limit (MB)" %} <input type="number" id="lv-memory" min="64" step="64" value="256" style="min-width:90px"></label>
+        <label>{% trans "Queues" %} <input id="lv-queue" value="default" style="min-width:140px"></label>
+      </div>
+      <div class="ua-pre" id="lv-worker-log" style="display:none"></div>
+    </div>
+    <div class="ua-pane" id="lv-pane-env">
+      <p class="ua-muted">{% trans "Values are hidden except for non-secret settings such as APP_ENV, APP_DEBUG and APP_URL. Each change backs up .env first (the last 10 backups are kept next to it)." %}</p>
+      <div id="lv-env"></div>
+      <div class="ua-row">
+        <input id="lv-env-key" placeholder="KEY" maxlength="64" style="min-width:160px">
+        <input id="lv-env-value" placeholder="{% trans 'new value' %}" maxlength="4096" autocomplete="off">
+        <button class="ua-btn" id="lv-env-save">{% trans "Save key" %}</button>
+        <span id="lv-env-out"></span>
+      </div>
+    </div>
+    <div class="ua-pane" id="lv-pane-logs">
+      <div class="ua-row"><button class="ua-btn ua-btn-secondary" id="lv-logs-refresh">{% trans "Refresh" %}</button><span class="ua-muted" id="lv-logs-file"></span></div>
+      <div class="ua-pre" id="lv-logs"></div>
+    </div>
+  </div>
+
+  <div class="ua-card">
+    <h2>{% trans "Install a new Laravel app" %}</h2>
+    <p class="ua-muted">{% trans "Runs composer create-project laravel/laravel as the site user into an empty directory, then serves its public/ directory." %}</p>
+    <div class="ua-row">
+      <select id="lv-new-site"></select>
+      <input id="lv-new-path" placeholder="{% trans 'directory below the document root (empty = the document root)' %}">
+      <select id="lv-new-version"><option value="">{% trans "latest Laravel" %}</option><option value="12">12.x</option><option value="11">11.x</option><option value="10">10.x</option></select>
+      <select id="lv-new-point">
+        <option value="auto">{% trans "serve public/ (automatic)" %}</option>
+        <option value="htaccess">{% trans "serve public/ with .htaccess" %}</option>
+        <option value="none">{% trans "leave the web root alone" %}</option>
+      </select>
+      <button class="ua-btn" id="lv-new-install">{% trans "Install" %}</button>
+    </div>
+  </div>
+
+  <div class="ua-card" id="lv-job" style="display:none"><h2>{% trans "Progress" %}</h2><div id="lv-job-out"></div></div>
+</div>
+{% endblock %}

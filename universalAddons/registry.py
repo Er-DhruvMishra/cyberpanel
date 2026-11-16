@@ -26,8 +26,8 @@ MODULES = (
     Module('wordpress', 'WordPress Manager Pro', 'fa-blog',
            'Clone, stage, push to production, safe auto-updates and hardening.',
            'ua-wordpress', 'ready'),
-    Module('apps', 'Node.js, Python, .NET & Java apps', 'fa-cubes',
-           'Run Node.js, Python, ASP.NET Core and Java (JAR / WAR) apps as sandboxed services behind OpenLiteSpeed.',
+    Module('apps', 'Node.js, Python, .NET, Java, Ruby, Go & more', 'fa-cubes',
+           'Run Node.js, Python, ASP.NET Core, Java/Kotlin, Ruby on Rails, Go, Deno and Bun apps as sandboxed services behind OpenLiteSpeed.',
            'ua-apps', 'ready'),
     Module('mssql', 'SQL Server databases', 'fa-database',
            'Microsoft SQL Server Express with per-site databases and logins.',
@@ -69,6 +69,18 @@ MODULES = (
     Module('freesub', 'Free subdomains', 'fa-globe',
            'Give new websites a free name under your own domain: local PowerDNS zone, Cloudflare or deSEC.',
            'ua-freesub', 'ready'),
+    Module('cloudflare', 'Cloudflare', 'fa-cloud',
+           'Your Cloudflare zones with your own API token: DNS, cache purge, SSL/TLS, security, speed, '
+           'analytics and Origin CA certificates.',
+           'ua-cloudflare', 'ready'),
+    Module('laravel', 'Laravel Toolkit', 'fa-layer-group',
+           'Detect and install Laravel, run whitelisted artisan and composer commands, scheduler, queue worker, '
+           '.env editor and logs, all as the site user.',
+           'ua-laravel', 'ready'),
+    Module('gitdeploy', 'Git deploy', 'fa-code-branch',
+           'Deploy a site from GitHub, GitLab, Bitbucket or Gitea: deploy keys, signed webhooks, build steps, '
+           'releases with rollback.',
+           'ua-gitdeploy', 'ready'),
 )
 
 
@@ -109,6 +121,8 @@ def requirement_problems(key, which=shutil.which, exists=os.path.exists):
         problems.append('This server does not run OpenLiteSpeed.')
     if key == 'apps' and not exists('/usr/local/lsws/bin/openlitespeed'):
         problems.append('Apps are proxied by OpenLiteSpeed, which is not installed.')
+    if key == 'gitdeploy' and not which('git'):
+        problems.append('git is not installed (dnf/apt install git).')
     if key == 'emaildebug':
         if not which('dig'):
             problems.append('dig is not installed (bind-utils / dnsutils).')

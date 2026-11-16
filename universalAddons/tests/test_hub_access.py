@@ -56,7 +56,8 @@ class Hub(SimpleTestCase):
         switches = {a['key']: a['enabled'] for a in data['user_access']}
         self.assertEqual(switches, {
             'wordpress': False, 'backupv2': True, 'sslv2': False, 'htaccess': False, 'emaildebug': False,
-            'limits': False, 'apps': True, 'mssql': False, 'emaillimits': False, 'webterm': False})
+            'limits': False, 'apps': True, 'mssql': False, 'emaillimits': False, 'webterm': False,
+            'cloudflare': False, 'laravel': False, 'gitdeploy': False})
         for row in data['user_access']:
             self.assertTrue(row['help'], row['key'])            # a short description of what users get
             self.assertNotEqual(row['title'], row['key'])        # the module's real title

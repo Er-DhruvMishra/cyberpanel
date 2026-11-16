@@ -3,25 +3,29 @@
 {% block title %}{% trans "Applications" %} - IndiansCloud{% endblock %}
 {% block addon_scripts %}<script src="{% static 'universalAddons/appsvc.js' %}?v={{ CP_VERSION }}"></script>{% endblock %}
 {% block content %}
-<div class="ua-wrap" id="ua-appsvc" data-base="{% url 'ua-appsvc' %}">
+<div class="ua-wrap" id="ua-appsvc" data-base="{% url 'ua-appsvc' %}" data-runtimes="{% url 'ua-apps' %}">
   <div class="ua-header">
     <h1><i class="fas fa-layer-group"></i> {% trans "Applications" %}</h1>
-    <p>{% trans "Install, configure and run Elasticsearch, Redis and Memcached on this server. The panel writes only its own drop-in files (or one marked block), keeps a backup of every change and restores it automatically if the service does not come back healthy." %}
+    <p>{% trans "Server-wide software on this IndiansCloud server in one place: install or uninstall it (with its size on disk), tune it and see its status. The panel writes only its own drop-in files (or one marked block), keeps a backup of every change and restores it automatically if the service does not come back healthy. Uninstalling shows the exact package list first and keeps data unless you type the application's name." %}
       <a href="{% url 'ua-hub' %}">&larr; {% trans "Add-ons" %}</a></p>
   </div>
   <div class="ua-card">
     <div id="as-host"><p class="ua-muted">{% trans "Checking…" %}</p></div>
+    <div id="as-budget"></div>
     <div id="as-out"></div>
   </div>
   <div class="ua-tabs" id="as-tabs">
     {% for app in apps %}<button data-app="{{ app.key }}"{% if forloop.first %} class="active"{% endif %}>{{ app.title }}</button>{% endfor %}
+    <button data-app="overview-disk">{% trans "Disk and runtimes" %}</button>
   </div>
   {% for app in apps %}
-  <div class="ua-pane{% if forloop.first %} active{% endif %}" id="as-pane-{{ app.key }}" data-app="{{ app.key }}">
+  <div class="ua-pane{% if forloop.first %} active{% endif %}" id="as-pane-{{ app.key }}" data-app="{{ app.key }}" data-kind="{{ app.kind }}">
     <div class="ua-card">
       <h2>{{ app.title }}</h2>
       <p class="ua-muted">{{ app.about }}</p>
+      {% if app.link %}<p><a class="ua-btn ua-btn-secondary" href="{{ app.link }}">{{ app.link_title }} &rarr;</a></p>{% endif %}
       <div class="as-status"><p class="ua-muted">{% trans "Checking…" %}</p></div>
+      {% if app.kind == 'service' or app.kind == 'bridge' %}
       <div class="as-controls ua-row" style="display:none">
         <button class="ua-btn ua-btn-secondary" data-op="start">{% trans "Start" %}</button>
         <button class="ua-btn ua-btn-secondary" data-op="stop">{% trans "Stop" %}</button>
@@ -29,17 +33,28 @@
         <button class="ua-btn ua-btn-secondary" data-op="enable">{% trans "Enable at boot" %}</button>
         <button class="ua-btn ua-btn-secondary" data-op="disable">{% trans "Disable at boot" %}</button>
       </div>
+      {% endif %}
       <div class="as-secret"></div>
       <div class="as-msg"></div>
     </div>
+    {% if app.kind == 'service' or app.kind == 'client' %}
     <div class="ua-card as-install" style="display:none">
       <h2>{% trans "Install" %}</h2>
       <div class="as-preflight"></div>
-      <p><label><input type="checkbox" class="as-force"> {% trans "Install anyway, even below the recommended RAM or disk minimum" %}</label></p>
+      {% if app.key == 'postgresql' %}<p><label>{% trans "Version" %} <select class="as-major"><option value="17">PostgreSQL 17</option><option value="16">PostgreSQL 16</option></select></label></p>{% endif %}
+      <p><label><input type="checkbox" class="as-force"> {% trans "Install anyway, even below the recommended RAM, disk or memory budget" %}</label></p>
       <button class="ua-btn as-install-btn">{% trans "Install" %} {{ app.title }}</button>
     </div>
+    {% elif app.kind == 'bridge' %}
+    <div class="ua-card as-install" style="display:none">
+      <h2>{% trans "Install" %}</h2>
+      <p>{% blocktrans with title=app.title %}{{ title }} is installed from its own add-on, which asks for the licence terms and sets the memory cap.{% endblocktrans %}</p>
+      <a class="ua-btn" href="{{ app.link }}">{{ app.link_title }} &rarr;</a>
+    </div>
+    {% endif %}
+    {% if app.fields %}
     <div class="ua-card as-config" style="display:none">
-      <h2>{% trans "Configuration" %}</h2>
+      <h2>{% trans "Tweaks" %}</h2>
       <div class="as-config-note ua-muted"></div>
       <div class="as-form"></div>
       <p><label><input type="checkbox" class="as-exposed"> {% trans "I understand: listen beyond 127.0.0.1 (reachable from the network; firewall the port)" %}</label></p>
@@ -48,26 +63,65 @@
         <button class="ua-btn ua-btn-secondary as-revert">{% trans "Revert to the previous configuration" %}</button>
       </div>
     </div>
+    {% endif %}
+    {% if app.key == 'postgresql' %}
+    <div class="ua-card as-pgdb" style="display:none">
+      <h2>{% trans "Databases" %}</h2>
+      <div class="as-pgdb-list"></div>
+      <h3>{% trans "Create a database and its user" %}</h3>
+      <div class="ua-row">
+        <label>{% trans "Database" %} <input class="as-pg-db" autocomplete="off" placeholder="shop"></label>
+        <label>{% trans "User" %} <input class="as-pg-user" autocomplete="off" placeholder="shop"></label>
+        <button class="ua-btn as-pg-create">{% trans "Create" %}</button>
+      </div>
+      <p class="ua-muted">{% trans "Lowercase letters, digits and _. A strong password is generated and shown once; it is not stored by the panel." %}</p>
+      <div class="as-pg-out"></div>
+    </div>
+    {% endif %}
+    {% if app.kind != 'status' %}
     <div class="ua-card as-connect" style="display:none">
       <h2>{% trans "Connection info for site owners" %}</h2>
       <div class="as-connect-body"></div>
     </div>
+    {% endif %}
+    {% if app.kind == 'service' or app.kind == 'bridge' %}
     <div class="ua-card as-logs-card" style="display:none">
       <h2>{% trans "Log (last 50 lines)" %}</h2>
       <button class="ua-btn ua-btn-secondary as-logs-btn">{% trans "Load log" %}</button>
       <div class="as-logs"></div>
     </div>
+    {% endif %}
+    {% if app.kind != 'status' %}
     <div class="ua-card as-remove" style="display:none">
-      <h2>{% trans "Remove" %}</h2>
-      <p class="ua-muted">{% trans "Removes the package. The data directory is kept unless you tick the box and type the application's name." %}</p>
-      <p><label><input type="checkbox" class="as-delete"> {% trans "Also delete the data directory. Type the name to confirm:" %}</label>
-        <input class="as-confirm" placeholder="{{ app.key }}" autocomplete="off" style="min-width:140px"></p>
-      <button class="ua-btn as-remove-btn" style="background:#dc2626">{% trans "Remove" %} {{ app.title }}</button>
+      <h2>{% trans "Uninstall" %}</h2>
+      <p class="ua-muted">{% trans "Removes the packages to save space. First the panel asks dnf which packages would go (nothing is removed yet); the uninstall then removes exactly that list. The data directory is kept unless you tick the box and type the application's name." %}</p>
+      <button class="ua-btn ua-btn-secondary as-preview-btn">{% trans "Show what will be removed" %}</button>
+      <div class="as-preview"></div>
+      <div class="as-remove-confirm" style="display:none">
+        <p><label><input type="checkbox" class="as-delete"> {% trans "Also delete the data directory. Type the name to confirm:" %}</label>
+          <input class="as-confirm" placeholder="{{ app.key }}" autocomplete="off" style="min-width:140px"></p>
+        <button class="ua-btn as-remove-btn" style="background:#dc2626">{% trans "Uninstall" %} {{ app.title }}</button>
+      </div>
     </div>
+    {% endif %}
   </div>
   {% endfor %}
+  <div class="ua-pane" id="as-pane-overview-disk" data-app="overview-disk">
+    <div class="ua-card" id="as-runtimes">
+      <h2>{% trans "App runtimes (.NET, Node.js, Java, Python)" %}</h2>
+      <p class="ua-muted">{% trans "Per-site app runtimes are installed and removed in Universal Apps." %}
+        <a href="{% url 'ua-apps' %}">{% trans "Runtime manager" %} &rarr;</a></p>
+      <div id="as-runtimes-body"><p class="ua-muted">{% trans "Checking…" %}</p></div>
+    </div>
+    <div class="ua-card" id="as-disk">
+      <h2>{% trans "Disk savings" %}</h2>
+      <p class="ua-muted">{% trans "Size on disk of each installed application (packages, data, logs), runtime and cache. Measuring runs du and can take a minute." %}</p>
+      <button class="ua-btn ua-btn-secondary" id="as-disk-btn">{% trans "Measure" %}</button>
+      <div id="as-disk-body"></div>
+    </div>
+  </div>
   {% for s in skipped %}
-  <div class="ua-card"><h2>{{ s.title }}</h2><p class="ua-muted">{{ s.reason }}</p></div>
+  <div class="ua-card" id="as-skipped-{{ s.key }}"><h2>{{ s.title }}</h2><p class="ua-muted">{{ s.reason }}</p><div class="as-skipped-checks"></div></div>
   {% endfor %}
   <div class="ua-card" id="as-job" style="display:none"><h2>{% trans "Progress" %}</h2><div id="as-job-out"></div></div>
 </div>

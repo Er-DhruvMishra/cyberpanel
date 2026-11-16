@@ -460,10 +460,32 @@
                         </select>
                     </div>
                     
-                    <div ng-hide="DomainCreateForm" class="form-group">
+                    {% if free_subdomain_base %}
+                    <div ng-hide="DomainCreateForm" class="form-group" ng-init="freeSubdomainBase='{{ free_subdomain_base|escapejs }}'; freeSubdomainLabel='{{ Randam_String|lower|escapejs }}'">
+                        <label class="checkbox-label" for="useFreeSubdomain">
+                            <input ng-model="useFreeSubdomain" type="checkbox" id="useFreeSubdomain">
+                            {% trans "Use a free subdomain" %}
+                            <small style="display: block; color: var(--text-secondary, #8893a7); font-weight: normal; margin-top: 4px;">
+                                {% blocktrans %}No domain yet? This domain gets a name under {{ free_subdomain_base }} with its DNS record created for you.{% endblocktrans %}
+                            </small>
+                        </label>
+                    </div>
+                    <div class="form-group" ng-show="useFreeSubdomain && !DomainCreateForm">
+                        <label class="form-label" for="freeSubdomainLabel">{% trans "Subdomain" %}</label>
+                        <div style="display: flex; align-items: center; gap: 6px;">
+                            <input id="freeSubdomainLabel" type="text" class="form-control" ng-model="freeSubdomainLabel"
+                                   ng-change="checkFreeSubdomain()" maxlength="40" autocomplete="off" style="max-width: 280px;">
+                            <span>.{{ free_subdomain_base }}</span>
+                        </div>
+                        <div class="field-error" ng-show="freeSubdomainMessage">{$ freeSubdomainMessage $}</div>
+                        <small style="color: var(--text-secondary, #8893a7);">{% trans "3 to 40 lower-case letters, digits or hyphens." %}</small>
+                    </div>
+                    {% endif %}
+
+                    <div ng-hide="DomainCreateForm || useFreeSubdomain" class="form-group">
                         <label class="form-label">{% trans "Domain Name" %}</label>
                         <input name="dom" type="text" class="form-control" ng-model="domainNameCreate" 
-                               placeholder="{% trans "subdomain.example.com or newdomain.com" %}" required>
+                               placeholder="{% trans "subdomain.example.com or newdomain.com" %}" ng-required="!useFreeSubdomain">
                         <div ng-show="websiteCreationForm.dom.$error.pattern" class="field-error">
                             {% trans "Invalid Domain (Note: You don't need to add 'http' or 'https')" %}
                         </div>

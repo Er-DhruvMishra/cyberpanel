@@ -27,7 +27,7 @@ class Validation(SimpleTestCase):
 
     def test_rejections(self):
         cases = [
-            (spec(id='Bad Name'), 'App name'), (spec(kind='ruby'), 'Node.js, Python'),
+            (spec(id='Bad Name'), 'App name'), (spec(kind='cobol'), 'Node.js, Python'),
             (spec(runtime='99.0.0'), 'not installed'), (spec(dir='/etc/evil'), 'inside'),
             (spec(dir='/home/shop.example.com/../other.com/x'), 'inside'), (spec(entry='../../etc/passwd'), 'relative'),
             (spec(entry='server.js;rm'), 'relative'), (spec(prefix='/api?x'), 'URL path'),

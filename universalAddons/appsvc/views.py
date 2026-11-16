@@ -1,8 +1,10 @@
-"""Applications page (Elasticsearch, Redis, Memcached) and its JSON endpoints. Administrator-only."""
+"""Applications page (server-wide software: caches, search, databases, brokers, clients) and its JSON
+endpoints. Administrator-only."""
 import re
 
 from universalAddons import privileged
 from universalAddons.access import admin_api, admin_page, error, ok
+from universalAddons.appsvc import more as mo
 from universalAddons.appsvc import service as sv
 
 OPS = ('start', 'stop', 'restart', 'enable', 'disable')
@@ -20,6 +22,13 @@ def _app(data):
     if app not in sv.APPS:
         raise ValueError('Choose an application.')
     return app
+
+
+def _job_id(value):
+    job_id = str(value or '')
+    if not re.match(r'^[0-9a-f]{24}$', job_id):
+        raise ValueError('Invalid job.')
+    return job_id
 
 
 def page(request):
@@ -44,7 +53,18 @@ def preflight(request, data):
 
 @admin_api
 def install(request, data):
-    return _call('install', app=_app(data), force=data.get('force') is True)
+    app = _app(data)
+    if app == 'postgresql':
+        major = str(data.get('major', sv.PG_DEFAULT_MAJOR))
+        if major not in [str(m) for m in sv.PG_MAJORS]:
+            return error('Choose PostgreSQL %s.' % ' or '.join(map(str, sv.PG_MAJORS)), status=400)
+        return _call('install', app=app, force=data.get('force') is True, major=int(major))
+    return _call('install', app=app, force=data.get('force') is True)
+
+
+@admin_api
+def remove_preview(request, data):
+    return _call('remove_preview', app=_app(data))
 
 
 @admin_api
@@ -58,7 +78,12 @@ def remove(request, data):
         return error('Invalid confirmation.', status=400)
     if delete and confirm_name.strip().lower() != app:
         return error('Type %s to confirm deleting its data.' % app, status=400)
-    return _call('remove', app=app, confirm=True, delete_data=delete, confirm_name=confirm_name.strip().lower() if delete else '')
+    args = {'app': app, 'confirm': True, 'delete_data': delete, 'confirm_name': confirm_name.strip().lower() if delete else ''}
+    if data.get('previewJob') is not None:
+        args['preview_job'] = _job_id(data.get('previewJob'))
+    elif app not in ('elasticsearch', 'redis', 'memcached'):
+        return error('Preview what will be removed first.', status=400)
+    return _call('remove', **args)
 
 
 @admin_api
@@ -73,7 +98,7 @@ def configure(request, data):
         return error('Unknown setting(s): %s.' % ', '.join(unknown)[:200], status=400)
     for value in settings.values():
         items = value if isinstance(value, list) else [value]
-        if len(items) > 8 or any(not isinstance(v, (str, int, bool)) or (isinstance(v, str) and len(v) > 128)
+        if len(items) > 8 or any(not isinstance(v, (str, int, float, bool)) or (isinstance(v, str) and len(v) > 128)
                                  for v in items):
             return error('Invalid setting value.', status=400)
     return _call('configure', app=app, settings=settings, confirm_exposed=data.get('confirmExposed') is True)
@@ -101,11 +126,31 @@ def reveal(request, data):
 
 
 @admin_api
+def pg_create(request, data):
+    database, user = str(data.get('database', '')).strip(), str(data.get('user', '')).strip()
+    for name in (database, user):
+        mo.pg_ident(name)   # ValueError (AppError) -> 400 before anything runs as root
+    return _call('pg_create', database=database, user=user)
+
+
+@admin_api
+def disk(request, data):
+    return _call('disk')
+
+
+@admin_api
+def runtimes(request, data):
+    return _call('runtimes')
+
+
+@admin_api
+def oracle_db_check(request, data):
+    return _call('oracle_db_check', confirm_ram=data.get('confirmRam') is True)
+
+
+@admin_api
 def job(request, data):
-    job_id = str(data.get('job', ''))
-    if not re.match(r'^[0-9a-f]{24}$', job_id):
-        return error('Invalid job.', status=400)
-    return _call('job', job_id=job_id)
+    return _call('job', job_id=_job_id(data.get('job')))
 
 
 # ----------------------------------------------------------------------------- the old page's API

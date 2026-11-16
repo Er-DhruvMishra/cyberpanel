@@ -79,6 +79,9 @@ DEFAULT_POLICY = {
     'htaccess_for_users': False,       # may website owners turn on .htaccess translation for their sites?
     'email_debug_for_users': False,    # may website owners run DNS checks for their own mail domains?
     'limits_for_users': False,         # may website owners see the limits and usage of their sites?
+    'cloudflare_for_users': False,     # may resellers and users manage Cloudflare with their own token?
+    'laravel_for_users': False,        # may website owners use the Laravel Toolkit on their own sites?
+    'gitdeploy_for_users': False,      # may website owners deploy their own sites from Git (with webhooks)?
 }
 
 # Add-ons that have something for non-administrators, and the policy switch that opens each one
@@ -94,6 +97,9 @@ USER_FEATURES = (
     ('mssql', 'mssql_for_users'),
     ('emaillimits', 'email_limits_for_users'),
     ('webterm', 'terminal_for_users'),
+    ('cloudflare', 'cloudflare_for_users'),
+    ('laravel', 'laravel_for_users'),
+    ('gitdeploy', 'gitdeploy_for_users'),
 )
 
 # What a site owner gets from each switch (shown next to its checkbox on the hub).
@@ -106,10 +112,16 @@ USER_FEATURE_HELP = {
                 'administrator-only).',
     'emaildebug': 'DNS and reputation checks (MX, SPF, DKIM, DMARC, PTR, blocklists) for their own domains.',
     'limits': 'See, read-only, the resource limits and current usage of their own sites.',
-    'apps': 'Run Node.js, Python, .NET and Java apps on their own sites, within the limits you set.',
+    'apps': 'Run Node.js, Python, .NET, Java/Kotlin, Ruby, Go, Deno and Bun apps on their own sites, within the limits you set.',
     'mssql': 'Create SQL Server databases for their own sites.',
     'emaillimits': 'Set mailbox sending limits on their own mail domains.',
     'webterm': "Open a browser terminal as their website's Linux user.",
+    'cloudflare': 'Manage their own Cloudflare zones with their own API token (DNS, cache, SSL/TLS, security, '
+                  'analytics) and link zones to sites they own.',
+    'laravel': 'Laravel Toolkit on their own sites: install Laravel, whitelisted artisan/composer commands, scheduler, '
+               'queue worker, .env editing and logs, as the site user.',
+    'gitdeploy': 'Deploy their own sites from GitHub, GitLab, Bitbucket or Gitea (deploy key or token, signed '
+                 'webhooks, releases with rollback), as the site user.',
 }
 
 

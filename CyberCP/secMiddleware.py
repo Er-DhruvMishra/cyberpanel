@@ -70,6 +70,8 @@ class secMiddleware:
 
         # Define webhook pattern for secure matching
         webhook_pattern = re.compile(r'^/websites/[^/]+/(webhook|gitNotify)/?$')
+        # Git deploy add-on webhooks: no session; the view verifies the delivery's signature.
+        gitDeployHook = re.match(r'^/addons/git-deploy/hook/[0-9a-f]{32}/$', pathActual) is not None
         
         # Roundcube owns mailbox authentication and CSRF; its gateway enforces
         # server entitlement before forwarding to the private FPM socket.
@@ -82,7 +84,7 @@ class secMiddleware:
 
         if pathActual == "/backup/localInitiate" or  pathActual == '/' or pathActual == '/verifyLogin' or pathActual == '/logout' or pathActual.startswith('/api')\
                 or publicWebmailRequest or standaloneWebmailRequest or roundcubeRequest\
-                or webhook_pattern.match(pathActual) or pathActual.startswith('/cloudAPI'):
+                or webhook_pattern.match(pathActual) or pathActual.startswith('/cloudAPI') or gitDeployHook:
             pass
         else:
             # Session check logging removed
@@ -143,7 +145,7 @@ class secMiddleware:
                 # Skip validation entirely for webhook endpoints
                 # Webhook URLs are: /websites/<domain>/webhook or /websites/<domain>/gitNotify
                 # Use the same webhook pattern defined above
-                if webhook_pattern.match(pathActual):
+                if webhook_pattern.match(pathActual) or gitDeployHook:
                     response = self.get_response(request)
                     return response
 

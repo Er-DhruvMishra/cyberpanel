@@ -9,8 +9,9 @@ from universalAddons.access import admin_api, error, load_policy, ok, remember_j
 _ID = re.compile(r'^[a-z][a-z0-9-]{1,30}$')
 _VERSION = re.compile(r'^\d{1,3}(\.\d{1,4}){1,3}(-[a-z0-9.]+)?$')
 APP_FIELDS = ('id', 'kind', 'runtime', 'entry', 'mode', 'workers', 'jvm_opts', 'prefix', 'websocket', 'memory_mb',
-              'cpu_percent')
-RUNTIME_KINDS = ('node', 'dotnet', 'python', 'java')
+              'cpu_percent', 'flavor', 'build', 'ktor_args', 'package', 'precompile', 'migrate', 'deno_perms')
+RUNTIME_KINDS = ('node', 'dotnet', 'python', 'java', 'ruby', 'go', 'deno', 'bun')
+_PACKAGE = re.compile(r'^[A-Za-z0-9][A-Za-z0-9._+-]{0,99}$')
 
 
 def _call(action, /, **args):
@@ -54,10 +55,13 @@ def runtimes(request, data):
 
 @admin_api
 def runtime_install(request, data):
-    kind, version = data.get('kind'), str(data.get('version', ''))
-    if kind not in RUNTIME_KINDS or not _VERSION.match(version):
+    kind, version, variant = data.get('kind'), str(data.get('version', '')), str(data.get('variant') or '')
+    if kind not in RUNTIME_KINDS or not _VERSION.match(version) or variant not in ('', 'jre', 'jdk') or \
+            (variant and kind != 'java'):
         return error('Invalid runtime.', status=400)
-    return _call('runtime_install', kind=kind, version=version)
+    if variant in ('', 'jre'):
+        return _call('runtime_install', kind=kind, version=version)
+    return _call('runtime_install', kind=kind, version=version, variant=variant)
 
 
 @admin_api
@@ -66,6 +70,14 @@ def runtime_uninstall(request, data):
     if kind not in RUNTIME_KINDS or not _VERSION.match(version):
         return error('Invalid runtime.', status=400)
     return _call('runtime_uninstall', kind=kind, version=version)
+
+
+@admin_api
+def package_uninstall(request, data):
+    name = str(data.get('name', ''))
+    if not _PACKAGE.match(name):
+        return error('Invalid package.', status=400)
+    return _call('package_uninstall', name=name)
 
 
 @admin_api

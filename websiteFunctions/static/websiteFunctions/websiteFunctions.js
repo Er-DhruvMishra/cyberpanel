@@ -12146,6 +12146,22 @@ app.controller('websitePages', function ($scope, $http, $timeout, $window) {
         $scope.DomainCreateForm = false;
     };
 
+    // Free subdomain for a child domain: ask the panel whether <label>.<base> is still free while the user types.
+    var childFreeSubdomainTimer = null;
+    $scope.freeSubdomainMessage = '';
+    $scope.checkFreeSubdomain = function () {
+        if (childFreeSubdomainTimer) { $timeout.cancel(childFreeSubdomainTimer); }
+        childFreeSubdomainTimer = $timeout(function () {
+            var label = String($scope.freeSubdomainLabel || '').trim().toLowerCase();
+            if (!label) { $scope.freeSubdomainMessage = ''; return; }
+            $http.post('/addons/free-subdomains/ajax/check', {label: label, purpose: 'child'},
+                {headers: {'X-CSRFToken': getCookie('csrftoken')}}).then(function (response) {
+                var d = response.data || {};
+                $scope.freeSubdomainMessage = d.status === 1 ? (d.available ? '' : d.message) : (d.error_message || '');
+            }, function () { $scope.freeSubdomainMessage = ''; });
+        }, 400);
+    };
+
     $scope.createDomain = function () {
 
         $scope.domainLoading = false;
@@ -12208,6 +12224,11 @@ app.controller('websitePages', function ($scope, $http, $timeout, $window) {
         var type = $scope.websitetype;
 
         var domainName = $scope.domainNameCreate;
+        var freeSubdomain = 0;
+        if ($scope.useFreeSubdomain && $scope.freeSubdomainBase) {
+            domainName = String($scope.freeSubdomainLabel || '').trim().toLowerCase() + '.' + $scope.freeSubdomainBase;
+            freeSubdomain = 1;
+        }
 
 
         var data = {
@@ -12218,7 +12239,8 @@ app.controller('websitePages', function ($scope, $http, $timeout, $window) {
             masterDomain: $scope.masterDomain,
             dkimCheck: dkimCheck,
             openBasedir: openBasedir,
-            apacheBackend: apacheBackend
+            apacheBackend: apacheBackend,
+            freeSubdomain: freeSubdomain
         };
 
         var config = {

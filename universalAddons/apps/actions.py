@@ -40,21 +40,39 @@ def _app(app_id, domain):
 
 
 def _runtime(app):
+    if app['kind'] == 'go' and not app.get('runtime'):
+        return {}  # a compiled binary: no toolchain involved
     return rt.find(app['kind'], app['runtime'])
 
 
 # ----------------------------------------------------------------------------- runtimes / policy (admin)
 
 def runtimes_overview(include_catalogue=False):
-    apps = svc.load_apps().values()
-    installed = rt.installed()
+    apps = list(svc.load_apps().values())
+    installed = rt.annotate_system(rt.installed())
     for kind, entries in installed.items():
         for entry in entries:
-            entry['used_by'] = sorted(a['id'] for a in apps if a['kind'] == kind and a['runtime'] == entry['version'])
-    result = {'installed': installed, 'policy': load_policy(), 'disk_free_mb': _disk_free_mb(rt.RUNTIME_ROOT)}
+            entry['used_by'] = _apps_using(apps, kind, entry['version'])
+            entry['removable'] = not entry['used_by'] and (entry.get('source') != 'system' or entry.get('panel_installed'))
+    packages = rt.panel_packages()
+    for package in packages:
+        package['used_by'] = _package_users(apps, package['name'])
+    result = {'installed': installed, 'packages': packages, 'policy': load_policy(),
+              'disk_free_mb': _disk_free_mb(rt.RUNTIME_ROOT)}
     if include_catalogue:
         result['catalogue'] = rt.catalogue()
     return result
+
+
+def _apps_using(apps, kind, version):
+    return sorted(a['id'] for a in apps if a['kind'] == kind and a.get('runtime') == version)
+
+
+def _package_users(apps, name):
+    """Apps whose next deploy needs a panel-installed OS package (Ruby: compilers and headers for native gems)."""
+    if name in rt.RUBY_BUILD_PACKAGES:
+        return sorted(a['id'] for a in apps if a['kind'] == 'ruby')
+    return []
 
 
 def _disk_free_mb(path):
@@ -64,22 +82,40 @@ def _disk_free_mb(path):
     return usage.free // (1024 * 1024)
 
 
-def runtime_install(kind, version):
-    if _disk_free_mb(rt.RUNTIME_ROOT) < 1024:
-        raise AppError('Less than 1 GB of disk is free; free some space first.')
-    return jobs.spawn('apps', 'runtime_install_run', {'kind': kind, 'version': version})
+def runtime_install(kind, version, variant=''):
+    needed = rt.MIN_FREE_MB.get(kind, rt.DEFAULT_MIN_FREE_MB)
+    free = _disk_free_mb(rt.RUNTIME_ROOT)
+    if free < needed:
+        raise AppError('Installing %s needs %d MB of free disk and %d MB are free; free some space first.'
+                       % (kind, needed, free))
+    return jobs.spawn('apps', 'runtime_install_run', {'kind': kind, 'version': version, 'variant': variant or ''})
 
 
-def runtime_install_run(job_id, kind, version):
-    return jobs.run_job(job_id, [('Install %s %s' % (kind, version), lambda job: rt.install(kind, version, log=job.log))])
+def runtime_install_run(job_id, kind, version, variant=''):
+    title = 'Install %s %s%s' % (kind, version, ' (%s)' % variant.upper() if variant else '')
+    return jobs.run_job(job_id, [(title, lambda job: rt.install(kind, version, log=job.log, variant=variant))])
 
 
 def runtime_uninstall(kind, version):
-    if any(e.get('source') == 'system' and e['version'] == version for e in rt.installed().get(kind, [])) \
-            and not os.path.isdir(os.path.join(rt.RUNTIME_ROOT, kind, version)):
-        raise AppError('%s %s belongs to the operating system; remove it with the package manager.' % (kind, version))
-    in_use = [a['id'] for a in svc.load_apps().values() if a['kind'] == kind and a['runtime'] == version]
+    apps = list(svc.load_apps().values())
+    in_use = _apps_using(apps, kind, version)
+    managed = os.path.isdir(os.path.join(rt.RUNTIME_ROOT, kind, version)) or (
+        kind == 'dotnet' and os.path.isdir(os.path.join(rt.RUNTIME_ROOT, 'dotnet', 'shared', 'Microsoft.NETCore.App', version)))
+    system = [e for e in rt.installed().get(kind, []) if e['version'] == version and e.get('source') == 'system']
+    rt.annotate_system({kind: system})
+    if system and not managed:
+        entry = system[0]
+        if not entry.get('panel_installed'):
+            raise AppError('%s %s belongs to the operating system (package %s); IndiansCloud did not install it, so it '
+                           'is not removed here.' % (kind, version, entry.get('package') or 'unknown'))
+        if in_use:
+            raise AppError('%s %s is used by: %s' % (kind, version, ', '.join(in_use)))
+        return rt.remove_package(entry['package'], [])
     return rt.uninstall(kind, version, in_use)
+
+
+def package_uninstall(name):
+    return rt.remove_package(name, _package_users(list(svc.load_apps().values()), name))
 
 
 def save_policy(policy):
@@ -121,7 +157,10 @@ def list_apps(domains=None):
         entry['env_keys'] = sorted(app.get('env', {}))
         entry['status'] = svc.status(app)
         result.append(entry)
-    return {'apps': result, 'runtimes': {k: [r['version'] for r in v] for k, v in rt.installed().items()}}
+    installed = rt.installed()
+    runtimes = {k: [r['version'] for r in v] for k, v in installed.items()}
+    runtimes['java_jdk'] = [r['version'] for r in installed.get('java', []) if r.get('jdk')]  # for Gradle builds
+    return {'apps': result, 'runtimes': runtimes}
 
 
 def save_app(domain, spec):
@@ -248,6 +287,7 @@ ACTIONS = {
     'runtime_install': runtime_install,
     'runtime_install_run': runtime_install_run,
     'runtime_uninstall': runtime_uninstall,
+    'package_uninstall': package_uninstall,
     'save_policy': save_policy,
     'list': list_apps,
     'save': save_app,

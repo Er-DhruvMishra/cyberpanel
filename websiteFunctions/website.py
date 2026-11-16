@@ -839,9 +839,17 @@ class WebsiteManager:
         test_domain_status = int(apache_manager_available())
 
         rnpss = randomPassword.generate_pass(10)
+
+        try:
+            from freeSubdomains import service as free_subdomains
+            free_subdomain_base = free_subdomains.offered_base()
+        except Exception:
+            free_subdomain_base = ''
+
         proc = httpProc(request, 'websiteFunctions/createDomain.html',
                         {'websiteList': websitesName, 'phps': PHPManager.findPHPVersions(), 'Randam_String': rnpss,
-                         'test_domain_data': test_domain_status, 'defaultSite': defaultDomain})
+                         'test_domain_data': test_domain_status, 'defaultSite': defaultDomain,
+                         'free_subdomain_base': free_subdomain_base})
         return proc.render()
 
     def siteState(self, request=None, userID=None, data=None):

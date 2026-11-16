@@ -125,7 +125,7 @@ class Installing(unittest.TestCase):
                 rt._safe_extract(archive, target, strip=0 if entries[0][0].startswith('/') else 1)
 
     def test_invalid_requests(self):
-        for kind, version in (('ruby', '3.3.0'), ('node', '24; rm -rf /'), ('node', '../../x')):
+        for kind, version in (('cobol', '3.3.0'), ('node', '24; rm -rf /'), ('node', '../../x')):
             with self.assertRaises(rt.RuntimeError_):
                 rt.install(kind, version, self.root)
 
