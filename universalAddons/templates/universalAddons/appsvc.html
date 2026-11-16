@@ -78,6 +78,49 @@
       <div class="as-pg-out"></div>
     </div>
     {% endif %}
+    {% if app.key == 's3' %}
+    <div class="ua-card as-s3" style="display:none">
+      <h2>{% trans "Buckets" %}</h2>
+      <div class="as-s3-buckets"></div>
+      <h3>{% trans "Create a bucket" %}</h3>
+      <div class="ua-row">
+        <label>{% trans "Name" %} <input class="as-s3-bucket" autocomplete="off" placeholder="shop-backups" maxlength="63"></label>
+        <label>{% trans "Quota (MB, blank = none)" %} <input class="as-s3-maxsize" type="number" min="0"></label>
+        <label>{% trans "Max objects (blank = none)" %} <input class="as-s3-maxobjects" type="number" min="0"></label>
+        <button class="ua-btn as-s3-bucket-create">{% trans "Create" %}</button>
+      </div>
+      <p class="ua-muted">{% trans "3-63 lowercase letters, digits and dashes (no dots). Garage deletes only empty buckets; deleting asks you to type the name." %}</p>
+      <h2>{% trans "Access keys" %}</h2>
+      <div class="as-s3-keys"></div>
+      <div class="ua-row">
+        <label>{% trans "Key name" %} <input class="as-s3-keyname" autocomplete="off" placeholder="shop-app" maxlength="64"></label>
+        <button class="ua-btn as-s3-key-create">{% trans "Create access key" %}</button>
+      </div>
+      <p class="ua-muted">{% trans "The secret is shown once, right after creating the key. IndiansCloud does not store it; if it is lost, delete the key and create a new one." %}</p>
+      <div class="as-s3-secret"></div>
+      <h3>{% trans "Bucket permissions of a key" %}</h3>
+      <div class="ua-row">
+        <label>{% trans "Bucket" %} <select class="as-s3-perm-bucket"></select></label>
+        <label>{% trans "Key" %} <select class="as-s3-perm-key"></select></label>
+        <label><input type="checkbox" class="as-s3-perm-read"> {% trans "read" %}</label>
+        <label><input type="checkbox" class="as-s3-perm-write"> {% trans "write" %}</label>
+        <label><input type="checkbox" class="as-s3-perm-owner"> {% trans "owner" %}</label>
+        <button class="ua-btn as-s3-perm-save">{% trans "Set permissions" %}</button>
+      </div>
+      <p class="ua-muted">{% trans "Exactly the ticked permissions are set; untick all three to take the key off the bucket. owner allows bucket settings (CORS, website, lifecycle)." %}</p>
+      <div class="as-s3-out"></div>
+    </div>
+    <div class="ua-card as-s3-endpoint" style="display:none">
+      <h2>{% trans "HTTPS endpoint for customers" %}</h2>
+      <p class="ua-muted">{% trans "Proxies a dedicated panel site, such as s3.example.com, to the S3 API with that site's SSL certificate, so customers use https://s3.example.com. Create the site or subdomain and issue its SSL first; its whole URL space goes to S3. Path-style addressing (https://s3.example.com/BUCKET/key)." %}</p>
+      <div class="as-s3-endpoint-now"></div>
+      <div class="ua-row">
+        <label>{% trans "Domain" %} <input class="as-s3-domain" autocomplete="off" placeholder="s3.example.com"></label>
+        <button class="ua-btn as-s3-endpoint-set">{% trans "Set up the endpoint" %}</button>
+        <button class="ua-btn ua-btn-secondary as-s3-endpoint-remove">{% trans "Remove the endpoint" %}</button>
+      </div>
+    </div>
+    {% endif %}
     {% if app.kind != 'status' %}
     <div class="ua-card as-connect" style="display:none">
       <h2>{% trans "Connection info for site owners" %}</h2>
@@ -94,7 +137,8 @@
     {% if app.kind != 'status' %}
     <div class="ua-card as-remove" style="display:none">
       <h2>{% trans "Uninstall" %}</h2>
-      <p class="ua-muted">{% trans "Removes the packages to save space. First the panel asks dnf which packages would go (nothing is removed yet); the uninstall then removes exactly that list. The data directory is kept unless you tick the box and type the application's name." %}</p>
+      {% if app.key == 's3' %}<p class="ua-muted">{% trans "Removes the Garage binary, its unit, configuration, secrets, the garage user and the HTTPS endpoint. First the panel lists exactly what would go (nothing is removed yet). The data directory (every bucket, object and access key) is kept unless you tick the box and type s3." %}</p>
+      {% else %}<p class="ua-muted">{% trans "Removes the packages to save space. First the panel asks dnf which packages would go (nothing is removed yet); the uninstall then removes exactly that list. The data directory is kept unless you tick the box and type the application's name." %}</p>{% endif %}
       <button class="ua-btn ua-btn-secondary as-preview-btn">{% trans "Show what will be removed" %}</button>
       <div class="as-preview"></div>
       <div class="as-remove-confirm" style="display:none">

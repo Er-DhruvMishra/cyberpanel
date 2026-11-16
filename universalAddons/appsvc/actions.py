@@ -16,16 +16,22 @@ import glob
 import grp
 import json
 import os
+import platform
 import pwd
+import re
+import secrets as _secrets
 import shutil
+import ssl
 import subprocess
 import sys
 import tempfile
 import time
+import urllib.request
 from contextlib import contextmanager
 
 from universalAddons import jobs
 from universalAddons.appsvc import more as mo
+from universalAddons.appsvc import s3
 from universalAddons.appsvc import service as sv
 from universalAddons.appsvc.service import AppError
 
@@ -33,7 +39,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 SERVICE_MANAGER = os.path.join(ROOT, 'manageServices', 'serviceManager.py')
 LEGACY_STATUS = '/home/cyberpanel/switchLSWSStatus'    # ServerStatusUtil.lswsInstallStatusPath
 HEALTH_TIMEOUT = {'elasticsearch': 240, 'redis': 30, 'memcached': 20, 'mssql': 180, 'postgresql': 90,
-                  'mongodb': 120, 'rabbitmq': 120, 'oracle_client': 10, 'docker': 30}
+                  'mongodb': 120, 'rabbitmq': 120, 'oracle_client': 10, 'docker': 30, 's3': 60}
 LEGACY_FUNCTIONS = {('elasticsearch', 'install'): 'InstallElasticSearch', ('elasticsearch', 'remove'): 'RemoveElasticSearch',
                     ('redis', 'install'): 'InstallRedis', ('redis', 'remove'): 'RemoveRedis'}
 CONTROL_OPS = ('start', 'stop', 'restart', 'enable', 'disable')
@@ -143,6 +149,8 @@ def _version(key):
 
 
 def _version_uncached(key):
+    if key == 's3':
+        return _s3_version()
     if key == 'postgresql':
         major = _pg_major()
         return _rpm_version('postgresql%d-server' % major) if major else None
@@ -164,6 +172,8 @@ def _unit(key, major=None):
 
 
 def _data_dir(key, major=None):
+    if key == 's3':
+        return s3.current(_read(s3.CONF))['data_dir']
     if key == 'postgresql':
         major = major or _pg_major()
         return mo.pg_paths(major)['base'] if major else None
@@ -222,10 +232,22 @@ def _package_bytes(names):
 
 def _packages(key, major=None):
     """The packages this application consists of (removal candidates), installed or not."""
+    if key == 's3':
+        return []          # a single binary, not a package
     if key == 'postgresql':
         major = major or _pg_major()
         return mo.pg_packages(major) if major else []
     return list(sv.app_info(key).get('packages') or [sv.app_info(key)['package']])
+
+
+def _install_bytes(key, major=None):
+    """Size on disk of what the application installed (packages, or Garage's binary)."""
+    if key == 's3':
+        try:
+            return os.path.getsize(s3.BIN)
+        except OSError:
+            return None
+    return _package_bytes(_installed_packages(_packages(key, major)))
 
 
 def _redis_conf():
@@ -260,6 +282,8 @@ def _current(key, ram_mb):
         return mo.mongo_current(_read(mo.MONGO_DROPIN, None), _read(mo.MONGO_CONF))
     if key == 'rabbitmq':
         return mo.rabbit_current(_read(mo.RABBIT_DROPIN))
+    if key == 's3':
+        return dict(s3.current(_read(s3.CONF), _read(s3.DROPIN, None)), endpoint=_s3_state().get('endpoint'))
     return {}
 
 
@@ -364,6 +388,8 @@ def _health_once(key, ram_mb=None):
         return True, 'ping ok'
     if key == 'rabbitmq':
         return mo.amqp_probe(mo.rabbit_target(current))
+    if key == 's3':
+        return _s3_health_once()
     if key == 'oracle_client':
         binary = _sqlplus()
         code, out = sv.run([binary, '-V'], timeout=30) if binary else (127, 'sqlplus not found')
@@ -384,7 +410,7 @@ def _systemctl(op, unit, timeout=120):
 
 
 def _restart(key):
-    if key in ('redis', 'mongodb', 'rabbitmq', 'mssql'):
+    if key in ('redis', 'mongodb', 'rabbitmq', 'mssql', 's3'):
         sv.run(['systemctl', 'daemon-reload'], timeout=60)   # their panel drop-ins
     _systemctl('restart', _unit(key), timeout=960 if key == 'elasticsearch' else 300)
 
@@ -415,7 +441,8 @@ def _logs(key, current, count=50):
         code, out = sv.run(['journalctl', '-u', _unit(key), '-n', str(count), '--no-pager',
                             '-o', 'short-iso'], timeout=30)
         lines = out.splitlines()[-count:]
-    return [sv.redact(line, [_live_password(key)]) for line in lines]
+    hidden = [_live_password(key)] + ([_s3_token()] if key == 's3' else [])
+    return [sv.redact(line, hidden) for line in lines]
 
 
 def _connection(key, current, major=None):
@@ -427,6 +454,8 @@ def _connection(key, current, major=None):
         return mo.mongo_connection_info(current, _has_password(key, current))
     if key == 'rabbitmq':
         return mo.rabbit_connection_info(current)
+    if key == 's3':
+        return s3.connection_info(current, current.get('endpoint'))
     if key == 'oracle_client':
         sqlplus = _sqlplus()
         return mo.oracle_client_connection_info(os.path.join(os.path.dirname(os.path.dirname(sqlplus)), 'lib')
@@ -455,7 +484,7 @@ def _default_cap(key, ram_mb):
     return {'elasticsearch': sv.es_default_heap(ram_mb), 'memcached': 64,
             'postgresql': mo.pg_default_shared_buffers(ram_mb) + 64,
             'mongodb': int(mo.mongo_defaults(ram_mb)['cache_gb'] * 1024),
-            'rabbitmq': mo.rabbit_defaults(ram_mb)['memory_mb']}.get(key, 0)
+            'rabbitmq': mo.rabbit_defaults(ram_mb)['memory_mb'], 's3': s3.defaults(ram_mb)['memory_mb']}.get(key, 0)
 
 
 # ----------------------------------------------------------------------------- status
@@ -475,7 +504,7 @@ def _app_status(key, ram_total, ram_available, disk_mb, with_logs=False):
     major = _pg_major() if key == 'postgresql' else None
     unit = _unit(key, major)
     status.update({'unit': unit if info['kind'] != 'client' else None, 'major': major,
-                   'package_bytes': _package_bytes(_installed_packages(_packages(key, major)))})
+                   'package_bytes': _install_bytes(key, major)})
     if info['kind'] == 'status':
         values = _systemd(unit)
         status.update({'active': values.get('ActiveState', 'unknown'), 'sub': values.get('SubState', ''),
@@ -515,6 +544,8 @@ def _app_status(key, ram_total, ram_available, disk_mb, with_logs=False):
             status['settings']['max_server_memory_mb'] = _mssql().memory_state()['max_server_memory_mb']
     if key == 'postgresql' and running:
         status['databases'] = _pg_databases(major)
+    if key == 's3':
+        status.update(_s3_status_extras(current, running, ram_total))
     if key == 'mongodb' and mo.mongo_sysconfig_conflict(_read(mo.MONGO_SYSCONFIG)):
         status['config_problem'] = ('%s sets OPTIONS, which overrides the panel\'s drop-in; remove that line first.'
                                     % mo.MONGO_SYSCONFIG)
@@ -556,8 +587,13 @@ def _preflight_checks(app, total, available, disk, installed):
     if info['kind'] in ('bridge', 'status'):
         checks.insert(0, {'id': 'where', 'ok': False, 'hard': True,
                           'detail': '%s is installed from the %s.' % (info['title'], info.get('link_title') or 'add-on')})
-    if app in NEW_PACKAGED:
+    if app in NEW_PACKAGED or app == 's3':
         checks.insert(0, mo.os_check(app, _el()))
+    if app == 's3':
+        machine = platform.machine()
+        checks.insert(1, {'id': 'arch', 'ok': machine == 'x86_64', 'hard': True,
+                          'detail': 'Garage %s is installed here as the x86_64 static binary (this server: %s).'
+                          % (s3.VERSION, machine or '?')})
     default = _default_cap(app, total)
     if default:
         caps = dict(_caps(total, exclude=app), **{info['title']: default})
@@ -620,8 +656,8 @@ def disk():
         if not _version(key):
             continue
         major = _pg_major() if key == 'postgresql' else None
-        packages = _installed_packages(_packages(key, major))
-        row = {'key': key, 'title': info['title'], 'packages': packages, 'package_bytes': _package_bytes(packages),
+        packages = _installed_packages(_packages(key, major)) if key != 's3' else [s3.BIN]
+        row = {'key': key, 'title': info['title'], 'packages': packages, 'package_bytes': _install_bytes(key, major),
                'data_dir': _data_dir(key, major), 'data_bytes': _du(_data_dir(key, major)),
                'logs': [{'path': p, 'bytes': _du(p)} for p in info.get('log_dirs') or () if os.path.isdir(p)],
                'removable': info['kind'] in ('service', 'client', 'bridge')}
@@ -789,6 +825,8 @@ def install_run(job_id, app, major=None):
             raise AppError('%s is installed but not answering: %s' % (info['title'], detail))
         return {'health': detail}
 
+    if app == 's3':
+        return _locked_job(job_id, app, _s3_install_steps())
     if app in NEW_PACKAGED:
         steps = list(_vendor_steps(app, major or sv.PG_DEFAULT_MAJOR))
 
@@ -838,6 +876,9 @@ def remove_preview(app):
 
 def remove_preview_run(job_id, app):
     info = sv.app_info(app)
+
+    if app == 's3':
+        return jobs.run_job(job_id, [('Preview removal', lambda job: _s3_removal_plan())])
 
     def step(job):
         major = _pg_major() if app == 'postgresql' else None
@@ -899,6 +940,8 @@ PANEL_FILES = {'redis': (), 'mongodb': (mo.MONGO_DROPIN,), 'rabbitmq': (mo.RABBI
 
 def remove_run(job_id, app, delete_data=False, packages=None):
     info = sv.app_info(app)
+    if app == 's3':
+        return _locked_job(job_id, app, _s3_remove_steps(delete_data is True, packages))
     major = _pg_major() if app == 'postgresql' else None
     data_dir = _data_dir(app, major)
 
@@ -997,6 +1040,8 @@ def _validate(app, settings, ram_mb, confirm_exposed):
         if mo.mongo_sysconfig_conflict(_read(mo.MONGO_SYSCONFIG)):
             raise AppError('%s sets OPTIONS, which would override the panel; remove that line first.' % mo.MONGO_SYSCONFIG)
         cfg, warnings = mo.validate_mongo(settings, ram_mb, confirm_exposed)
+    elif app == 's3':
+        cfg, warnings = _s3_validate(settings, ram_mb, confirm_exposed)
     else:
         cfg, warnings = mo.validate_rabbit(settings, ram_mb, confirm_exposed)
     port = port or PORTS.get(app)
@@ -1227,7 +1272,8 @@ def _rabbit_change(cfg, log):
 
 
 CHANGES = {'elasticsearch': _es_change, 'redis': _redis_change, 'memcached': _memcached_change,
-           'mssql': _mssql_change, 'postgresql': _pg_change, 'mongodb': _mongo_change, 'rabbitmq': _rabbit_change}
+           'mssql': _mssql_change, 'postgresql': _pg_change, 'mongodb': _mongo_change, 'rabbitmq': _rabbit_change,
+           's3': lambda cfg, log: _s3_change(cfg, log)}
 
 
 def _healthy_after(app, cfg):
@@ -1343,7 +1389,7 @@ def control_run(job_id, app, op):
         if app == 'mssql':
             _mssql().service(op)   # the SQL Server add-on's own start/restart
         else:
-            if app in ('redis', 'mongodb', 'rabbitmq'):
+            if app in ('redis', 'mongodb', 'rabbitmq', 's3'):
                 sv.run(['systemctl', 'daemon-reload'], timeout=60)
             _systemctl(op, _unit(app), timeout=960 if app == 'elasticsearch' else 300)
         ok, detail = _wait_healthy(app)
@@ -1353,6 +1399,502 @@ def control_run(job_id, app, op):
         return {'health': detail}
 
     return _locked_job(job_id, app, [('%s %s' % (op.capitalize(), info['title']), step)])
+
+
+# ----------------------------------------------------------------------------- S3 object storage (Garage)
+
+def _s3_state_path():
+    return os.path.join(sv.STATE_DIR, s3.STATE_FILE)
+
+
+def _s3_state():
+    try:
+        with open(_s3_state_path()) as handle:
+            data = json.load(handle)
+        return data if isinstance(data, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def _s3_save_state(**changes):
+    data = dict(_s3_state(), **changes)
+    sv._private_write(_s3_state_path(), data)
+    return data
+
+
+def _s3_token():
+    """The admin API token (root side only; never returned or logged)."""
+    return _read(s3.ADMIN_TOKEN).strip() or None
+
+
+def _s3_version():
+    if not os.path.isfile(s3.BIN):
+        return None
+    version = _s3_state().get('version')
+    if version:
+        return version
+    code, out = sv.run([s3.BIN, '--version'], timeout=20)
+    match = re.search(r'v?\d+\.\d+\.\d+', out or '')
+    return match.group(0) if code == 0 and match else 'unknown'
+
+
+def _s3_capacity(data_dir=None):
+    try:
+        return shutil.disk_usage(data_dir or _data_dir('s3')).total
+    except OSError:
+        return 1024 ** 3
+
+
+def _s3_health_once():
+    """Give the node its layout role if it has none yet (first start, new data directory), then /health."""
+    token = _s3_token()
+    if not token:
+        return False, '%s is missing' % s3.ADMIN_TOKEN
+    try:
+        s3.bootstrap(token, _s3_capacity())
+    except AppError as exc:
+        return False, str(exc)
+    return s3.health(token)
+
+
+def _s3_require_running():
+    if not _version('s3'):
+        raise AppError('S3 Object Storage is not installed.')
+    _require_idle('s3')
+    if _systemd(s3.UNIT).get('ActiveState') != 'active':
+        raise AppError('Start S3 Object Storage first.')
+    token = _s3_token()
+    if not token:
+        raise AppError('%s is missing; reinstall S3 Object Storage.' % s3.ADMIN_TOKEN)
+    return token
+
+
+def _s3_status_extras(current, running, ram_total):
+    extras = {'memory_bounds': s3.memory_bounds(ram_total), 'endpoint': current.get('endpoint'),
+              'offered_version': s3.VERSION, 'conflicts': s3.outside_conflicts(_read(s3.CONF))}
+    if running and _s3_token():
+        try:
+            extras['inventory'] = s3.inventory(_s3_token())
+        except AppError as exc:
+            extras['inventory_error'] = sv.redact(exc, [_s3_token()])
+    return extras
+
+
+def _s3_validate(settings, ram_mb, confirm_exposed):
+    cfg, warnings = s3.validate(settings, ram_mb, confirm_exposed, _s3_state().get('endpoint'))
+    conflicts = s3.outside_conflicts(_read(s3.CONF))
+    if conflicts:
+        raise AppError('%s sets %s outside the panel block; remove those lines first (TOML refuses a key given '
+                       'twice).' % (s3.CONF, ', '.join(conflicts)))
+    now = s3.current(_read(s3.CONF), _read(s3.DROPIN, None))
+    if cfg['data_dir'] != now['data_dir']:
+        token = _s3_token()
+        if _systemd(s3.UNIT).get('ActiveState') == 'active' and token and s3.inventory(token)['buckets']:
+            raise AppError('The data directory can only be changed while there are no buckets: the panel does not '
+                           'move object data. Stop Garage and move %s by hand if you need to.' % now['data_dir'])
+        if os.path.isdir(cfg['data_dir']) and os.listdir(cfg['data_dir']) and \
+                not os.path.isdir(os.path.join(cfg['data_dir'], 'meta')):
+            raise AppError('%s already holds other files; choose an empty or new directory.' % cfg['data_dir'])
+        warnings.append('A new data directory starts empty: Garage gets a new node identity there, and the access '
+                        'keys of the old directory do not carry over.')
+    pid = _systemd(s3.UNIT).get('MainPID', '0')
+    used = sv.ports_in_use(_ss(), int(pid) if pid.isdigit() and int(pid) > 0 else None)
+    for port in (cfg['s3_port'], cfg['web_port']):
+        if port and port in used:
+            raise AppError('Port %d is already used by another program.' % port)
+    return cfg, warnings
+
+
+def _s3_dirs(data_dir, log=lambda text: None):
+    """meta/ and data/ owned by the garage user (a kept directory gets the new uid after a reinstall)."""
+    uid, gid = _owner(s3.USER)
+    if uid is None:
+        raise AppError('The %s system user is missing.' % s3.USER)
+    for path in (data_dir, os.path.join(data_dir, 'meta'), os.path.join(data_dir, 'data')):
+        os.makedirs(path, mode=0o750, exist_ok=True)
+        info = os.stat(path)
+        if (info.st_uid, info.st_gid) != (uid, gid):
+            code, out = sv.run(['chown', '-R', '--no-dereference', '%d:%d' % (uid, gid), '--', path], timeout=3600)
+            if code != 0:
+                raise AppError('Could not give %s to the %s user: %s' % (path, s3.USER, out.strip()[-300:]))
+            log('Gave %s to the %s user' % (path, s3.USER))
+        os.chmod(path, 0o750)
+
+
+def _s3_unified():
+    return os.path.exists('/sys/fs/cgroup/cgroup.controllers')
+
+
+def _s3_change(cfg, log):
+    text = _read(s3.CONF)
+    endpoint = _s3_state().get('endpoint')
+
+    def write():
+        _s3_dirs(cfg['data_dir'], log)
+        sv.write_file(s3.CONF, s3.render_conf(text, cfg, endpoint), mode=0o640, uid=0,
+                      gid=_owner(s3.USER)[1] or 0)
+        sv.write_file(s3.DROPIN, s3.render_dropin(cfg, _s3_unified()), new_mode=0o644)
+        log('Wrote the managed block in %s and %s (S3 on %s:%d, region %s, memory cap %d MB)' % (
+            s3.CONF, s3.DROPIN, cfg['bind'], cfg['s3_port'], cfg['region'], cfg['memory_mb']))
+    return [s3.CONF, s3.DROPIN], write, False, []
+
+
+# --- downloads (HTTPS with certificate checks; every byte is hashed and compared)
+
+def _http_get(url, headers=None, limit=4 * 1024 * 1024, timeout=60):
+    """(bytes, response headers) of a small HTTPS document."""
+    request = urllib.request.Request(url, headers=dict({'User-Agent': 'IndiansCloud-panel'}, **(headers or {})))
+    try:
+        with urllib.request.urlopen(request, timeout=timeout, context=ssl.create_default_context()) as response:
+            data = response.read(limit + 1)
+            got = {k.lower(): v for k, v in response.headers.items()}
+    except OSError as exc:
+        raise AppError('Download failed: %s (%s)' % (url.split('?')[0], exc))
+    if len(data) > limit:
+        raise AppError('%s is larger than expected.' % url.split('?')[0])
+    return data, got
+
+
+def _http_download(url, target, limit, headers=None, timeout=900):
+    """Stream url to target (0600); returns the SHA-256 (hex) of what was written."""
+    import hashlib
+    request = urllib.request.Request(url, headers=dict({'User-Agent': 'IndiansCloud-panel'}, **(headers or {})))
+    digest, size = hashlib.sha256(), 0
+    try:
+        with urllib.request.urlopen(request, timeout=timeout, context=ssl.create_default_context()) as response:
+            fd = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o600)
+            with os.fdopen(fd, 'wb') as handle:
+                for chunk in iter(lambda: response.read(1024 * 1024), b''):
+                    size += len(chunk)
+                    if size > limit:
+                        raise AppError('%s is larger than expected.' % url)
+                    digest.update(chunk)
+                    handle.write(chunk)
+    except OSError as exc:
+        raise AppError('Download failed: %s (%s)' % (url, exc))
+    return digest.hexdigest()
+
+
+MANIFEST_TYPES = ('application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json, '
+                  'application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json')
+
+
+def _s3_fetch(job, work):
+    """Download Garage from both official channels and verify them; returns the verified binary path."""
+    repo = s3.REGISTRY_REPO
+    base = s3.REGISTRY_BASE % repo
+    token = json.loads(_http_get(s3.REGISTRY_TOKEN_URL % repo)[0].decode())['token']
+    auth = {'Authorization': 'Bearer %s' % token, 'Accept': MANIFEST_TYPES}
+    index, headers = _http_get('%s/manifests/%s' % (base, s3.VERSION), auth)
+    if headers.get('docker-content-digest'):
+        s3.check_digest(index, headers['docker-content-digest'])
+    amd64 = s3.pick_amd64(json.loads(index.decode()))
+    manifest, _ = _http_get('%s/manifests/%s' % (base, amd64), auth)
+    s3.check_digest(manifest, amd64)
+    layer = s3.single_layer(json.loads(manifest.decode()))
+    job.log('Docker Hub %s:%s linux/amd64 manifest %s verified; layer %s' % (repo, s3.VERSION, amd64, layer))
+    layer_path = os.path.join(work, 'layer.tar.gz')
+    got = _http_download('%s/blobs/%s' % (base, layer), layer_path, s3.MAX_LAYER, {'Authorization': auth['Authorization']})
+    if 'sha256:' + got != layer:
+        raise AppError('Checksum mismatch on the image layer: expected %s, got sha256:%s. Nothing was installed.'
+                       % (layer, got))
+    image_sha = s3.extract_binary(layer_path, os.path.join(work, 'garage.image'))
+    os.unlink(layer_path)
+    job.log('Layer checksum verified; /garage in the image: sha256 %s' % image_sha)
+    direct = os.path.join(work, 'garage.release')
+    direct_sha = _http_download(s3.RELEASE_URL % (s3.VERSION, s3.ARCH), direct, s3.MAX_BINARY)
+    job.log('Release binary from garagehq.deuxfleurs.fr: sha256 %s' % direct_sha)
+    detail = s3.verify_agreement(direct_sha, image_sha)
+    os.unlink(os.path.join(work, 'garage.image'))
+    job.log(detail)
+    return direct, direct_sha, detail
+
+
+def _s3_write_secret(path, value, gid):
+    fd = os.open(path + '.panel-tmp', os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o600)
+    with os.fdopen(fd, 'w') as handle:
+        handle.write(value + '\n')
+    os.chown(path + '.panel-tmp', 0, gid)
+    os.chmod(path + '.panel-tmp', 0o640)
+    os.replace(path + '.panel-tmp', path)
+
+
+def _s3_install_steps():
+    work = os.path.join(sv.WORK_DIR, 'garage-download')
+    found = {}
+
+    def fetch(job):
+        shutil.rmtree(work, ignore_errors=True)
+        os.makedirs(work, mode=0o700)
+        found['path'], found['sha'], detail = _s3_fetch(job, work)
+        return {'verified': detail}
+
+    def user(job):
+        if _owner(s3.USER)[0] is not None:
+            job.log('The %s user exists already.' % s3.USER)
+            return
+        _command_step(['useradd', '--system', '--user-group', '--home-dir', s3.DEFAULT_DATA_DIR, '--no-create-home',
+                       '--shell', '/sbin/nologin', '--comment', 'Garage S3 object storage', s3.USER])(job)
+
+    def files(job):
+        temporary = s3.BIN + '.panel-tmp'
+        shutil.copyfile(found['path'], temporary)
+        os.chown(temporary, 0, 0)
+        os.chmod(temporary, 0o755)
+        os.replace(temporary, s3.BIN)
+        shutil.rmtree(work, ignore_errors=True)
+        if s3.sha256_file(s3.BIN) != found['sha']:
+            raise AppError('%s changed while being installed.' % s3.BIN)
+        code, out = sv.run([s3.BIN, '--version'], timeout=30)
+        job.log('Installed %s: %s' % (s3.BIN, out.strip()[:200]))
+        if code != 0:
+            raise AppError('%s does not run on this server: %s' % (s3.BIN, out.strip()[-300:]))
+        gid = _owner(s3.USER)[1]
+        os.makedirs(s3.SECRET_DIR, mode=0o750, exist_ok=True)
+        os.chown(s3.SECRET_DIR, 0, gid)
+        os.chmod(s3.SECRET_DIR, 0o750)
+        _s3_write_secret(s3.RPC_SECRET, _secrets.token_hex(32), gid)
+        _s3_write_secret(s3.ADMIN_TOKEN, _secrets.token_urlsafe(32), gid)
+        _s3_write_secret(s3.METRICS_TOKEN, _secrets.token_urlsafe(32), gid)
+        job.log('Generated the RPC secret and admin token in %s (root:%s 0640; never shown)' % (s3.SECRET_DIR, s3.USER))
+        cfg, _ = s3.validate(s3.defaults(), sv.meminfo_mb()[0] or 1024)
+        _s3_dirs(cfg['data_dir'], job.log)
+        sv.write_file(s3.CONF, s3.render_conf(_read(s3.CONF), cfg), mode=0o640, uid=0, gid=gid)
+        from universalAddons.apps import service as app_service
+        sv.write_file(s3.UNIT_FILE, s3.render_unit(app_service.systemd_version()), new_mode=0o644)
+        sv.write_file(s3.DROPIN, s3.render_dropin(cfg, _s3_unified()), new_mode=0o644)
+        job.log('Wrote %s, %s and %s (127.0.0.1:%d, %d MB cap)' % (s3.CONF, s3.UNIT_FILE, s3.DROPIN, cfg['s3_port'],
+                                                                   cfg['memory_mb']))
+        _s3_save_state(version=s3.VERSION, sha256=found['sha'], installed=int(time.time()))
+        sv.run(['systemctl', 'daemon-reload'], timeout=60)
+        _command_step(['systemctl', 'enable', '--now', s3.UNIT], timeout=120)(job)
+
+    def health(job):
+        ok, detail = _wait_healthy('s3')
+        if not ok:
+            raise AppError('Garage is installed but not healthy: %s' % detail)
+        return {'health': detail}
+
+    return [('Download and verify Garage %s' % s3.VERSION, fetch), ('Create the %s system user' % s3.USER, user),
+            ('Install the binary, secrets, configuration and unit', files),
+            ('Assign the storage layout and health check', health)]
+
+
+def _s3_removal_plan():
+    files = [p for p in (s3.BIN, s3.UNIT_FILE, s3.DROPIN, s3.CONF, s3.SECRET_DIR) if os.path.exists(p)]
+    if _owner(s3.USER)[0] is not None:
+        files.append('user %s' % s3.USER)
+    data_dir = _data_dir('s3')
+    return {'app': 's3', 'requested': files, 'packages': files, 'files': files,
+            'freed': '%d MB' % ((_install_bytes('s3') or 0) // (1024 * 1024)),
+            'endpoint': _s3_state().get('endpoint'), 'data_dir': data_dir, 'data_bytes': _du(data_dir)}
+
+
+def _s3_remove_steps(delete_data, packages):
+    data_dir = _data_dir('s3')
+
+    def stop(job):
+        plan = _s3_removal_plan()
+        if packages is not None and sorted(plan['files']) != sorted(packages):
+            raise AppError('What would be removed changed since the preview (%s); nothing was removed. Preview again.'
+                           % ', '.join(plan['files'])[:400])
+        sv.run(['systemctl', 'disable', '--now', s3.UNIT], timeout=300)
+
+    def endpoint(job):
+        domain = _s3_state().get('endpoint')
+        if domain:
+            _s3_vhost(domain, None)
+            job.log('Removed the S3 proxy from the %s vhost' % domain)
+
+    def remove(job):
+        for path in (s3.UNIT_FILE, s3.DROPIN, s3.CONF, s3.BIN):
+            if os.path.isfile(path):
+                os.unlink(path)
+                job.log('Removed %s' % path)
+        if os.path.isdir(os.path.dirname(s3.DROPIN)) and not os.listdir(os.path.dirname(s3.DROPIN)):
+            os.rmdir(os.path.dirname(s3.DROPIN))
+        if os.path.isdir(s3.SECRET_DIR):
+            shutil.rmtree(s3.SECRET_DIR)
+            job.log('Removed %s (RPC secret, admin token)' % s3.SECRET_DIR)
+        sv.run(['systemctl', 'daemon-reload'], timeout=60)
+        sv.run(['systemctl', 'reset-failed', s3.UNIT], timeout=30)
+        if _owner(s3.USER)[0] is not None:
+            _command_step(['userdel', s3.USER])(job)
+        try:
+            os.unlink(_s3_state_path())
+        except OSError:
+            pass
+        if os.path.exists(s3.BIN):
+            raise AppError('%s is still there after removal; see the log.' % s3.BIN)
+
+    def data(job):
+        result = {'data_dir': data_dir, 'data_deleted': False}
+        if delete_data and data_dir and os.path.isdir(data_dir) and not os.path.islink(data_dir):
+            shutil.rmtree(s3.clean_data_dir(data_dir))
+            job.log('Deleted the data directory %s (every bucket and object)' % data_dir)
+            result['data_deleted'] = True
+        elif data_dir and os.path.isdir(data_dir):
+            job.log('Kept the data directory %s (buckets and keys come back on reinstall)' % data_dir)
+        return result
+
+    return [('Stop S3 Object Storage', stop), ('Remove the HTTPS endpoint', endpoint),
+            ('Remove Garage', remove), ('Clean up', data)]
+
+
+# --- buckets, keys and permissions (admin API on 127.0.0.1, token from a root-only file)
+
+def _s3_bucket(token, name):
+    info = s3.api('GET', '/v2/GetBucketInfo?globalAlias=%s' % s3.bucket_name(name), token)
+    return s3.bucket_id(info.get('id')), info
+
+
+def s3_bucket_create(name, max_size_mb=None, max_objects=None):
+    name = s3.bucket_name(name)
+    limits = s3.quotas(max_size_mb, max_objects)
+    token = _s3_require_running()
+    created = s3.api('POST', '/v2/CreateBucket', token, {'globalAlias': name})
+    if limits['maxSize'] or limits['maxObjects']:
+        s3.api('POST', '/v2/UpdateBucket?id=%s' % s3.bucket_id(created.get('id')), token, {'quotas': limits})
+    return {'bucket': name, 'id': created.get('id'), 'quotas': limits}
+
+
+def s3_bucket_delete(name, confirm_name=''):
+    name = s3.bucket_name(name)
+    if str(confirm_name or '').strip() != name:
+        raise AppError('Type the bucket name to confirm deleting it.')
+    token = _s3_require_running()
+    bucket, info = _s3_bucket(token, name)
+    if info.get('objects'):
+        raise AppError('Bucket %s still holds %d object(s); empty it first (Garage deletes only empty buckets).'
+                       % (name, info['objects']))
+    s3.api('POST', '/v2/DeleteBucket?id=%s' % bucket, token)
+    return {'bucket': name, 'deleted': True}
+
+
+def s3_bucket_quota(name, max_size_mb=None, max_objects=None):
+    limits = s3.quotas(max_size_mb, max_objects)
+    token = _s3_require_running()
+    bucket, _ = _s3_bucket(token, name)
+    s3.api('POST', '/v2/UpdateBucket?id=%s' % bucket, token, {'quotas': limits})
+    return {'bucket': s3.bucket_name(name), 'quotas': limits}
+
+
+def s3_key_create(name):
+    """A new access key. Its secret is returned in this reply only: the panel neither stores nor logs it."""
+    name = s3.key_name(name)
+    token = _s3_require_running()
+    created = s3.api('POST', '/v2/CreateKey', token, {'name': name, 'neverExpires': True})
+    secret = created.get('secretAccessKey')
+    if not secret:
+        raise AppError('Garage created the key but returned no secret; delete it and try again.')
+    return {'id': s3.key_id(created.get('accessKeyId')), 'name': name, 'secret': secret,
+            'note': 'Copy the secret now: it is shown only this once.'}
+
+
+def s3_key_delete(key):
+    key = s3.key_id(key)
+    token = _s3_require_running()
+    s3.api('POST', '/v2/DeleteKey?id=%s' % key, token)
+    return {'key': key, 'deleted': True}
+
+
+def s3_permission(bucket, key, read=False, write=False, owner=False):
+    """Set exactly these permissions of `key` on `bucket` (allow the ticked ones, deny the others)."""
+    key = s3.key_id(key)
+    wanted = s3.permissions(read, write, owner)
+    token = _s3_require_running()
+    bucket_id, _ = _s3_bucket(token, bucket)
+    allow = {k: v for k, v in wanted.items()}
+    deny = {k: not v for k, v in wanted.items()}
+    if any(allow.values()):
+        s3.api('POST', '/v2/AllowBucketKey', token, {'bucketId': bucket_id, 'accessKeyId': key, 'permissions': allow})
+    if any(deny.values()):
+        s3.api('POST', '/v2/DenyBucketKey', token, {'bucketId': bucket_id, 'accessKeyId': key, 'permissions': deny})
+    return {'bucket': s3.bucket_name(bucket), 'key': key, 'permissions': wanted}
+
+
+# --- the HTTPS endpoint: an OpenLiteSpeed proxy on a dedicated panel site, with the site's SSL
+
+def _s3_vhost(domain, port):
+    """Write (port) or remove (None) the proxy block in the site's vhost.conf; restart OLS, restore on failure."""
+    from universalAddons.htaccess import service as hs
+    path = os.path.join(hs.VHOSTS, s3.clean_domain(domain), 'vhost.conf')
+    if not os.path.isfile(path):
+        raise AppError('No OpenLiteSpeed vhost for %s: create the site (or subdomain) in the panel first.' % domain)
+    text = _read(path)
+    if port is None:
+        updated = s3.strip_vhost_block(text)
+    else:
+        problems = s3.vhost_problems(text)
+        if problems:
+            raise AppError('%s cannot carry the S3 endpoint: %s.' % (domain, '; '.join(problems)))
+        updated = s3.apply_vhost(text, port)
+    if updated == text:
+        return False
+    saved = hs._backup([path])
+    hs._write_atomic(path, updated)
+    if not hs.restart():
+        hs._restore(saved)
+        hs.restart()
+        raise AppError('OpenLiteSpeed did not restart with the S3 proxy; the previous vhost was restored.')
+    return True
+
+
+def s3_endpoint(op, domain=None):
+    if op not in ('set', 'remove'):
+        raise AppError('Unknown endpoint action.')
+    if not _version('s3'):
+        raise AppError('S3 Object Storage is not installed.')
+    _require_idle('s3')
+    current = _current('s3', sv.meminfo_mb()[0])
+    if op == 'remove':
+        if not current.get('endpoint'):
+            raise AppError('There is no HTTPS endpoint to remove.')
+        if not sv.is_loopback(current['bind']):
+            raise AppError('Set the listen address back to 127.0.0.1 first: without the HTTPS endpoint the S3 API '
+                           'must not listen on the network.')
+        return jobs.spawn('appsvc', 's3_endpoint_run', {'op': 'remove'})
+    domain = s3.clean_domain(domain)
+    from universalAddons.htaccess import service as hs
+    path = os.path.join(hs.VHOSTS, domain, 'vhost.conf')
+    if not os.path.isfile(path):
+        raise AppError('No OpenLiteSpeed vhost for %s: create the site (or subdomain) in the panel first.' % domain)
+    problems = s3.vhost_problems(_read(path))
+    if problems:
+        raise AppError('%s cannot carry the S3 endpoint: %s.' % (domain, '; '.join(problems)))
+    return jobs.spawn('appsvc', 's3_endpoint_run', {'op': 'set', 'domain': domain})
+
+
+def s3_endpoint_run(job_id, op, domain=None):
+    def step(job):
+        current = _current('s3', sv.meminfo_mb()[0])
+        old = current.get('endpoint')
+        settings = {k: current[k] for k in ('s3_port', 'bind', 'region', 'data_dir', 'memory_mb',
+                                            'replication_factor', 'web_port')}
+        if op == 'set':
+            if old and old != domain:
+                _s3_vhost(old, None)
+                job.log('Removed the S3 proxy from %s' % old)
+            _s3_vhost(domain, current['s3_port'])
+            job.log('Proxied https://%s/ to Garage on 127.0.0.1:%d (the site\'s own SSL certificate)'
+                    % (domain, current['s3_port']))
+            _s3_save_state(endpoint=domain)
+        else:
+            _s3_vhost(old, None)
+            job.log('Removed the S3 proxy from %s' % old)
+            _s3_save_state(endpoint=None)
+        try:
+            result = _apply_settings(job, 's3', settings, True)   # public_endpoint in garage.toml
+        except AppError:
+            _s3_save_state(endpoint=old)
+            if op == 'set':
+                _s3_vhost(domain, None)
+            if old:
+                _s3_vhost(old, current['s3_port'])
+            raise
+        return dict(result, endpoint=domain if op == 'set' else None)
+
+    return _locked_job(job_id, 's3', [('%s the HTTPS endpoint' % ('Set up' if op == 'set' else 'Remove'), step)])
 
 
 def _job(job_id):
@@ -1383,5 +1925,13 @@ ACTIONS = {
     'disk': disk,
     'runtimes': runtimes,
     'oracle_db_check': oracle_db_check,
+    's3_bucket_create': s3_bucket_create,
+    's3_bucket_delete': s3_bucket_delete,
+    's3_bucket_quota': s3_bucket_quota,
+    's3_key_create': s3_key_create,
+    's3_key_delete': s3_key_delete,
+    's3_permission': s3_permission,
+    's3_endpoint': s3_endpoint,
+    's3_endpoint_run': s3_endpoint_run,
     'job': _job,
 }

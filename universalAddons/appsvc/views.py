@@ -5,6 +5,7 @@ import re
 from universalAddons import privileged
 from universalAddons.access import admin_api, admin_page, error, ok
 from universalAddons.appsvc import more as mo
+from universalAddons.appsvc import s3
 from universalAddons.appsvc import service as sv
 
 OPS = ('start', 'stop', 'restart', 'enable', 'disable')
@@ -131,6 +132,58 @@ def pg_create(request, data):
     for name in (database, user):
         mo.pg_ident(name)   # ValueError (AppError) -> 400 before anything runs as root
     return _call('pg_create', database=database, user=user)
+
+
+# ----------------------------------------------------------------------------- S3 object storage
+
+def _quota_args(data):
+    limits = s3.quotas(data.get('maxSizeMb'), data.get('maxObjects'))   # ValueError (AppError) -> 400
+    return {'max_size_mb': limits['maxSize'] // (1024 * 1024) if limits['maxSize'] else None,
+            'max_objects': limits['maxObjects']}
+
+
+@admin_api
+def s3_bucket(request, data):
+    op = str(data.get('op', ''))
+    name = s3.bucket_name(data.get('bucket'))
+    if op == 'create':
+        return _call('s3_bucket_create', name=name, **_quota_args(data))
+    if op == 'quota':
+        return _call('s3_bucket_quota', name=name, **_quota_args(data))
+    if op == 'delete':
+        confirm = data.get('confirmName', '')
+        if not isinstance(confirm, str) or confirm.strip() != name:
+            return error('Type the bucket name to confirm deleting it.', status=400)
+        return _call('s3_bucket_delete', name=name, confirm_name=name)
+    return error('Unknown bucket action.', status=400)
+
+
+@admin_api
+def s3_key(request, data):
+    op = str(data.get('op', ''))
+    if op == 'create':
+        return _call('s3_key_create', name=s3.key_name(data.get('name')))
+    if op == 'delete':
+        if data.get('confirm') is not True:
+            return error('Confirm deleting the access key.', status=400)
+        return _call('s3_key_delete', key=s3.key_id(data.get('key')))
+    return error('Unknown key action.', status=400)
+
+
+@admin_api
+def s3_permission(request, data):
+    return _call('s3_permission', bucket=s3.bucket_name(data.get('bucket')), key=s3.key_id(data.get('key')),
+                 read=data.get('read') is True, write=data.get('write') is True, owner=data.get('owner') is True)
+
+
+@admin_api
+def s3_endpoint(request, data):
+    op = str(data.get('op', ''))
+    if op == 'set':
+        return _call('s3_endpoint', op='set', domain=s3.clean_domain(data.get('domain')))
+    if op == 'remove':
+        return _call('s3_endpoint', op='remove')
+    return error('Unknown endpoint action.', status=400)
 
 
 @admin_api

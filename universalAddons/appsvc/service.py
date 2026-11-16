@@ -85,6 +85,12 @@ APPS = {
                  'data_dir': '/var/lib/rabbitmq', 'min_ram_mb': 384, 'min_disk_mb': 1024, 'legacy': None,
                  'about': 'Message broker (AMQP) from Team RabbitMQ\'s signed repositories, with their Erlang.',
                  'packages': ('rabbitmq-server', 'erlang'), 'log_dirs': ('/var/log/rabbitmq',)},
+    's3': {'title': 'S3 Object Storage (Garage)', 'package': None, 'unit': 'garage', 'data_dir': '/var/lib/garage',
+           'min_ram_mb': 128, 'min_disk_mb': 1024, 'legacy': None,
+           'about': 'S3-compatible object storage for customers and backups: Garage, a single static binary from '
+                    'Deuxfleurs (verified against two official channels), on 127.0.0.1 with an optional HTTPS '
+                    'endpoint through OpenLiteSpeed. Buckets, access keys, per-key permissions and quotas.',
+           'packages': (), 'log_dirs': ()},
     'oracle_client': {'title': 'Oracle Instant Client', 'package': 'oracle-instantclient-basic', 'unit': None,
                       'data_dir': None, 'min_ram_mb': 0, 'min_disk_mb': 512, 'legacy': None, 'kind': 'client',
                       'about': 'Oracle Instant Client 23 (Basic + SQL*Plus) from Oracle\'s yum repository, for '
@@ -97,7 +103,8 @@ APPS = {
                'about': 'Docker Engine. Containers, images and the service are managed in the panel\'s Docker manager.',
                'packages': (), 'log_dirs': ()},
 }
-ORDER = ('elasticsearch', 'redis', 'memcached', 'mssql', 'postgresql', 'mongodb', 'rabbitmq', 'oracle_client', 'docker')
+ORDER = ('elasticsearch', 'redis', 'memcached', 'mssql', 'postgresql', 'mongodb', 'rabbitmq', 's3', 'oracle_client',
+         'docker')
 # kind: 'service' (installed, configured and controlled here), 'bridge' (another add-on installs it),
 # 'client' (libraries only, no service), 'status' (shown only; managed elsewhere).
 for _key, _info in APPS.items():
@@ -1197,6 +1204,23 @@ FIELDS.update({
     ],
     'oracle_client': [],
     'docker': [],
+    's3': [
+        {'name': 's3_port', 'label': 'S3 API port ([s3_api] api_bind_addr)', 'type': 'number'},
+        {'name': 'bind', 'label': 'Listen address', 'type': 'text',
+         'help': '127.0.0.1 keeps the S3 API on this server; customers reach it through the HTTPS endpoint below. '
+                 'Anything else serves S3 over plain HTTP to the network and needs the HTTPS endpoint set up first.'},
+        {'name': 'region', 'label': 'Region name (s3_region)', 'type': 'text',
+         'help': 'Clients must use this region (SDKs sign requests with it). Lowercase letters, digits, dashes.'},
+        {'name': 'data_dir', 'label': 'Data directory', 'type': 'text',
+         'help': 'meta/ and data/ live inside it. Under /var/lib, /srv, /data, /mnt or /opt. It can only be changed '
+                 'while there are no buckets (the panel does not move object data).'},
+        {'name': 'memory_mb', 'label': 'Memory cap (MB, systemd MemoryMax)', 'type': 'number',
+         'help': 'Garage with the SQLite metadata engine needs well under 100 MB on a small node.'},
+        {'name': 'replication_factor', 'label': 'replication_factor', 'type': 'select', 'options': ['1'],
+         'help': 'Single node: one copy. Keep your own backups of important buckets.'},
+        {'name': 'web_port', 'label': 'Static website port ([s3_web], 0 = off)', 'type': 'number',
+         'help': 'Garage can serve buckets as static websites. Off unless you need it; same listen address.'},
+    ],
 })
 
 
@@ -1246,6 +1270,8 @@ def cap_mb(key, current):
     if key == 'mongodb':
         return int(round(float(current.get('cache_gb') or 0) * 1024))
     if key == 'rabbitmq':
+        return int(current.get('memory_mb') or 0)
+    if key == 's3':
         return int(current.get('memory_mb') or 0)
     return 0
 

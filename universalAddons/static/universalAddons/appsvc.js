@@ -81,7 +81,7 @@
     function renderNotInstalled(a) {
         html(a.key, '.as-status', '<p>' + badge('info', 'not installed') + '</p>');
         html(a.key, '.as-preflight', checks(a.preflight || []));
-        ['.as-controls', '.as-config', '.as-connect', '.as-logs-card', '.as-remove', '.as-pgdb'].forEach(function (s) { show(a.key, s, false); });
+        ['.as-controls', '.as-config', '.as-connect', '.as-logs-card', '.as-remove', '.as-pgdb', '.as-s3', '.as-s3-endpoint'].forEach(function (s) { show(a.key, s, false); });
         show(a.key, '.as-install', a.kind !== 'status');
         html(a.key, '.as-secret', '');
     }
@@ -123,7 +123,7 @@
         }
         html(a.key, '.as-status', table(rows));
         if (q(a.key, '.as-controls')) { q(a.key, '.as-controls').style.display = ''; }
-        ['.as-config', '.as-connect', '.as-logs-card', '.as-remove', '.as-pgdb'].forEach(function (sel) { show(a.key, sel, true); });
+        ['.as-config', '.as-connect', '.as-logs-card', '.as-remove', '.as-pgdb', '.as-s3', '.as-s3-endpoint'].forEach(function (sel) { show(a.key, sel, true); });
 
         if (a.password) {
             html(a.key, '.as-secret', a.password.reveal_pending ?
@@ -134,11 +134,14 @@
             var note = a.config_problem ? '<div class="ua-alert">' + esc(a.config_problem) + '</div>' :
                 (a.key === 'elasticsearch' ? 'Heap between ' + esc(a.heap_bounds[0]) + ' and ' + esc(a.heap_bounds[1]) + ' MB on this server. ' : '') +
                 (a.key === 'mssql' && a.memory_bounds ? 'Cap between ' + esc(a.memory_bounds[0]) + ' and ' + esc(a.memory_bounds[1]) + ' MB on this server. ' : '') +
+                (a.key === 's3' && a.memory_bounds ? 'Memory cap between ' + esc(a.memory_bounds[0]) + ' and ' + esc(a.memory_bounds[1]) + ' MB on this server. ' +
+                    (a.endpoint ? 'HTTPS endpoint: ' + esc(a.endpoint) + '. ' : 'Listening beyond 127.0.0.1 needs the HTTPS endpoint first. ') : '') +
                 (s.managed ? 'Managed by the panel.' : 'Not yet managed by the panel: the values shown are the current ones.');
             html(a.key, '.as-config-note', note);
             html(a.key, '.as-form', a.fields.map(function (f) { return fieldHtml(f, f.transient ? false : s[f.name], a.key); }).join(''));
             q(a.key, '.as-revert').style.display = a.backups ? '' : 'none';
         }
+        if (a.key === 's3') { renderS3(a); }
         if (a.key === 'postgresql') {
             var dbs = a.databases;
             html(a.key, '.as-pgdb-list', dbs ? table(dbs.map(function (d) { return [esc(d.name), 'owner ' + esc(d.owner) + ' · ' + esc(size(d.bytes))]; })) :
@@ -149,11 +152,50 @@
             var info = [['Host', esc(c.host)], ['Port', esc(c.port)]];
             if (c.socket) { info.push(['Unix socket', esc(c.socket)]); }
             if (c.url) { info.push(['URL', esc(c.url)]); }
+            if (c.region) { info.push(['Region', esc(c.region)]); }
+            if (c.style) { info.push(['Addressing', esc(c.style)]); }
             info.push(['Authentication', esc(c.auth)]);
-            html(a.key, '.as-connect-body', table(info) + (c.note ? '<p class="ua-muted">' + esc(c.note) + '</p>' : '') +
+            var hint = c.backup ? '<div class="ua-alert" style="background:#e0f2fe;color:#075985;margin-top:6px">Use as backup destination: ' +
+                '<a href="' + esc(c.backup.link) + '">Backup destinations</a> &rarr; S3-compatible &rarr; ' + esc(c.backup.preset) +
+                ', endpoint ' + esc(c.backup.endpoint) + ', region ' + esc(c.backup.region) + (c.backup.use_http ? ', tick "Use plain http"' : '') +
+                ', with an access key from above that may write to the bucket.</div>' : '';
+            html(a.key, '.as-connect-body', table(info) + (c.note ? '<p class="ua-muted">' + esc(c.note) + '</p>' : '') + hint +
                 (c.examples || []).map(function (e) { return '<h3>' + esc(e.title) + '</h3><div class="ua-pre">' + esc(e.code) + '</div>'; }).join(''));
         }
         if (p.dataset.logsShown) { loadLogs(a.key); }
+    }
+
+    function renderS3(a) {
+        var inv = a.inventory, endpoint = a.endpoint;
+        html('s3', '.as-s3-endpoint-now', endpoint ? '<p>' + badge('pass', 'active') + ' https://' + esc(endpoint) + '/</p>' :
+            '<p>' + badge('info', 'none') + ' Local only (127.0.0.1).</p>');
+        if (!inv) {
+            html('s3', '.as-s3-buckets', a.inventory_error ? '<div class="ua-alert">' + esc(a.inventory_error) + '</div>' :
+                '<p class="ua-muted">Start S3 Object Storage to manage buckets and keys.</p>');
+            html('s3', '.as-s3-keys', '');
+            return;
+        }
+        var perm = function (p) { return ['read', 'write', 'owner'].filter(function (k) { return p && p[k]; }).join('+') || 'none'; };
+        html('s3', '.as-s3-buckets', inv.buckets.length ? table(inv.buckets.map(function (b) {
+            var q = b.quotas || {};
+            return ['<strong>' + esc(b.name) + '</strong>', esc(size(b.bytes)) + ' · ' + esc(b.objects) + ' objects · quota ' +
+                (q.maxSize ? esc(size(q.maxSize)) : 'none') + (q.maxObjects ? ', ' + esc(q.maxObjects) + ' objects' : '') +
+                '<br>' + (b.keys.length ? b.keys.map(function (k) { return esc(k.name || k.id) + ': ' + esc(perm(k.permissions)); }).join(', ') : '<span class="ua-muted">no keys</span>') +
+                ' <button class="ua-btn ua-btn-secondary as-s3-bucket-quota" data-bucket="' + esc(b.name) + '">Set quota</button>' +
+                ' <button class="ua-btn ua-btn-secondary as-s3-bucket-delete" data-bucket="' + esc(b.name) + '">Delete</button>'];
+        })) : '<p class="ua-muted">No buckets yet.</p>');
+        html('s3', '.as-s3-keys', inv.keys.length ? table(inv.keys.map(function (k) {
+            return [esc(k.name), '<code>' + esc(k.id) + '</code>' + (k.expired ? ' ' + badge('warn', 'expired') : '') +
+                ' <button class="ua-btn ua-btn-secondary as-s3-key-delete" data-key="' + esc(k.id) + '">Delete</button>'];
+        })) : '<p class="ua-muted">No access keys yet.</p>');
+        q('s3', '.as-s3-perm-bucket').innerHTML = inv.buckets.map(function (b) { return '<option>' + esc(b.name) + '</option>'; }).join('');
+        q('s3', '.as-s3-perm-key').innerHTML = inv.keys.map(function (k) { return '<option value="' + esc(k.id) + '">' + esc(k.name) + ' (' + esc(k.id) + ')</option>'; }).join('');
+    }
+
+    function s3call(t, name, body, done) {
+        UA.busy(t, true);
+        return api(name, body).then(function (d) { if (done) { done(d.result || {}); } load(); })
+            .catch(function (e) { UA.showError(q('s3', '.as-s3-out'), e); }).then(function () { UA.busy(t, false); });
     }
 
     function load() {
@@ -229,6 +271,13 @@
         var r = (job.result || {})['Preview removal'];
         if (job.state !== 'done' || !r) { html(key, '.as-preview', '<div class="ua-alert">' + esc(job.error || 'The preview failed.') + '</div>'); return; }
         previews[key] = job.id;
+        if (key === 's3') {
+            html(key, '.as-preview', '<p>Would remove (' + esc(r.freed) + '):</p><div class="ua-pre">' + esc(r.files.join('\n')) + '</div>' +
+                (r.endpoint ? '<p>The HTTPS endpoint on ' + esc(r.endpoint) + ' is taken off that site.</p>' : '') +
+                (r.data_dir ? '<p>Data directory ' + esc(r.data_dir) + ' (' + esc(size(r.data_bytes)) + ') is kept unless you choose to delete it below.</p>' : ''));
+            show(key, '.as-remove-confirm', true);
+            return;
+        }
         html(key, '.as-preview', '<p>dnf would remove ' + esc(r.packages.length) + ' package(s)' + (r.freed ? ', freeing ' + esc(r.freed) : '') +
             ':</p><div class="ua-pre">' + esc(r.packages.join('\n')) + '</div>' +
             (r.data_dir ? '<p>Data directory ' + esc(r.data_dir) + ' (' + esc(size(r.data_bytes)) + ') is kept unless you choose to delete it below.</p>' : ''));
@@ -294,6 +343,37 @@
                         esc('host=' + r.host + ' port=' + r.port + ' dbname=' + r.database + ' user=' + r.user + ' password=' + r.password) + '</div>');
                     load();
                 }).catch(function (e) { UA.showError(q(key, '.as-pg-out'), e); }).then(function () { UA.busy(t, false); });
+            } else if (t.classList.contains('as-s3-bucket-create')) {
+                s3call(t, 's3_bucket', {op: 'create', bucket: q(key, '.as-s3-bucket').value.trim(),
+                    maxSizeMb: q(key, '.as-s3-maxsize').value.trim(), maxObjects: q(key, '.as-s3-maxobjects').value.trim()});
+            } else if (t.classList.contains('as-s3-bucket-quota')) {
+                var mb = window.prompt('Quota for ' + t.dataset.bucket + ' in MB (blank or 0 = no quota):', '');
+                if (mb === null) { return; }
+                var objs = window.prompt('Maximum number of objects (blank or 0 = no limit):', '');
+                if (objs === null) { return; }
+                s3call(t, 's3_bucket', {op: 'quota', bucket: t.dataset.bucket, maxSizeMb: mb.trim(), maxObjects: objs.trim()});
+            } else if (t.classList.contains('as-s3-bucket-delete')) {
+                var typed = window.prompt('Delete the (empty) bucket ' + t.dataset.bucket + '? Type its name to confirm:', '');
+                if (typed === null) { return; }
+                s3call(t, 's3_bucket', {op: 'delete', bucket: t.dataset.bucket, confirmName: typed.trim()});
+            } else if (t.classList.contains('as-s3-key-create')) {
+                s3call(t, 's3_key', {op: 'create', name: q(key, '.as-s3-keyname').value.trim()}, function (r) {
+                    html(key, '.as-s3-secret', '<div class="ua-card" style="background:#fef3c7"><p><strong>Copy the secret now; it will not be shown again.</strong></p>' +
+                        '<div class="ua-pre">' + esc('Access key ID:     ' + r.id + '\nSecret access key: ' + r.secret) + '</div></div>');
+                });
+            } else if (t.classList.contains('as-s3-key-delete')) {
+                if (!window.confirm('Delete access key ' + t.dataset.key + '? Apps using it lose access at once.')) { return; }
+                s3call(t, 's3_key', {op: 'delete', key: t.dataset.key, confirm: true});
+            } else if (t.classList.contains('as-s3-perm-save')) {
+                s3call(t, 's3_permission', {bucket: q(key, '.as-s3-perm-bucket').value, key: q(key, '.as-s3-perm-key').value,
+                    read: q(key, '.as-s3-perm-read').checked, write: q(key, '.as-s3-perm-write').checked, owner: q(key, '.as-s3-perm-owner').checked});
+            } else if (t.classList.contains('as-s3-endpoint-set')) {
+                var domain = q(key, '.as-s3-domain').value.trim().toLowerCase();
+                if (!window.confirm('Send every request for https://' + domain + '/ to the S3 API? The site\'s own pages there stop being served.')) { return; }
+                start(key, t, 's3_endpoint', {op: 'set', domain: domain});
+            } else if (t.classList.contains('as-s3-endpoint-remove')) {
+                if (!window.confirm('Remove the HTTPS endpoint? Customers using it lose access.')) { return; }
+                start(key, t, 's3_endpoint', {op: 'remove'});
             } else if (t.classList.contains('as-logs-btn')) {
                 loadLogs(key);
             } else if (t.classList.contains('as-reveal')) {
