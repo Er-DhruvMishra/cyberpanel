@@ -3647,6 +3647,14 @@ passdb {
             pass
 
     @staticmethod
+    def runIndiansCloudServerSetup():
+        """Host-level fixes kept outside the panel code (install/indianscloud_server_setup.sh).
+        Idempotent; a failure is logged and never stops the upgrade."""
+        script = '/usr/local/CyberCP/install/indianscloud_server_setup.sh'
+        if os.path.exists(script):
+            Upgrade.executioner('bash ' + script, 'IndiansCloud server setup', 0)
+
+    @staticmethod
     def GeneralMigrations():
         try:
 
@@ -4046,6 +4054,7 @@ passdb {
             Upgrade.ensurePostfixLoopbackNetworks()
             Upgrade.ensurePostfixDomainLookup()
             Upgrade.ensureDovecot24LdaConfig()
+            Upgrade.runIndiansCloudServerSetup()
 
             # Restore Imunify360 after upgrade
             Upgrade.restoreImunify360()

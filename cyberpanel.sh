@@ -2480,6 +2480,15 @@ if [[ ! -f /usr/bin/cyberpanel_utility ]]; then
 fi
 }
 
+Post_Install_IndiansCloud_Setup() {
+# Host-level fixes kept outside the panel code (repos, PHP, PowerDNS, Dovecot Sieve, rclone,
+# cron jobs, migrations). Idempotent; see install/indianscloud_server_setup.sh.
+if [[ -f /usr/local/CyberCP/install/indianscloud_server_setup.sh ]] ; then
+  echo -e "\nApplying IndiansCloud server setup..."
+  bash /usr/local/CyberCP/install/indianscloud_server_setup.sh || echo "IndiansCloud server setup reported a problem; see /var/log/indianscloud-server-setup.log"
+fi
+}
+
 Post_Install_Display_Final_Info() {
 log_function_start "Post_Install_Display_Final_Info"
 log_info "Preparing final installation information"
@@ -3041,5 +3050,7 @@ Post_Install_Setup_Watchdog
 Post_Install_Setup_Utility
 
 Post_Install_Tweak
+
+Post_Install_IndiansCloud_Setup
 
 Post_Install_Display_Final_Info

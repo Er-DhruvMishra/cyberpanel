@@ -961,14 +961,14 @@ PDNS_Token='{APIKey}'
                 PDNSConf = f"""
 # Turn on the webserver API
 webserver=yes
-webserver-address=0.0.0.0
+webserver-address=127.0.0.1
 webserver-port=8081
 
 # Set the API key for accessing the API
 api=yes
 api-key={APIKey}
 
-webserver-allow-from=0.0.0.0/0
+webserver-allow-from=127.0.0.1,::1
 """
                 command = f'echo "{PDNSConf}" >> {PDNSPath}'
                 ProcessUtilities.executioner(command,None, True)
