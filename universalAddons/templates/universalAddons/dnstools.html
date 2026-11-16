@@ -1,0 +1,60 @@
+{% extends "universalAddons/base.html" %}
+{% load i18n static %}
+{% block title %}{% trans "DNS tools" %} - IndiansCloud{% endblock %}
+{% block addon_scripts %}<script src="{% static 'universalAddons/dnstools.js' %}?v={{ CP_VERSION }}"></script>{% endblock %}
+{% block content %}
+<div class="ua-wrap" id="ua-dnstools" data-base="{% url 'ua-dnstools' %}" data-admin="{{ is_admin|yesno:'1,0' }}"
+     data-reseller="{{ is_reseller|yesno:'1,0' }}">
+  <div class="ua-header">
+    <h1><i class="fas fa-key"></i> {% trans "DNS tools" %}</h1>
+    <p>{% trans "DNSSEC signing for the zones you manage on this server's PowerDNS, and DNS templates for new zones." %}</p>
+  </div>
+
+  <div class="ua-card">
+    <h2>{% trans "DNSSEC" %}</h2>
+    <div class="ua-row">
+      <select id="dt-zone"></select>
+      <button class="ua-btn ua-btn-secondary" id="dt-status">{% trans "Check" %}</button>
+    </div>
+    <div id="dt-dnssec" style="margin-top:12px"></div>
+    <div class="ua-alert" style="margin-top:12px">{% trans "Signing a zone is only half the job: you must then add the DS record shown here at your domain registrar. Before you turn DNSSEC off, remove the DS record at the registrar and wait for it to expire, or the domain stops resolving for validating resolvers." %}</div>
+  </div>
+
+  {% if is_admin or is_reseller %}
+  <div class="ua-card">
+    <h2>{% trans "DNS template for new zones" %}</h2>
+    <p class="ua-muted">{% if is_admin %}{% trans "The default template is used when the panel creates a zone for a new website. A reseller's own template, when saved, is used for the reseller's users instead. With no template saved the panel creates its usual fixed records." %}{% else %}{% trans "Your template is used for the zones of the websites you and your users create. Without one, the administrator's default (or the panel's fixed records) is used." %}{% endif %}</p>
+    <p class="ua-muted">{% trans "Placeholders:" %} {% for p in placeholders %}<code>{{ p }}</code> {% endfor %}&middot; {% trans "Types:" %} {{ types|join:", " }} &middot; {% trans "Names are relative to the zone (@ = the zone itself). SOA and NS records are always made by the panel." %}</p>
+    {% if is_admin %}
+    <div class="ua-row">
+      <label>{% trans "Template" %} <select id="dt-scope"><option value="default">{% trans "Default (all accounts)" %}</option></select></label>
+      <label>{% trans "IPv6 for {ipv6}" %} <input type="text" id="dt-ipv6" placeholder="2001:db8::1"></label>
+    </div>
+    {% endif %}
+    <p id="dt-tpl-state" class="ua-muted"></p>
+    <div style="overflow-x:auto"><table class="ua-table" id="dt-records"></table></div>
+    <div class="ua-row" style="margin-top:12px">
+      <button class="ua-btn ua-btn-secondary" id="dt-add-row">{% trans "Add record" %}</button>
+      <button class="ua-btn ua-btn-secondary" id="dt-load-fixed">{% trans "Start from the panel's fixed records" %}</button>
+      <button class="ua-btn ua-btn-secondary" id="dt-preview">{% trans "Preview" %}</button>
+      <button class="ua-btn" id="dt-save">{% trans "Save template" %}</button>
+      <button class="ua-btn ua-btn-secondary" id="dt-remove" style="color:#dc2626">{% trans "Remove template" %}</button>
+    </div>
+    <div id="dt-preview-out" style="margin-top:12px"></div>
+  </div>
+  {% endif %}
+
+  <div class="ua-card">
+    <h2>{% trans "Apply a template to an existing zone" %}</h2>
+    <p class="ua-muted">{% trans "Add only: missing records are added, nothing is removed. Replace: for every name and type the template sets, the zone's other records of that name and type are removed. SOA and NS records are never changed. Always preview first." %}</p>
+    <div class="ua-row">
+      <select id="dt-apply-zone"></select>
+      <label><input type="radio" name="dt-mode" value="add" checked> {% trans "Add only" %}</label>
+      <label><input type="radio" name="dt-mode" value="replace"> {% trans "Replace" %}</label>
+      <button class="ua-btn ua-btn-secondary" id="dt-apply-preview">{% trans "Preview" %}</button>
+      <button class="ua-btn" id="dt-apply" disabled>{% trans "Apply" %}</button>
+    </div>
+    <div id="dt-apply-out" style="margin-top:12px"></div>
+  </div>
+</div>
+{% endblock %}

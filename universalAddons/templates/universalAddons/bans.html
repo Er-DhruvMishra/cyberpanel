@@ -1,0 +1,46 @@
+{% extends "universalAddons/base.html" %}
+{% load i18n static %}
+{% block title %}{% trans "Fail2ban bans" %} - IndiansCloud{% endblock %}
+{% block addon_scripts %}<script src="{% static 'universalAddons/bans.js' %}?v={{ CP_VERSION }}"></script>{% endblock %}
+{% block content %}
+<div class="ua-wrap" id="ua-bans" data-base="{% url 'ua-bans' %}">
+  <div class="ua-header">
+    <h1><i class="fas fa-ban"></i> {% trans "Fail2ban bans" %}</h1>
+    <p>{% trans "Every fail2ban jail with its banned addresses; search, ban and unban; and a whitelist that fail2ban never bans. Firewall blocks added by SSH Security are listed too." %}</p>
+  </div>
+
+  <div class="ua-card">
+    <h2>{% trans "Find an address" %}</h2>
+    <div class="ua-row">
+      <input type="text" id="bn-ip" placeholder="203.0.113.7">
+      <button class="ua-btn ua-btn-secondary" id="bn-search">{% trans "Search all jails" %}</button>
+      <select id="bn-jail"></select>
+      <button class="ua-btn" id="bn-ban">{% trans "Ban in this jail" %}</button>
+    </div>
+    <div id="bn-search-out" style="margin-top:12px"></div>
+  </div>
+
+  <div class="ua-card">
+    <h2>{% trans "Jails" %} <span class="ua-muted" id="bn-total"></span></h2>
+    <div class="ua-row"><input type="search" id="bn-filter" placeholder="{% trans 'Filter addresses' %}">
+      <button class="ua-btn ua-btn-secondary" id="bn-refresh">{% trans "Refresh" %}</button></div>
+    <div id="bn-jails" style="overflow-x:auto"><p class="ua-muted">{% trans "Loading…" %}</p></div>
+  </div>
+
+  <div class="ua-card">
+    <h2>{% trans "Whitelist (ignoreip)" %}</h2>
+    <p class="ua-muted" id="bn-dropin"></p>
+    <div class="ua-row">
+      <input type="text" id="bn-entry" placeholder="198.51.100.4 {% trans 'or' %} 198.51.100.0/24">
+      <button class="ua-btn" id="bn-wl-add">{% trans "Add and reload fail2ban" %}</button>
+    </div>
+    <div id="bn-whitelist" style="margin-top:12px"></div>
+  </div>
+
+  <div class="ua-card">
+    <h2>{% trans "Firewall blocks added by the panel" %}</h2>
+    <p class="ua-muted">{% trans "firewalld rich rules added by SSH Security. Manage them on its page." %} <a href="{% url 'ua-sshsec' %}">{% trans "SSH Security" %}</a></p>
+    <div id="bn-firewall"></div>
+  </div>
+</div>
+{% endblock %}

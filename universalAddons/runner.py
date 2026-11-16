@@ -45,6 +45,9 @@ MODULES = {
     'appcatalog': 'universalAddons.appcatalog.actions',
     'notify': 'universalAddons.notify.actions',
     'visitstats': 'universalAddons.visitstats.actions',
+    'pgsql': 'universalAddons.pgsql.actions',
+    'dnstools': 'universalAddons.dnstools.actions',
+    'bans': 'universalAddons.bans.actions',
     'hub': 'universalAddons.hub_actions',
 }
 

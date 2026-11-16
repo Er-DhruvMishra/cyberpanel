@@ -1,0 +1,87 @@
+{% extends "universalAddons/base.html" %}
+{% load i18n static %}
+{% block title %}{% trans "PostgreSQL databases" %} - IndiansCloud{% endblock %}
+{% block addon_scripts %}<script src="{% static 'universalAddons/pgsql.js' %}?v={{ CP_VERSION }}"></script>{% endblock %}
+{% block content %}
+<div class="ua-wrap" id="ua-pgsql" data-base="{% url 'ua-pgsql' %}" data-admin="{{ is_admin|yesno:'1,0' }}"
+     data-installed="{{ installed|yesno:'1,0' }}" data-adminer="{{ adminer|yesno:'1,0' }}">
+  <div class="ua-header">
+    <h1><i class="fas fa-database"></i> {% trans "PostgreSQL databases" %}</h1>
+    <p>{% trans "Databases and roles for your websites on this server's PostgreSQL. Names start with the site's database prefix, as for MySQL. The package's database limit counts MySQL and PostgreSQL databases of a website together." %}</p>
+  </div>
+
+  {% if not installed %}
+  <div class="ua-card">
+    <div class="ua-alert">{% trans "PostgreSQL is not installed on this server." %}</div>
+    {% if is_admin %}<p>{% trans "Install it from" %} <a href="{% url 'ua-appsvc' %}">{% trans "Applications" %}</a>{% trans ", then come back here. Until then this add-on stays hidden from users." %}</p>{% endif %}
+  </div>
+  {% else %}
+
+  {% if is_admin %}
+  <div class="ua-card">
+    <h2>{% trans "Adminer" %}</h2>
+    <p class="ua-muted">{% blocktrans %}Adminer {{ adminer_version }} (a single PHP file from the official GitHub release, checked against its pinned SHA-256) served by the panel at /adminer/. It can only reach this server's PostgreSQL. Users open it with one click from their databases.{% endblocktrans %}</p>
+    <div class="ua-row">
+      {% if adminer %}<span class="ua-badge ua-badge-pass">{% trans "Installed" %}</span>
+      <button class="ua-btn ua-btn-secondary" id="pg-adminer-install">{% trans "Reinstall" %}</button>
+      <button class="ua-btn ua-btn-secondary" id="pg-adminer-remove">{% trans "Remove" %}</button>
+      {% else %}<button class="ua-btn" id="pg-adminer-install">{% trans "Install Adminer" %}</button>{% endif %}
+    </div>
+    {% if not for_users %}<p class="ua-muted">{% trans "Users do not see this add-on yet: open it to them on the Add-ons hub (PostgreSQL databases switch)." %}</p>{% endif %}
+  </div>
+  {% endif %}
+
+  <div class="ua-card" id="pg-secret" style="display:none">
+    <h2>{% trans "Save this password now" %}</h2>
+    <p class="ua-muted">{% trans "It is shown once and is not stored by the panel. Reset it if you lose it." %}</p>
+    <div class="ua-pre" id="pg-secret-out"></div>
+    <button class="ua-btn ua-btn-secondary" id="pg-secret-close">{% trans "I have saved it" %}</button>
+  </div>
+
+  <div class="ua-card">
+    <h2>{% trans "Create" %}</h2>
+    <div class="ua-row">
+      <select id="pg-site">{% for site in sites %}<option value="{{ site }}">{{ site }}</option>{% endfor %}</select>
+      <span class="ua-muted" id="pg-prefix"></span>
+      <input type="text" id="pg-name" maxlength="27" placeholder="{% trans 'name' %}" pattern="[a-z0-9_]+">
+      <button class="ua-btn" id="pg-create-db">{% trans "Create database (with its owner role)" %}</button>
+      <button class="ua-btn ua-btn-secondary" id="pg-create-role">{% trans "Create role only" %}</button>
+    </div>
+    <p class="ua-muted" id="pg-quota"></p>
+  </div>
+
+  <div class="ua-card">
+    <h2>{% trans "Databases" %}</h2>
+    <div id="pg-dbs" style="overflow-x:auto"><p class="ua-muted">{% trans "Loading…" %}</p></div>
+  </div>
+
+  <div class="ua-card">
+    <h2>{% trans "Roles" %}</h2>
+    <p class="ua-muted">{% trans "Grant a role access to a database: all (read and write in the public schema) or read only." %}</p>
+    <div id="pg-roles" style="overflow-x:auto"></div>
+  </div>
+
+  <div class="ua-card">
+    <h2>{% trans "Backups and restore" %}</h2>
+    <p class="ua-muted">{% trans "Backups are pg_dump archives (custom format) saved in the site's home under pgsql-backups, owned by the site user. A restore runs as a member of the database owner, never as a superuser." %}</p>
+    <div id="pg-backups"></div>
+    <form id="pg-restore-form" class="ua-row" style="margin-top:12px">
+      <select name="db" id="pg-restore-db"></select>
+      <input type="file" name="file" accept=".sql,.dump">
+      <label><input type="checkbox" name="confirm" value="1"> {% trans "I understand the restore may overwrite data" %}</label>
+      <button class="ua-btn" type="submit">{% trans "Restore" %}</button>
+    </form>
+  </div>
+
+  <div class="ua-card" id="pg-job" style="display:none"><h2>{% trans "Progress" %}</h2><div id="pg-job-out"></div></div>
+
+  <div class="ua-card">
+    <h2>{% trans "Connecting" %}</h2>
+    <div id="pg-connection" class="ua-muted"></div>
+  </div>
+  <form id="pg-adminer-form" method="post" action="{% url 'ua-pgsql-adminer-login' %}" target="_blank" style="display:none">
+    {% csrf_token %}<input type="hidden" name="domain"><input type="hidden" name="db">
+  </form>
+  {% endif %}
+</div>
+{% endblock %}

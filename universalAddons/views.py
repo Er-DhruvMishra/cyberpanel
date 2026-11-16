@@ -23,6 +23,7 @@ def hub(request):
     else:
         allowed = set(user_modules(policy))
         modules = [m for m in modules if m['key'] in allowed]
+        modules = [m for m in modules if not (m['key'] == 'pgsql' and m['problems'])]  # PostgreSQL not installed
         access = []
     return httpProc(request, 'universalAddons/hub.html',
                     {'modules': modules, 'is_admin': is_admin, 'user_access': access}).render()

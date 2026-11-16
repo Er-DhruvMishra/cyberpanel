@@ -105,6 +105,17 @@ MODULES = (
            'GoAccess reports per site from its access log (nightly and on demand), served privately to the '
            'site owner, with optional IP anonymisation.',
            'ua-visitstats', 'ready'),
+    Module('pgsql', 'PostgreSQL databases', 'fa-database',
+           'PostgreSQL databases and roles per website: package quota, backups to the site home, restore, '
+           'one-click Adminer.',
+           'ua-pgsql', 'ready'),
+    Module('dnstools', 'DNS tools', 'fa-key',
+           'DNSSEC signing with DS records for the registrar, and editable DNS templates for new zones '
+           '(per reseller too).',
+           'ua-dnstools', 'ready'),
+    Module('bans', 'Fail2ban bans', 'fa-ban',
+           'Every fail2ban jail and its banned addresses: search, ban, unban, and a managed ignoreip whitelist.',
+           'ua-bans', 'ready'),
 )
 
 
@@ -154,6 +165,12 @@ def requirement_problems(key, which=shutil.which, exists=os.path.exists):
         if not which('sievec') and not exists('/usr/bin/sievec'):
             problems.append('Pigeonhole (Dovecot Sieve) is not installed, so the managed scripts are saved but not '
                             'run. See the drop-in on the add-on page.')
+    if key == 'pgsql' and not any(exists('/usr/pgsql-%d/bin/psql' % major) for major in (17, 16)):
+        problems.append('PostgreSQL is not installed: install it from Applications.')
+    if key == 'dnstools' and not exists('/usr/bin/pdnsutil'):
+        problems.append('PowerDNS (pdnsutil) is not installed.')
+    if key == 'bans' and not which('fail2ban-client') and not exists('/usr/bin/fail2ban-client'):
+        problems.append('fail2ban is not installed.')
     if key == 'gitdeploy' and not which('git'):
         problems.append('git is not installed (dnf/apt install git).')
     if key == 'emaildebug':

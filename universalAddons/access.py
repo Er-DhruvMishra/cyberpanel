@@ -88,6 +88,8 @@ DEFAULT_POLICY = {
     'uptime_for_users': True,          # may every account monitor its sites and URLs? (on: all accounts)
     'uptime_max_monitors': 10,         # uptime monitors per non-administrator account
     'visitstats_for_users': False,     # may website owners see visitor statistics (GoAccess) of their own sites?
+    'pgsql_for_users': False,          # may website owners create PostgreSQL databases for their own sites?
+    'dnstools_for_users': False,       # may resellers/users use DNSSEC (and resellers DNS templates) on their zones?
 }
 
 # Add-ons that have something for non-administrators, and the policy switch that opens each one
@@ -111,6 +113,8 @@ USER_FEATURES = (
     ('notify', 'notify_for_users'),
     ('uptime', 'uptime_for_users'),
     ('visitstats', 'visitstats_for_users'),
+    ('pgsql', 'pgsql_for_users'),
+    ('dnstools', 'dnstools_for_users'),
 )
 
 # What a site owner gets from each switch (shown next to its checkbox on the hub).
@@ -142,6 +146,10 @@ USER_FEATURE_HELP = {
     'uptime': 'Uptime monitors for their own sites and any public URL (HTTP status, keyword, response time, TLS '
               'expiry, TCP port), within the per-account limit. On by default.',
     'visitstats': 'Visitor statistics (GoAccess reports) of their own sites, with an option to anonymise IPs.',
+    'pgsql': 'PostgreSQL databases and roles for their own websites (within the package database limit, MySQL and '
+             'PostgreSQL counted together), backups, restore and one-click Adminer. Hidden while PostgreSQL is not installed.',
+    'dnstools': 'DNSSEC for the DNS zones they own (DS records for the registrar); resellers also get their own DNS '
+                'template for their users\' new zones.',
 }
 
 

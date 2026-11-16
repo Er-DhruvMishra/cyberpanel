@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="referrer" content="no-referrer">
+    <title>Opening Adminer - IndiansCloud</title>
+</head>
+<body>
+<p>Opening Adminer for {{ login.database }}&hellip; This login works for {{ login.minutes }} minutes.</p>
+<form id="ic-adminer" method="post" action="{{ login.url }}?pgsql=127.0.0.1&amp;username={{ login.username|urlencode }}&amp;db={{ login.database|urlencode }}">
+    <input type="hidden" name="auth[driver]" value="pgsql">
+    <input type="hidden" name="auth[server]" value="127.0.0.1">
+    <input type="hidden" name="auth[username]" value="{{ login.username }}">
+    <input type="hidden" name="auth[password]" value="{{ login.password }}">
+    <input type="hidden" name="auth[db]" value="{{ login.database }}">
+    <noscript><button type="submit">Continue to Adminer</button></noscript>
+</form>
+<script>document.getElementById('ic-adminer').submit();</script>
+</body>
+</html>

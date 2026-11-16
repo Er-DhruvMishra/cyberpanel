@@ -35,4 +35,7 @@ urlpatterns = [
     path('notifications/', include('universalAddons.notify.urls')),
     path('uptime/', include('universalAddons.uptime.urls')),
     path('visitor-stats/', include('universalAddons.visitstats.urls')),
+    path('postgresql/', include('universalAddons.pgsql.urls')),
+    path('dns-tools/', include('universalAddons.dnstools.urls')),
+    path('bans/', include('universalAddons.bans.urls')),
 ]

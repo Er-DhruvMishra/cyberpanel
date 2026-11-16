@@ -151,6 +151,11 @@ class PagesRender(SimpleTestCase):
                    'default_site': 'a.com', 'version': '1.6.21', 'prefix': '/webmail-rc/', 'db_name': 'cp_roundcube'}
         pages = ['hub', 'emaildebug', 'rootfm', 'rspamd', 'sslv2', 'backupv2', 'wordpress', 'htaccess', 'apps', 'mssql', 'storage', 'emaillimits', 'sshsec', 'smtprelay', 'mysqlmgr', 'roundcube', 'limits', 'apache', 'webterm', 'appsvc', 'cloudflare', 'laravel', 'gitdeploy', 'sitetools', 'autoresponder', 'appcatalog']
         pages += ['notify', 'uptime', 'visitstats']
+        pages += ['pgsql', 'dnstools', 'bans']
+        html = render_to_string('universalAddons/pgsql.html', dict(context, installed=True, adminer=True))
+        self.assertIn('pg-dbs', html)
+        self.assertIn('Install it from', render_to_string('universalAddons/pgsql.html', dict(context, installed=False)))
+        self.assertIn('dt-records', render_to_string('universalAddons/dnstools.html', dict(context, is_reseller=False)))
         for page in pages:
             # No request: the panel's context processors query the database, which unit tests do not have.
             html = render_to_string('universalAddons/%s.html' % page, context)

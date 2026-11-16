@@ -62,7 +62,8 @@ class Hub(SimpleTestCase):
             'cloudflare': False, 'laravel': False, 'gitdeploy': False,
             'sitetools': False,
             'appcatalog': False,
-            'notify': True, 'uptime': True, 'visitstats': False})
+            'notify': True, 'uptime': True, 'visitstats': False,
+            'pgsql': False, 'dnstools': False})
         for row in data['user_access']:
             self.assertTrue(row['help'], row['key'])            # a short description of what users get
             self.assertNotEqual(row['title'], row['key'])        # the module's real title
@@ -78,7 +79,7 @@ class Hub(SimpleTestCase):
 
     def test_server_wide_modules_have_no_user_switch(self):
         keys = {key for key, _ in access.USER_FEATURES}
-        for key in ('rootfm', 'storage', 'sshsec', 'mysqlmgr', 'rspamd', 'apache', 'roundcube'):
+        for key in ('rootfm', 'storage', 'sshsec', 'mysqlmgr', 'rspamd', 'apache', 'roundcube', 'bans'):
             self.assertNotIn(key, keys)
 
     def test_template_has_select_all_clear_all_and_spaced_labels(self):
