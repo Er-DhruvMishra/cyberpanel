@@ -503,11 +503,11 @@
         <div class="promo-banner">
             <span class="promo-text">
                 <i class="fas fa-shield-alt" style="margin-right: 0.5rem;"></i>
-                {% trans "Configure automatic backups to our secure servers in 60 seconds" %}
+                {% trans "Back up automatically to storage you own (SFTP, S3 or rclone) with Backup V2" %}
             </span>
-            <a href="/backup/OneClickBackups" class="promo-link">
-                <i class="fas fa-rocket"></i>
-                {% trans "Set-up now" %}
+            <a href="{% url 'OneClickBackups' %}" class="promo-link">
+                <i class="fas fa-box-archive"></i>
+                {% trans "Add a destination" %}
             </a>
         </div>
 

@@ -18,6 +18,7 @@ urlpatterns = [
     re_path(r'^gDriveSetup$', views.gDriveSetup, name='gDriveSetup'),
     re_path(r'^BeginGDriveSetup$', views.BeginGDriveSetup, name='BeginGDriveSetup'),
     re_path(r'^GDriveSetupStatus$', views.GDriveSetupStatus, name='GDriveSetupStatus'),
+    re_path(r'^gDriveOAuthClient$', views.gDriveOAuthClient, name='gDriveOAuthClient'),
     re_path(r'^fetchgDriveSites$', views.fetchgDriveSites, name='fetchgDriveSites'),
     re_path(r'^addSitegDrive$', views.addSitegDrive, name='addSitegDrive'),
     re_path(r'^deleteAccountgDrive$', views.deleteAccountgDrive, name='deleteAccountgDrive'),

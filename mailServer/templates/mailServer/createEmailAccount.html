@@ -332,11 +332,12 @@
                 <h2 class="card-title">
                     <i class="fas fa-user-plus"></i>
                     {% trans "New Email Account" %}
-                    <a target="_blank" rel="noopener" href="https://platform.cyberpersons.com/MailTester/MailTester?utm_source=from-cyberpanel-inside&utm_medium=from-cyberpanel-inside&utm_campaign=from-cyberpanel-inside&utm_id=from-cyberpanel-inside&utm_term=from-cyberpanel-inside" 
-                       class="test-email-link">
+                    {% if email_tester_url %}
+                    <a href="{{ email_tester_url }}" class="test-email-link">
                         <i class="fas fa-vial"></i>
                         {% trans "Test Email Delivery" %}
                     </a>
+                    {% endif %}
                     <span ng-show="emailLoading" class="loading-spinner"></span>
                 </h2>
             </div>

@@ -1082,10 +1082,106 @@ app.controller('googleDrive', function ($scope, $http) {
 
     $scope.cyberPanelLoading = true;
     $scope.driveHidden = true;
+    $scope.gdriveSetupEnabled = false;
+    $scope.gdriveSetupReason = 'Checking Google Drive setup. Existing backups are unchanged.';
+    $scope.gdriveIsAdmin = false;
+    $scope.gdriveAccounts = {};
+    $scope.oauthClient = null;
+    $scope.oauthClientId = '';
+    $scope.oauthClientSecret = '';
+    var gdriveConfig = {headers: {'X-CSRFToken': getCookie('csrftoken')}};
 
-    $scope.setupAccount = function(){
-        window.open("https://platform.cyberpersons.com/gDrive?name=" + $scope.accountName + '&server=' + window.location.href + 'Setup');
+    function gdriveNotify(type, text) {
+        new PNotify({title: 'Google Drive', type: type, text: text});
+    }
+
+    function errorText(response, fallback) {
+        var data = response && response.data;
+        return (data && typeof data.error_message === 'string' && data.error_message.length < 400) ?
+            data.error_message : fallback;
+    }
+
+    $scope.loadGDriveStatus = function () {
+        $http.get('/backup/GDriveSetupStatus').then(function (response) {
+            var data = response.data || {};
+            $scope.gdriveSetupEnabled = data.status === 1 && data.enabled === true;
+            $scope.gdriveSetupReason = $scope.gdriveSetupEnabled ? '' :
+                (typeof data.reason === 'string' ? data.reason : 'Google Drive setup is not available.');
+            $scope.gdriveIsAdmin = data.is_admin === true;
+            $scope.gdriveAccounts = {};
+            (Array.isArray(data.accounts) ? data.accounts : []).forEach(function (account) {
+                $scope.gdriveAccounts[account.name] = account;
+            });
+            if ($scope.gdriveIsAdmin) $scope.loadOAuthClient();
+        }, function () {
+            $scope.gdriveSetupReason = 'Google Drive setup is unavailable. Existing backups are unchanged.';
+        });
     };
+
+    $scope.accountState = function (name) {
+        return $scope.gdriveAccounts[name] || null;
+    };
+
+    $scope.loadOAuthClient = function () {
+        $http.get('/backup/gDriveOAuthClient').then(function (response) {
+            $scope.oauthClient = response.data;
+            $scope.oauthClientId = response.data.client_id || '';
+        });
+    };
+
+    $scope.saveOAuthClient = function (clear) {
+        var body = clear === true ? {clear: true} :
+            {client_id: $scope.oauthClientId, client_secret: $scope.oauthClientSecret};
+        $http.post('/backup/gDriveOAuthClient', body, gdriveConfig).then(function (response) {
+            $scope.oauthClientSecret = '';
+            $scope.oauthClient = response.data;
+            $scope.oauthClientId = response.data.client_id || '';
+            gdriveNotify('success', clear === true ? 'Google OAuth client removed.' : 'Google OAuth client saved.');
+            $scope.loadGDriveStatus();
+        }, function (response) {
+            $scope.oauthClientSecret = '';
+            gdriveNotify('error', errorText(response, 'The Google OAuth client could not be saved.'));
+        });
+    };
+
+    function isGoogleAuthorizationUrl(value) {
+        try {
+            var url = new URL(value);
+            return url.protocol === 'https:' && url.hostname === 'accounts.google.com' && !url.port &&
+                !url.username && !url.password && !url.hash && url.pathname === '/o/oauth2/v2/auth' &&
+                url.searchParams.getAll('state').length === 1 &&
+                url.searchParams.get('redirect_uri') === window.location.origin + '/backup/gDriveSetup';
+        } catch (e) {
+            return false;
+        }
+    }
+
+    $scope.setupAccount = function (accountName) {
+        if (!$scope.gdriveSetupEnabled || $scope.gdriveSetupPending) return;
+        var name = typeof accountName === 'string' ? accountName : $scope.accountName;
+        var popup = window.open('about:blank', '_blank');
+        function failed(response) {
+            if (popup) popup.close();
+            $scope.gdriveSetupPending = false;
+            gdriveNotify('error', errorText(response, 'Setup could not be started. Check the configuration and try again.'));
+        }
+        if (!popup) { failed(); return; }
+        popup.opener = null;
+        $scope.gdriveSetupPending = true;
+        $http.post('/backup/BeginGDriveSetup', {accountName: name}, gdriveConfig).then(function (response) {
+            if (!response.data || response.data.status !== 1 || !isGoogleAuthorizationUrl(response.data.authorization_url)) {
+                failed(); return;
+            }
+            popup.location.href = response.data.authorization_url;
+            $scope.gdriveSetupPending = false;
+        }, failed);
+    };
+
+    $scope.reconnectAccount = function () {
+        if ($scope.selectedAccount) $scope.setupAccount($scope.selectedAccount);
+    };
+
+    $scope.loadGDriveStatus();
 
     $scope.currentPage = 1;
     $scope.recordsToShow = 10;

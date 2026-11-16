@@ -38,6 +38,10 @@ MODULES = (
     Module('emaillimits', 'Email Limits', 'fa-paper-plane',
            'Per-domain and per-mailbox outbound sending limits, enforced by the cpecs policy daemon.',
            'ua-emaillimits', 'ready'),
+    Module('smtprelay', 'SMTP Relay', 'fa-route',
+           'Send outgoing mail through your own SMTP smarthost: global or per-sender-domain relays, '
+           'test message with transcript, queue and log status.',
+           'ua-smtprelay', 'ready'),
     Module('sshsec', 'SSH Security', 'fa-user-shield',
            'SSH login analysis, sshd hardening audit and a firewalld IP blocklist.',
            'ua-sshsec', 'ready'),
@@ -93,6 +97,11 @@ def requirement_problems(key, which=shutil.which, exists=os.path.exists):
         problems.append('The mysql client is not installed.')
     if key == 'emaillimits' and not exists('/etc/postfix/main.cf'):
         problems.append('Postfix is not configured on this server.')
+    if key == 'smtprelay':
+        if not exists('/etc/postfix/main.cf'):
+            problems.append('Postfix is not configured on this server.')
+        if not which('postmap'):
+            problems.append('postmap (Postfix) is not installed.')
     if key == 'htaccess' and not exists('/usr/local/lsws/bin/openlitespeed'):
         problems.append('This server does not run OpenLiteSpeed.')
     if key == 'apps' and not exists('/usr/local/lsws/bin/openlitespeed'):

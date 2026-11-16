@@ -2,307 +2,15 @@
  * Created by usman on 9/17/17.
  */
 
-// Using existing CyberCP module
-app.controller('backupPlanNowOneClick', function($scope, $http) {
+// One-click backup plans were the vendor's paid SFTP storage (Billing/FetchBackupPlans, Stripe and
+// PayPal orders, verification codes, subscription lookups). IndiansCloud does not sell them: the
+// One-Click Backups page now redirects to Backup V2, where backups go to storage you own (local,
+// SFTP, S3 or rclone). The controller stays registered, without any purchase or pricing call, so an
+// old cached copy of the page does not break Angular.
+app.controller('backupPlanNowOneClick', function ($scope) {
     $scope.cyberpanelLoading = true;
-    $scope.showVerification = false;
-    $scope.verificationCodeSent = false;
-    
-    $scope.showEmailVerification = function() {
-        console.log('showEmailVerification called');
-        $scope.showVerification = true;
-    };
-    
-    $scope.cancelVerification = function() {
-        $scope.showVerification = false;
-        $scope.verificationCodeSent = false;
-        $scope.verificationEmail = '';
-        $scope.verificationCode = '';
-    };
-    
-    $scope.sendVerificationCode = function() {
-        $scope.cyberpanelLoading = false;
-        
-        var config = {
-            headers: {
-                'X-CSRFToken': getCookie('csrftoken')
-            }
-        };
-        
-        $http.post('https://platform.cyberpersons.com/Billing/SendBackupVerificationCode', {
-            email: $scope.verificationEmail
-        }, config).then(function(response) {
-            $scope.cyberpanelLoading = true;
-            if (response.data.status == 1) {
-                $scope.verificationCodeSent = true;
-                new PNotify({
-                    title: 'Success',
-                    text: 'Verification code sent to your email.',
-                    type: 'success'
-                });
-            } else {
-                new PNotify({
-                    title: 'Error',
-                    text: response.data.error_message,
-                    type: 'error'
-                });
-            }
-        }, function(error) {
-            $scope.cyberpanelLoading = true;
-            new PNotify({
-                title: 'Error',
-                text: 'Could not send verification code. Please try again.',
-                type: 'error'
-            });
-        });
-    };
-    
-    $scope.verifyCode = function() {
-        $scope.cyberpanelLoading = false;
-        
-        var config = {
-            headers: {
-                'X-CSRFToken': getCookie('csrftoken')
-            }
-        };
-        
-        $http.post('https://platform.cyberpersons.com/Billing/VerifyBackupCode', {
-            email: $scope.verificationEmail,
-            code: $scope.verificationCode
-        }, config).then(function(response) {
-            if (response.data.status == 1) {
-                // After successful verification, fetch Stripe subscriptions
-                $http.post('https://platform.cyberpersons.com/Billing/FetchStripeSubscriptionsByEmail', {
-                    email: $scope.verificationEmail,
-                    code: $scope.verificationCode
-                }, config).then(function(subResponse) {
-                    $scope.cyberpanelLoading = true;
-                    if (subResponse.data.status == 1) {
-                        $scope.showVerification = false;
-                        $scope.subscriptions = subResponse.data.subscriptions;
-                        $scope.showSubscriptionsTable = true;
-                        
-                        if ($scope.subscriptions.length == 0) {
-                            new PNotify({
-                                title: 'Info',
-                                text: 'No active subscriptions found for this email.',
-                                type: 'info'
-                            });
-                        }
-                    } else {
-                        new PNotify({
-                            title: 'Error',
-                            text: subResponse.data.error_message,
-                            type: 'error'
-                        });
-                    }
-                }, function(error) {
-                    $scope.cyberpanelLoading = true;
-                    new PNotify({
-                        title: 'Error',
-                        text: 'Could not fetch subscriptions. Please try again.',
-                        type: 'error'
-                    });
-                });
-            } else {
-                $scope.cyberpanelLoading = true;
-                new PNotify({
-                    title: 'Error',
-                    text: response.data.error_message,
-                    type: 'error'
-                });
-            }
-        }, function(error) {
-            $scope.cyberpanelLoading = true;
-            new PNotify({
-                title: 'Error',
-                text: 'Could not verify code. Please try again.',
-                type: 'error'
-            });
-        });
-    };
-    
-    $scope.fetchBackupPlans = function() {
-        $scope.cyberpanelLoading = false;
-        
-        var config = {
-            headers: {
-                'X-CSRFToken': getCookie('csrftoken')
-            }
-        };
-        
-        $http.post('https://platform.cyberpersons.com/Billing/FetchBackupPlans', {
-            email: $scope.verificationEmail
-        }, config).then(function(response) {
-            $scope.cyberpanelLoading = true;
-            if (response.data.status == 1) {
-                $scope.plans = response.data.plans;
-                new PNotify({
-                    title: 'Success',
-                    text: 'Backup plans fetched successfully.',
-                    type: 'success'
-                });
-            } else {
-                new PNotify({
-                    title: 'Error',
-                    text: response.data.error_message,
-                    type: 'error'
-                });
-            }
-        }, function(error) {
-            $scope.cyberpanelLoading = true;
-            new PNotify({
-                title: 'Error',
-                text: 'Could not fetch backup plans. Please try again.',
-                type: 'error'
-            });
-        });
-    };
-
-    $scope.BuyNowBackupP = function (planName, monthlyPrice, yearlyPrice, months) {
-        const baseURL = 'https://platform.cyberpersons.com/Billing/CreateOrderforBackupPlans';
-        // Get the current URL
-        var currentURL = window.location.href;
-
-        // Find the position of the question mark
-        const queryStringIndex = currentURL.indexOf('?');
-
-        // Check if there is a query string
-        currentURL = queryStringIndex !== -1 ? currentURL.substring(0, queryStringIndex) : currentURL;
-
-        // Encode parameters to make them URL-safe
-        const params = new URLSearchParams({
-            planName: planName,
-            monthlyPrice: monthlyPrice,
-            yearlyPrice: yearlyPrice,
-            returnURL: currentURL,  // Add the current URL as a query parameter
-            months: months
-        });
-
-        // Build the complete URL with query string
-        const fullURL = `${baseURL}?${params.toString()}`;
-
-        // Redirect to the constructed URL
-        window.location.href = fullURL;
-    };
-
-    $scope.PaypalBuyNowBackup = function (planName, monthlyPrice, yearlyPrice, months) {
-        const baseURL = 'https://platform.cyberpersons.com/Billing/PaypalCreateOrderforBackupPlans';
-        // Get the current URL
-        var currentURL = window.location.href;
-
-        // Find the position of the question mark
-        const queryStringIndex = currentURL.indexOf('?');
-
-        // Check if there is a query string
-        currentURL = queryStringIndex !== -1 ? currentURL.substring(0, queryStringIndex) : currentURL;
-
-        // Encode parameters to make them URL-safe
-        const params = new URLSearchParams({
-            planName: planName,
-            monthlyPrice: monthlyPrice,
-            yearlyPrice: yearlyPrice,
-            returnURL: currentURL,  // Add the current URL as a query parameter
-            months: months
-        });
-
-        // Build the complete URL with query string
-        const fullURL = `${baseURL}?${params.toString()}`;
-
-        // Redirect to the constructed URL
-        window.location.href = fullURL;
-    };
-
-    $scope.DeployAccount = function (id) {
-        $scope.cyberpanelLoading = false;
-
-        url = "/backup/DeployAccount";
-
-        var data = {
-            id: id
-        };
-
-        var config = {
-            headers: {
-                'X-CSRFToken': getCookie('csrftoken')
-            }
-        };
-
-        $http.post(url, data, config).then(ListInitialDatas, cantLoadInitialDatas);
-
-        function ListInitialDatas(response) {
-            $scope.cyberpanelLoading = true;
-            if (response.data.status === 1) {
-                new PNotify({
-                    title: 'Success',
-                    text: 'Successfully deployed.',
-                    type: 'success'
-                });
-                window.location.reload();
-            } else {
-                new PNotify({
-                    title: 'Operation Failed!',
-                    text: response.data.error_message,
-                    type: 'error'
-                });
-            }
-        }
-
-        function cantLoadInitialDatas(response) {
-            $scope.cyberpanelLoading = true;
-            new PNotify({
-                title: 'Operation Failed!',
-                text: 'Could not connect to server, please refresh this page',
-                type: 'error'
-            });
-        }
-    };
-
-    $scope.ReconfigureSubscription = function(subscription) {
-        $scope.cyberpanelLoading = false;
-
-        var config = {
-            headers: {
-                'X-CSRFToken': getCookie('csrftoken')
-            }
-        };
-
-        var data = {
-            subscription_id: subscription.subscription_id,
-            customer_id: subscription.customer,
-            plan_name: subscription.plan_name,
-            amount: subscription.amount,
-            interval: subscription.interval,
-            email: $scope.verificationEmail,
-            code: $scope.verificationCode
-        };
-
-        $http.post('/backup/ReconfigureSubscription', data, config).then(function(response) {
-            $scope.cyberpanelLoading = true;
-            if (response.data.status === 1) {
-                new PNotify({
-                    title: 'Success',
-                    text: 'Subscription configured successfully for this server.',
-                    type: 'success'
-                });
-                // Refresh the page to show new backup plan in the list
-                window.location.reload();
-            } else {
-                new PNotify({
-                    title: 'Error',
-                    text: response.data.error_message,
-                    type: 'error'
-                });
-            }
-        }, function(error) {
-            $scope.cyberpanelLoading = true;
-            new PNotify({
-                title: 'Error',
-                text: 'Could not configure subscription. Please try again.',
-                type: 'error'
-            });
-        });
-    };
+    $scope.plans = [];
+    $scope.ownStorageNotice = 'Backups now go to storage you own: add a destination in Backup V2.';
 });
 
 //*** Backup site ****//
@@ -1385,43 +1093,105 @@ app.controller('googleDrive', function ($scope, $http) {
     $scope.cyberPanelLoading = true;
     $scope.driveHidden = true;
     $scope.gdriveSetupEnabled = false;
-    $scope.gdriveSetupReason = 'Checking secure enrollment availability. Existing backups are unchanged.';
-    $http.get('/backup/GDriveSetupStatus').then(function (response) {
-        $scope.gdriveSetupEnabled = response.data.status === 1 && response.data.enabled === true;
-        $scope.gdriveSetupReason = $scope.gdriveSetupEnabled ? '' :
-            'Secure enrollment is not configured. Existing backups are unchanged.';
-    }, function () {
-        $scope.gdriveSetupReason = 'Secure enrollment is unavailable. Existing backups are unchanged.';
-    });
+    $scope.gdriveSetupReason = 'Checking Google Drive setup. Existing backups are unchanged.';
+    $scope.gdriveIsAdmin = false;
+    $scope.gdriveAccounts = {};
+    $scope.oauthClient = null;
+    $scope.oauthClientId = '';
+    $scope.oauthClientSecret = '';
+    var gdriveConfig = {headers: {'X-CSRFToken': getCookie('csrftoken')}};
 
-    $scope.setupAccount = function () {
+    function gdriveNotify(type, text) {
+        new PNotify({title: 'Google Drive', type: type, text: text});
+    }
+
+    function errorText(response, fallback) {
+        var data = response && response.data;
+        return (data && typeof data.error_message === 'string' && data.error_message.length < 400) ?
+            data.error_message : fallback;
+    }
+
+    $scope.loadGDriveStatus = function () {
+        $http.get('/backup/GDriveSetupStatus').then(function (response) {
+            var data = response.data || {};
+            $scope.gdriveSetupEnabled = data.status === 1 && data.enabled === true;
+            $scope.gdriveSetupReason = $scope.gdriveSetupEnabled ? '' :
+                (typeof data.reason === 'string' ? data.reason : 'Google Drive setup is not available.');
+            $scope.gdriveIsAdmin = data.is_admin === true;
+            $scope.gdriveAccounts = {};
+            (Array.isArray(data.accounts) ? data.accounts : []).forEach(function (account) {
+                $scope.gdriveAccounts[account.name] = account;
+            });
+            if ($scope.gdriveIsAdmin) $scope.loadOAuthClient();
+        }, function () {
+            $scope.gdriveSetupReason = 'Google Drive setup is unavailable. Existing backups are unchanged.';
+        });
+    };
+
+    $scope.accountState = function (name) {
+        return $scope.gdriveAccounts[name] || null;
+    };
+
+    $scope.loadOAuthClient = function () {
+        $http.get('/backup/gDriveOAuthClient').then(function (response) {
+            $scope.oauthClient = response.data;
+            $scope.oauthClientId = response.data.client_id || '';
+        });
+    };
+
+    $scope.saveOAuthClient = function (clear) {
+        var body = clear === true ? {clear: true} :
+            {client_id: $scope.oauthClientId, client_secret: $scope.oauthClientSecret};
+        $http.post('/backup/gDriveOAuthClient', body, gdriveConfig).then(function (response) {
+            $scope.oauthClientSecret = '';
+            $scope.oauthClient = response.data;
+            $scope.oauthClientId = response.data.client_id || '';
+            gdriveNotify('success', clear === true ? 'Google OAuth client removed.' : 'Google OAuth client saved.');
+            $scope.loadGDriveStatus();
+        }, function (response) {
+            $scope.oauthClientSecret = '';
+            gdriveNotify('error', errorText(response, 'The Google OAuth client could not be saved.'));
+        });
+    };
+
+    function isGoogleAuthorizationUrl(value) {
+        try {
+            var url = new URL(value);
+            return url.protocol === 'https:' && url.hostname === 'accounts.google.com' && !url.port &&
+                !url.username && !url.password && !url.hash && url.pathname === '/o/oauth2/v2/auth' &&
+                url.searchParams.getAll('state').length === 1 &&
+                url.searchParams.get('redirect_uri') === window.location.origin + '/backup/gDriveSetup';
+        } catch (e) {
+            return false;
+        }
+    }
+
+    $scope.setupAccount = function (accountName) {
         if (!$scope.gdriveSetupEnabled || $scope.gdriveSetupPending) return;
+        var name = typeof accountName === 'string' ? accountName : $scope.accountName;
         var popup = window.open('about:blank', '_blank');
-        function failed() {
+        function failed(response) {
             if (popup) popup.close();
             $scope.gdriveSetupPending = false;
-            new PNotify({title: 'Google Drive setup', type: 'error',
-                text: 'Setup could not be started. Check the configuration and try again.'});
+            gdriveNotify('error', errorText(response, 'Setup could not be started. Check the configuration and try again.'));
         }
         if (!popup) { failed(); return; }
         popup.opener = null;
         $scope.gdriveSetupPending = true;
-        $http.post('/backup/BeginGDriveSetup', {
-            accountName: $scope.accountName, client_id: $scope.client_id,
-            client_secret: $scope.client_secret
-        }, {headers: {'X-CSRFToken': getCookie('csrftoken')}}).then(function (response) {
-            try {
-                var url = new URL(response.data.authorization_url);
-                if (response.data.status !== 1 || url.protocol !== 'https:' || url.username ||
-                    url.password || url.hash || url.pathname !== '/gDrive/v2/start' ||
-                    Array.from(url.searchParams.keys()).join(',') !== 'handoff' ||
-                    !/^[A-Za-z0-9_-]{43,128}$/.test(url.searchParams.get('handoff'))) throw Error();
-                popup.location.href = url.href;
-                $scope.client_secret = '';
-                $scope.gdriveSetupPending = false;
-            } catch (e) { failed(); }
+        $http.post('/backup/BeginGDriveSetup', {accountName: name}, gdriveConfig).then(function (response) {
+            if (!response.data || response.data.status !== 1 || !isGoogleAuthorizationUrl(response.data.authorization_url)) {
+                failed(); return;
+            }
+            popup.location.href = response.data.authorization_url;
+            $scope.gdriveSetupPending = false;
         }, failed);
     };
+
+    $scope.reconnectAccount = function () {
+        if ($scope.selectedAccount) $scope.setupAccount($scope.selectedAccount);
+    };
+
+    $scope.loadGDriveStatus();
 
     $scope.currentPage = 1;
     $scope.recordsToShow = 10;

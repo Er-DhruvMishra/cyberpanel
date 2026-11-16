@@ -17,6 +17,7 @@ urlpatterns = [
     path('storage/', include('universalAddons.storage.urls')),
     path('email-limits/', include('universalAddons.emaillimits.urls')),
     path('ssh-security/', include('universalAddons.sshsec.urls')),
+    path('smtp-relay/', include('universalAddons.smtprelay.urls')),
     path('mysql/', include('universalAddons.mysqlmgr.urls')),
     path('roundcube/', include('universalAddons.roundcube.urls')),
     path('limits/', include('universalAddons.limits.urls')),

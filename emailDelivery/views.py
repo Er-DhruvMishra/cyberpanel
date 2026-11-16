@@ -4,9 +4,22 @@ from loginSystem.views import loadLoginPage
 from .emailDeliveryManager import EmailDeliveryManager
 
 
+def _is_admin(userID):
+    try:
+        from plogical.acl import ACLManager
+        return ACLManager.loadedACL(userID).get('admin') == 1
+    except Exception:
+        return False
+
+
 def index(request):
+    """Administrators are sent to the panel's own SMTP Relay add-on, which replaces the vendor's paid
+    relay. The vendor manager below stays in place but is no longer linked from the menu."""
     try:
         userID = request.session['userID']
+        if _is_admin(userID):
+            from django.urls import reverse
+            return redirect(reverse('ua-smtprelay'))
         em = EmailDeliveryManager()
         return em.home(request, userID)
     except KeyError:

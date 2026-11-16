@@ -685,11 +685,16 @@ echo -e "\n${1}=${2}\n" >> "/var/log/cyberpanel_debug_$(date +"%Y-%m-%d")_${Rand
 }
 
 Debug_Log2() {
-if [[ -z "${Server_IP:-}" ]]; then
-  Check_Server_IP "$@" >/dev/null 2>&1
-fi
 echo -e "\n${1}" >> /var/log/installLogs.txt
-curl --max-time 20 -d '{"ipAddress": "'"$Server_IP"'", "InstallCyberPanelStatus": "'"$1"'"}' -H "Content-Type: application/json" -X POST https://cloud.cyberpanel.net/servers/RecvData  >/dev/null 2>&1
+# Upstream posted every install step and the server IP to the vendor
+# (cloud.cyberpanel.net/servers/RecvData). IndiansCloud keeps the local log only;
+# export INDIANSCLOUD_INSTALL_STATUS_URL=https://... to forward to your own receiver.
+if [[ "${INDIANSCLOUD_INSTALL_STATUS_URL:-}" == https://* ]]; then
+  if [[ -z "${Server_IP:-}" ]]; then
+    Check_Server_IP "$@" >/dev/null 2>&1
+  fi
+  curl --max-time 20 -d '{"ipAddress": "'"$Server_IP"'", "InstallCyberPanelStatus": "'"$1"'"}' -H "Content-Type: application/json" -X POST "$INDIANSCLOUD_INSTALL_STATUS_URL" >/dev/null 2>&1
+fi
 }
 
 Validate_Remote_MySQL() {

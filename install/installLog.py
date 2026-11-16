@@ -1,13 +1,15 @@
 import json
+import os
 import time
-
-import requests
 
 
 class InstallLog:
     fileName = "/var/log/installLogs.txt"
     currentPercent = '10'
-    LogURL = 'https://platform.cyberpersons.com/servers/RecvData'
+    # Upstream posted every install step (with the server IP) to the vendor.
+    # IndiansCloud keeps the log local; set INDIANSCLOUD_INSTALL_STATUS_URL to an
+    # https receiver of your own to forward steps. Empty by default: no request.
+    LogURL = os.environ.get('INDIANSCLOUD_INSTALL_STATUS_URL', '')
     ServerIP = ''
 
     @staticmethod
@@ -28,7 +30,10 @@ class InstallLog:
                     "%m.%d.%Y_%H-%M-%S") + "] " + message + "\n")
         file.close()
 
+        if not InstallLog.LogURL.startswith('https://'):
+            return
         try:
+            import requests
             finalData = json.dumps({'ipAddress': InstallLog.ServerIP, "InstallCyberPanelStatus": message})
             requests.post(InstallLog.LogURL, data=finalData, timeout=10)
         except:

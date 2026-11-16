@@ -83,11 +83,11 @@ def read_spool_args(spool_id, expected_uid=None, spool_dir=None):
     return json.loads(data.decode('utf-8'))
 
 
-def build_command(module, action, args, spool_dir=None):
+def build_command(module, action, args, spool_dir=None, force_spool=False):
     if not _TOKEN.match(module) or not _TOKEN.match(action):
         raise ValueError('Invalid action name.')
     token = encode_args(args or {})
-    if len(token) > INLINE_LIMIT:
+    if force_spool or len(token) > INLINE_LIMIT:
         spool_id = write_spool(json.dumps(args).encode('utf-8'), spool_dir)
         return '%s %s %s %s --spool %s' % (PYTHON, RUNNER, module, action, spool_id)
     return '%s %s %s %s %s' % (PYTHON, RUNNER, module, action, token)
@@ -105,9 +105,19 @@ def parse_output(output):
 
 
 def call(module, action, /, executor=None, **args):
+    return _call(module, action, executor, args, False)
+
+
+def call_private(module, action, /, executor=None, **args):
+    """Like call(), but the arguments always travel in a private spool file, never on the command
+    line (where other local users could read them in the process list): for passwords."""
+    return _call(module, action, executor, args, True)
+
+
+def _call(module, action, executor, args, force_spool):
     if executor is None:
         from plogical.processUtilities import ProcessUtilities
         executor = ProcessUtilities.outputExecutioner
-    response = executor(build_command(module, action, args), retRequired=True)
+    response = executor(build_command(module, action, args, force_spool=force_spool), retRequired=True)
     output = response[1] if isinstance(response, tuple) else response
     return parse_output(output if isinstance(output, str) else '')

@@ -1,6 +1,6 @@
 {% extends "baseTemplate/index.html" %}
 {% load static %}
-{% block module_scripts %}<script defer src="{% static 'backup/backup.js' %}?v={{ CP_VERSION }}-gdrive-handoff-2"></script>{% endblock %}
+{% block module_scripts %}<script defer src="{% static 'backup/backup.js' %}?v={{ CP_VERSION }}-gdrive-own-client-3"></script>{% endblock %}
 {% load i18n %}
 {% block title %}{% trans "Google Drive Backups - IndiansCloud" %}{% endblock %}
 {% block content %}
@@ -444,8 +444,52 @@
             </a>
             <button type="button" class="btn-primary" data-toggle="modal" data-target="#setupGdrive">
                 <i class="fas fa-plus-circle"></i>
-                {% trans "Setup New Account" %}
+                {% trans "Connect Google Drive" %}
             </button>
+        </div>
+    </div>
+
+    <!-- Google OAuth client (admins only). The secret is never sent back to the browser. -->
+    <div class="main-card" ng-if="gdriveIsAdmin" ng-cloak>
+        <div class="card-header">
+            <h2 class="card-title">
+                <i class="fas fa-key"></i>
+                {% trans "Google OAuth client" %}
+            </h2>
+        </div>
+        <div class="card-body">
+            <p>{% trans "Google Drive backups use your own Google OAuth client. The panel talks to Google directly; no third-party service sees your tokens." %}</p>
+            <ol>
+                <li>{% trans "Open Google Cloud Console and create or pick a project." %}</li>
+                <li>{% trans "APIs & Services > Library: enable the Google Drive API." %}</li>
+                <li>{% trans "OAuth consent screen: choose External (or Internal for Workspace), fill in the app name and add the scope" %} <code>https://www.googleapis.com/auth/drive.file</code>. {% trans "Publish the app (In production), or add your Google account as a test user. Test-mode tokens expire after 7 days." %}</li>
+                <li>{% trans "Credentials > Create credentials > OAuth client ID > Web application." %}</li>
+                <li>{% trans "Under Authorized redirect URIs add exactly:" %}
+                    <ul><li ng-repeat="uri in oauthClient.redirect_uris"><code ng-bind="uri"></code></li></ul>
+                </li>
+                <li>{% trans "Copy the client ID and client secret into this form and save." %}</li>
+            </ol>
+            <p><small>{% trans "Open the panel by its hostname over https when you connect: Google does not accept a bare IP address as a redirect URI." %}</small></p>
+            <form name="oauthClientForm" autocomplete="off">
+                <div class="form-group">
+                    <label class="form-label">{% trans "Client ID" %}</label>
+                    <input class="form-control" ng-model="$parent.oauthClientId" autocomplete="off"
+                           placeholder="1234567890-abc.apps.googleusercontent.com">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">{% trans "Client secret" %}
+                        (<span ng-bind="oauthClient.client_secret"></span>)</label>
+                    <input class="form-control" ng-model="$parent.oauthClientSecret" type="password" autocomplete="new-password"
+                           placeholder="{% trans 'Leave empty to keep the saved secret' %}">
+                </div>
+                <p ng-if="oauthClient.error" role="status" ng-bind="oauthClient.error"></p>
+                <button type="button" class="btn-primary" ng-click="saveOAuthClient()">
+                    <i class="fas fa-save"></i> {% trans "Save client" %}
+                </button>
+                <button type="button" class="btn-secondary" ng-if="oauthClient.configured" ng-click="saveOAuthClient(true)">
+                    <i class="fas fa-times"></i> {% trans "Remove client" %}
+                </button>
+            </form>
         </div>
     </div>
 
@@ -473,11 +517,22 @@
                                 <option>{{ items }}</option>
                             {% endfor %}
                         </select>
+                        <button ng-hide="driveHidden" type="button" ng-click="reconnectAccount()" class="btn-secondary"
+                                ng-disabled="!gdriveSetupEnabled || gdriveSetupPending">
+                            <i class="fas fa-plug"></i>
+                            {% trans "Reconnect" %}
+                        </button>
                         <button ng-hide="driveHidden" type="button" ng-click="deleteAccount()" class="btn-danger">
                             <i class="fas fa-trash"></i>
                             {% trans "Delete" %}
                         </button>
                     </div>
+                    <p ng-if="selectedAccount && accountState(selectedAccount).reconnect" role="status" class="text-danger" style="margin-top: 0.5rem;">
+                        {% trans "Google Drive authorization for this account failed or its OAuth client changed. Click Reconnect to sign in to Google again." %}
+                    </p>
+                    <p ng-if="selectedAccount && accountState(selectedAccount).connection === 'vendor'" role="status" style="margin-top: 0.5rem;">
+                        {% trans "This account was connected through the upstream CyberPanel service (platform.cyberpersons.com), which still refreshes its tokens. Click Reconnect to move it to your own Google OAuth client." %}
+                    </p>
                 </div>
             </div>
 
@@ -605,7 +660,7 @@
                 <div class="modal-header">
                     <h4 class="modal-title">
                         <i class="fas fa-user-plus" style="margin-right: 0.5rem;"></i>
-                        {% trans "Set up Google Drive Account" %}
+                        {% trans "Connect Google Drive" %}
                     </h4>
                     <button type="button" class="close" data-dismiss="modal" style="font-size: 1.5rem;">&times;</button>
                 </div>
@@ -624,13 +679,7 @@
                                 {% trans "Choose a descriptive name for this Google Drive account" %}
                             </small>
                         </div>
-                        <div class="form-group">
-                            <label>{% trans "Your Google OAuth client ID" %}</label>
-                            <input class="form-control" ng-model="client_id" autocomplete="off" required>
-                            <label>{% trans "Your Google OAuth client secret" %}</label>
-                            <input class="form-control" ng-model="client_secret" type="password" autocomplete="off" required>
-                            <small>{% trans "Use your own Google OAuth client. This grants access only to files created by this app. Existing accounts and schedules are not changed." %}</small>
-                        </div>
+                        <p><small>{% trans "A Google sign-in window opens. Allow access to finish. The panel can see only the files it creates in your Drive. Existing accounts and schedules are not changed." %}</small></p>
                         <p ng-if="!gdriveSetupEnabled" ng-bind="gdriveSetupReason" role="status"></p>
                     </form>
                 </div>
@@ -641,7 +690,7 @@
                     </button>
                     <button type="button" class="btn-primary" ng-click="setupAccount()" ng-disabled="!gdriveSetupEnabled || gdriveSetupPending || containerSettingsForm.$invalid">
                         <i class="fas fa-check"></i>
-                        {% trans "Continue Setup" %}
+                        {% trans "Connect Google Drive" %}
                         <span ng-hide="cyberPanelLoading" class="loading-spinner" style="width: 16px; height: 16px;"></span>
                     </button>
                 </div>

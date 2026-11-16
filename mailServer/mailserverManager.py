@@ -67,20 +67,37 @@ class MailServerManager(multi.Thread):
                         None, 'createEmail')
         return proc.render()
 
+    @staticmethod
+    def emailTesterURL(currentACL):
+        """URL of the Email Debugger add-on for the "Test Email Delivery" link, or None when this user
+        cannot open it (add-on disabled, or not opened to website owners)."""
+        try:
+            from django.urls import reverse
+            from universalAddons.access import load_policy
+            from universalAddons.registry import disabled_features
+            if 'emaildebug' in disabled_features():
+                return None
+            if currentACL.get('admin') != 1 and load_policy().get('email_debug_for_users') is not True:
+                return None
+            return reverse('ua-emaildebug')
+        except Exception:
+            return None
+
     def createEmailAccount(self):
         userID = self.request.session['userID']
         currentACL = ACLManager.loadedACL(userID)
+        testerURL = self.emailTesterURL(currentACL)
 
         if not os.path.exists('/home/cyberpanel/postfix'):
             proc = httpProc(self.request, 'mailServer/createEmailAccount.html',
-                            {"status": 0}, 'createEmail')
+                            {"status": 0, 'email_tester_url': testerURL}, 'createEmail')
             return proc.render()
 
         websitesName = ACLManager.findAllSites(currentACL, userID)
         websitesName = websitesName + ACLManager.findChildDomains(websitesName)
 
         proc = httpProc(self.request, 'mailServer/createEmailAccount.html',
-                        {'websiteList': websitesName, "status": 1}, 'createEmail')
+                        {'websiteList': websitesName, "status": 1, 'email_tester_url': testerURL}, 'createEmail')
         return proc.render()
 
     def listEmails(self):

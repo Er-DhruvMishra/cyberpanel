@@ -1,0 +1,68 @@
+{% extends "universalAddons/base.html" %}
+{% load i18n static %}
+{% block title %}{% trans "SMTP Relay" %} - IndiansCloud{% endblock %}
+{% block addon_scripts %}<script src="{% static 'universalAddons/smtprelay.js' %}?v={{ CP_VERSION }}"></script>{% endblock %}
+{% block content %}
+<div class="ua-wrap" id="ua-smtprelay" data-base="{% url 'ua-smtprelay' %}">
+  <div class="ua-header">
+    <h1><i class="fas fa-route"></i> {% trans "SMTP Relay" %}</h1>
+    <p>{% trans "Send this server's outgoing mail through your own SMTP smarthost instead of delivering it directly. Every change backs up main.cf and the relay maps, runs postfix check and reloads Postfix; if either fails, the previous settings are put back." %}</p>
+  </div>
+
+  <div class="ua-card"><h2>{% trans "Status" %}</h2><div id="sr-status" class="ua-muted">{% trans "Reading the Postfix configuration…" %}</div></div>
+
+  <div class="ua-card">
+    <h2>{% trans "Relay settings" %}</h2>
+    <div class="ua-row">
+      <label><input type="radio" name="sr-scope" value="all" checked> {% trans "Relay all outgoing mail" %}</label>
+      <label><input type="radio" name="sr-scope" value="selected"> {% trans "Relay only the sender domains listed below; deliver everything else directly" %}</label>
+    </div>
+    <h3>{% trans "Global relay" %}</h3>
+    <p class="ua-muted">{% trans "Required when all mail is relayed. With selected domains it is optional: listed domains without a relay of their own use it." %}</p>
+    <div class="ua-row">
+      <input id="sr-host" placeholder="{% trans 'smtp.example.net' %}" autocomplete="off">
+      <select id="sr-port"><option value="587">587</option><option value="465">465</option><option value="25">25</option></select>
+      <select id="sr-tls">
+        <option value="starttls">{% trans "STARTTLS" %}</option>
+        <option value="implicit">{% trans "Implicit TLS (SMTPS)" %}</option>
+        <option value="none">{% trans "No encryption (not recommended)" %}</option>
+      </select>
+    </div>
+    <div class="ua-row">
+      <input id="sr-user" placeholder="{% trans 'user name (empty: no login)' %}" autocomplete="off">
+      <input id="sr-pass" type="password" placeholder="{% trans 'password' %}" autocomplete="new-password">
+      <span id="sr-pass-note" class="ua-muted"></span>
+    </div>
+    <div id="sr-tls-warn"></div>
+
+    <h3>{% trans "Per-sender-domain relays" %}</h3>
+    <p class="ua-muted">{% trans "Mail from these domains goes to their own relay with their own login (sender_dependent_relayhost_maps). Leave the host empty to use the global relay, optionally with other credentials." %}</p>
+    <div id="sr-domains"></div>
+    <div class="ua-row"><button type="button" class="ua-btn ua-btn-secondary" id="sr-add-domain">{% trans "Add sender domain" %}</button></div>
+
+    <div class="ua-row">
+      <button type="button" class="ua-btn" id="sr-save">{% trans "Save and apply" %}</button>
+      <button type="button" class="ua-btn" id="sr-disable" style="background:#dc2626">{% trans "Disable relay" %}</button>
+      <label><input type="checkbox" id="sr-forget"> {% trans "also delete the stored passwords" %}</label>
+    </div>
+    <div id="sr-save-msg"></div>
+  </div>
+
+  <div class="ua-card">
+    <h2>{% trans "Send a test message" %}</h2>
+    <p class="ua-muted">{% trans "Connects straight to the saved relay with the stored login and sends one message. The SMTP conversation is shown below with the login hidden." %}</p>
+    <div class="ua-row">
+      <select id="sr-test-target"><option value="global">{% trans "Global relay" %}</option></select>
+      <input id="sr-test-to" placeholder="{% trans 'recipient, e.g. you@example.com' %}" autocomplete="off">
+      <input id="sr-test-from" placeholder="{% trans 'sender (optional)' %}" autocomplete="off">
+      <button type="button" class="ua-btn" id="sr-test">{% trans "Send test" %}</button>
+    </div>
+    <div id="sr-test-out"></div>
+  </div>
+
+  <div class="ua-card">
+    <h2>{% trans "Recent relay log lines" %}</h2>
+    <div id="sr-log" class="ua-muted">{% trans "Loading…" %}</div>
+  </div>
+</div>
+{% endblock %}

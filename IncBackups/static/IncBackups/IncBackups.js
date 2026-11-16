@@ -1849,16 +1849,17 @@ app.controller('CreateV2Backup', function ($scope, $http, $timeout, $compile) {
 app.controller('ConfigureV2Backup', function ($scope, $http, $timeout) {
     $scope.cyberpanelLoading = true;
     $scope.gdriveAvailable = false;
-    $scope.gdriveUnavailableReason = 'Checking secure Google Drive setup availability.';
-    function unavailable() {
+    $scope.gdriveUnavailableReason = 'Checking Google Drive setup.';
+    function unavailable(reason) {
         $scope.gdriveAvailable = false;
-        $scope.gdriveUnavailableReason = 'New Google Drive connections are not enabled for this installation. Existing backups are unchanged. Contact your administrator.';
+        $scope.gdriveUnavailableReason = typeof reason === 'string' && reason ? reason :
+            'New Google Drive connections are not enabled for this installation. Existing backups are unchanged. Contact your administrator.';
     }
     $http.get('/IncrementalBackups/GDriveSetupStatus').then(function (response) {
         if (response.data && response.data.status === 1 && response.data.enabled === true) {
             $scope.gdriveAvailable = true;
             $scope.gdriveUnavailableReason = '';
-        } else unavailable();
+        } else unavailable(response.data && response.data.reason);
     }, unavailable);
     $scope.selectbackuptype = function () {
 
@@ -1879,34 +1880,32 @@ app.controller('ConfigureV2Backup', function ($scope, $http, $timeout) {
         if (!$scope.gdriveAvailable || $scope.gdriveSetupPending) return;
         $scope.gdriveSetupPending = true;
         $scope.cyberpanelLoading = false;
-        // Open only a blank tab synchronously; credentials go in the protected POST body.
+        // Open only a blank tab synchronously, then send it to Google's sign-in page.
         var popup = window.open('about:blank', '_blank');
         if (popup) popup.opener = null;
-        function failed() {
+        function failed(response) {
             if (popup) popup.close();
-            $scope.client_secret = '';
             $scope.gdriveSetupPending = false;
             $scope.cyberpanelLoading = true;
-            new PNotify({title: 'Google Drive setup failed',
-                text: 'Could not start Google Drive setup. Check the required fields and try again.', type: 'error'});
+            var data = response && response.data;
+            new PNotify({title: 'Google Drive setup failed', type: 'error',
+                text: (data && typeof data.error_message === 'string' && data.error_message.length < 400) ?
+                    data.error_message : 'Could not start Google Drive setup. Check the required fields and try again.'});
         }
         if (!popup) { failed(); return; }
         $http.post('/IncrementalBackups/BeginV2GDriveSetup', {
-            Selectedwebsite: $scope.selwebsite, accountName: $scope.accountName,
-            client_id: $scope.client_id, client_secret: $scope.client_secret
+            Selectedwebsite: $scope.selwebsite, accountName: $scope.accountName
         }, {headers: {'X-CSRFToken': getCookie('csrftoken')}}).then(function (response) {
             if (!response.data || response.data.status !== 1 || !popup) { failed(); return; }
             try {
                 var target = new URL(response.data.authorization_url);
-                if (target.protocol !== 'https:' || target.pathname !== '/gDrive/v2/start' ||
-                    target.username || target.password || target.hash ||
-                    target.searchParams.getAll('handoff').length !== 1 ||
-                    Array.from(target.searchParams.keys()).some(function (key) { return key !== 'handoff'; }) ||
-                    !/^[A-Za-z0-9_-]{43}$/.test(target.searchParams.get('handoff'))) {
+                if (target.protocol !== 'https:' || target.hostname !== 'accounts.google.com' || target.port ||
+                    target.pathname !== '/o/oauth2/v2/auth' || target.username || target.password || target.hash ||
+                    target.searchParams.getAll('state').length !== 1 ||
+                    target.searchParams.get('redirect_uri') !== window.location.origin + '/IncrementalBackups/ConfigureV2BackupSetup') {
                     failed(); return;
                 }
                 popup.location.href = target.href;
-                $scope.client_secret = '';
                 $scope.gdriveSetupPending = false;
                 $scope.cyberpanelLoading = true;
             } catch (error) { failed(); }

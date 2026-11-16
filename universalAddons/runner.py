@@ -29,6 +29,7 @@ MODULES = {
     'storage': 'universalAddons.storage.actions',
     'emaillimits': 'universalAddons.emaillimits.actions',
     'sshsec': 'universalAddons.sshsec.actions',
+    'smtprelay': 'universalAddons.smtprelay.actions',
     'mysqlmgr': 'universalAddons.mysqlmgr.actions',
     'roundcube': 'universalAddons.roundcube.actions',
     'limits': 'universalAddons.limits.actions',

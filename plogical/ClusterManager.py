@@ -4,8 +4,8 @@ import shlex
 import subprocess
 import sys
 import argparse
+import time
 import django
-import requests
 sys.path.append('/usr/local/CyberCP')
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "CyberCP.settings")
 django.setup()
@@ -16,8 +16,13 @@ from plogical.CyberCPLogFileWriter import CyberCPLogFileWriter as logging
 from plogical.mysqlUtilities import mysqlUtilities
 class ClusterManager:
 
-    LogURL = "https://platform.cyberpersons.com/HighAvailability/RecvData"
-    UptimeURL = "https://platform.cyberpersons.com/servers/UptimeReport"
+    # Upstream posted every HA status message and a 3-minute uptime heartbeat
+    # (cluster name + cloud token) to the vendor platform. IndiansCloud keeps both
+    # in local files. A receiver is used only when the admin sets ha_status_url /
+    # ha_uptime_url in /home/cyberpanel/status-receivers.json; the cloud token is
+    # never forwarded.
+    StatusLog = '/home/cyberpanel/ha-status.log'
+    UptimeFile = '/home/cyberpanel/ha-uptime'
     ClusterFile = '/home/cyberpanel/cluster'
     CloudConfig = '/home/cyberpanel/cloud'
     vhostConfPath = '/usr/local/lsws/conf/vhosts'
@@ -36,12 +41,20 @@ class ClusterManager:
 
         self.type = type
 
+    def _name(self):
+        try:
+            return str(self.config['name'])
+        except BaseException:
+            return ''
+
     def PostStatus(self, message):
         try:
-            finalData = {'name': self.config['name'], 'type': self.type, 'message': message, 'token': self.config['token']}
-            resp = requests.post(ClusterManager.LogURL, data=json.dumps(finalData))
-            if os.path.exists(ProcessUtilities.debugPath):
-                logging.writeToFile(resp.text + '[info]')
+            with open(ClusterManager.StatusLog, 'a') as handle:
+                handle.write('[%s] [%s] [%s] %s\n' % (time.strftime('%m.%d.%Y_%H-%M-%S'), self._name(), self.type, message))
+            if '404]' in message:
+                logging.writeToFile('High Availability: %s' % (message))
+            from plogical.telemetryReceivers import send
+            send('ha_status_url', {'name': self._name(), 'type': self.type, 'message': message})
         except BaseException as msg:
             logging.writeToFile('%s. [31:404]' % (str(msg)))
 
@@ -416,11 +429,15 @@ password=%s""" % (rootdbpassword, rootdbpassword)
             logging.writeToFile('Error while setting up Uptime cron. Error %s' % (str(msg)))
 
     def Uptime(self):
+        # The vendor used this heartbeat as a dead-man switch: it alerted when
+        # reports stopped. A server cannot report its own outage, so locally we
+        # record the last heartbeat; point ha_uptime_url at an external monitor
+        # (for example a healthchecks-style ping URL) to get outage alerts.
         try:
-            finalData = {'name': self.config['name'], 'token': self.config['token']}
-            resp = requests.post(ClusterManager.UptimeURL, data=json.dumps(finalData))
-            if os.path.exists(ProcessUtilities.debugPath):
-                logging.writeToFile(resp.text + '[Uptime:info]')
+            with open(ClusterManager.UptimeFile, 'w') as handle:
+                handle.write('%s %d\n' % (self._name(), int(time.time())))
+            from plogical.telemetryReceivers import send
+            send('ha_uptime_url', {'name': self._name(), 'time': int(time.time())})
         except BaseException as msg:
             logging.writeToFile('%s. [31:404]' % (str(msg)))
 

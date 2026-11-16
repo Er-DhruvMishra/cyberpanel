@@ -2060,150 +2060,25 @@ class BackupManager:
             return HttpResponse(json_data)
 
     def OneClickBackups(self, request=None, userID=None, data=None):
-        user = Administrator.objects.get(pk=userID)
+        """IndiansCloud does not sell the vendor's backup plans. Off-site backups go to storage the
+        administrator owns, through Backup V2 (local, SFTP, S3 or rclone repositories), so this page
+        (and its menu links) now lead there. The vendor's purchase return handling and its
+        Billing/FetchBackupPlans and Billing/CreateSFTPAccount calls were removed from here."""
+        from django.shortcuts import redirect
+        return redirect(self.ownStorageBackupURL())
 
-        data = {}
-
-        import requests
+    @staticmethod
+    def ownStorageBackupURL():
+        """Backup V2, where backup destinations (repositories) are added; the classic destinations page
+        when the add-on is turned off on this server."""
         try:
-            if request.GET.get('status', 'none') == 'success':
-                plan_name = request.GET.get('planName')
-                months = request.GET.get('months')
-                monthly_price = request.GET.get('monthlyPrice')
-                yearly_price = request.GET.get('yearlyPrice')
-                customer = request.GET.get('customer')
-                subscription = request.GET.get('subscription')
-
-                from IncBackups.models import OneClickBackups
-
-                if months == '1':
-                    price = monthly_price
-                else:
-                    price = yearly_price
-
-                try:
-
-                    userName = user.userName.lower()
-
-                    not_allowed_characters = [
-                        ' ', '/', '\\', '@', '!', '#', '$', '%', '^', '&', '*', '(', ')', '+', '=',
-                        '{', '}', '[', ']', ':', ';', '"', "'", '<', '>', ',', '?', '|', '`', '~'
-                    ]
-
-                    for items in not_allowed_characters:
-                        userName = userName.replace(items, '')
-
-                    import plogical.randomPassword as randomPassword
-
-                    backup_plan = OneClickBackups(
-                        owner=user,
-                        planName=plan_name,
-                        months=months,
-                        price=price,
-                        customer=customer,
-                        subscription=subscription,
-                        sftpUser=f'{userName}_{randomPassword.generate_pass(8)}'.lower(),
-                    )
-                    backup_plan.save()
-
-                    ####
-
-                    import requests
-                    import json
-
-
-                    # Define the URL of the endpoint
-                    url = 'http://platform.cyberpersons.com/Billing/CreateSFTPAccount'  # Replace with your actual endpoint URL
-
-                    # Define the payload to send in the POST request
-                    payload = {
-                        'sub': subscription,
-                        'key': ProcessUtilities.outputExecutioner(f'cat /root/.ssh/cyberpanel.pub'),  # Replace with the actual SSH public key
-                        'sftpUser': backup_plan.sftpUser,
-                        'serverIP': ACLManager.fetchIP(), # Replace with the actual server IP,
-                        'planName': plan_name
-                    }
-
-                    # Convert the payload to JSON format
-                    headers = {'Content-Type': 'application/json'}
-                    dataRet = json.dumps(payload)
-
-                    # Make the POST request
-                    response = requests.post(url, headers=headers, data=dataRet)
-
-                    # Handle the response
-                    if response.status_code == 200:
-                        response_data = response.json()
-                        if response_data.get('status') == 1:
-
-                            ocbkup = OneClickBackups.objects.get(owner=user,subscription=subscription)
-                            ocbkup.state = 1
-                            ocbkup.save()
-
-                            finalDic = {}
-
-                            finalDic['IPAddress'] = response_data.get('ipAddress')
-                            finalDic['password'] = 'NOT-NEEDED'
-                            finalDic['backupSSHPort'] = '22'
-                            finalDic['userName'] = backup_plan.sftpUser
-                            finalDic['type'] = 'SFTP'
-                            finalDic['path'] = 'cpbackups'
-                            finalDic['name'] = backup_plan.sftpUser
-
-                            wm = BackupManager()
-                            response_inner = wm.submitDestinationCreation(userID, finalDic)
-
-                            response_data_inner = json.loads(response_inner.content.decode('utf-8'))
-
-                            # Extract the value of 'status'
-                            if response_data_inner.get('status') == 0:
-                                data['status'] = 0
-                                data[
-                                    'message'] = f"[2109] Failed to create sftp account {response_data_inner.get('error_message')}"
-                                print("Failed to create SFTP account:", response_data_inner.get('error_message'))
-                            else:
-                                data['status'] = 1
-
-                        else:
-                            data['status'] = 0
-                            data['message'] = f"[1985] Failed to create sftp account {response_data.get('error_message')}"
-                            print("Failed to create SFTP account:", response_data.get('error_message'))
-                    else:
-                        print("Failed to connect to the server. Status code:", response.status_code)
-                        print("Response:", response.text)
-                        data['status'] = 0
-                        data['message'] = f"[1991] Failed to create sftp account {response.text}"
-
-                    ####
-
-                except BaseException as msg:
-                    data['status'] = 4
-                    data['message'] = str(msg)
-
-            elif request.GET.get('status', 'none') == 'cancelled':
-                data['status'] = 0
-            else:
-                data['status'] = 2
-        except BaseException as msg:
-            data['status'] = 0
-            data['message'] = f"[2038] Unkown error occured in purchase process. Error message: {str(msg)}"
-
-
-        url = 'https://platform.cyberpersons.com/Billing/FetchBackupPlans'
-
-        try:
-            response = requests.get(url)
-            response.raise_for_status()  # Check if the request was successful
-            data['plans'] = response.json()  # Convert the response to a Python dictionary
-        except requests.exceptions.HTTPError as http_err:
-            print(f'HTTP error occurred: {http_err}')
-        except Exception as err:
-            print(f'Other error occurred: {err}')
-
-        data['bPlans'] = user.oneclickbackups_set.all()
-
-        proc = httpProc(request, 'backup/oneClickBackups.html', data, 'addDeleteDestinations')
-        return proc.render()
+            from universalAddons.registry import disabled_features
+            if 'backupv2' not in disabled_features():
+                from django.urls import reverse
+                return reverse('ua-backupv2')
+        except Exception:
+            pass
+        return '/backup/backupDestinations'
 
     def ManageOCBackups(self, request=None, userID=None, data=None):
         userID = request.session['userID']

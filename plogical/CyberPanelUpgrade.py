@@ -2,14 +2,17 @@ import json
 import os.path
 import sys
 import argparse
-import requests
+import time
 
 sys.path.append('/usr/local/CyberCP')
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "CyberCP.settings")
 
 class UpgradeCyberPanel:
 
-    LogURL = "https://platform.cyberpersons.com/settings/RecvData"
+    # Upstream posted upgrade progress (with the server IP) to the vendor.
+    # IndiansCloud writes it to a local log; an https receiver is used only when
+    # the admin sets upgrade_status_url in /home/cyberpanel/status-receivers.json.
+    LocalLog = '/home/cyberpanel/upgrade-status.log'
 
     def __init__(self, branch, mail, dns, ftp):
         ipFile = "/etc/cyberpanel/machineIP"
@@ -22,11 +25,15 @@ class UpgradeCyberPanel:
         self.dns = dns
 
     def PostStatus(self, message):
-        finalData = json.dumps({'ipAddress': self.ipAddress, "UpgradeCyberPanelStatus": message})
-
         try:
-            resp = requests.post(UpgradeCyberPanel.LogURL, data=finalData, timeout=10)
-        except:
+            with open(UpgradeCyberPanel.LocalLog, 'a') as handle:
+                handle.write('[%s] %s\n' % (time.strftime('%m.%d.%Y_%H-%M-%S'), message))
+        except BaseException:
+            pass
+        try:
+            from plogical.telemetryReceivers import send
+            send('upgrade_status_url', {'UpgradeCyberPanelStatus': message})
+        except BaseException:
             pass
 
     def UpgardeNow(self):

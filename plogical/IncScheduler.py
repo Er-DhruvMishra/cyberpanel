@@ -320,8 +320,20 @@ Automatic backup failed for %s on %s.
                             gDriveData = refreshed
                         except BaseException as msg:
                             GDriveJobLogs(owner=items, status=backupSchedule.ERROR,
-                                          message='Connection to this Google Drive account failed. Check authorization.').save()
+                                          message='Google Drive authorization failed. Reconnect this account: open '
+                                                  'Google Drive Backups, select it and click "Reconnect".').save()
+                            try:
+                                if not gDriveData.get('auth_failed'):
+                                    gDriveData['auth_failed'] = int(time.time())
+                                    items.auth = json.dumps(gDriveData)
+                                    items.save()
+                            except BaseException:
+                                pass
                             continue
+
+                    if gDriveData.pop('auth_failed', None) is not None:
+                        items.auth = json.dumps(gDriveData)
+                        items.save()
 
                     try:
                         folderIDIP = gDriveData['folderIDIP']

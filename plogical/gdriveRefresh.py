@@ -5,6 +5,11 @@ import json
 import re
 
 GOOGLE_TOKEN_URI = 'https://oauth2.googleapis.com/token'
+# Records created by the panel's own OAuth client (IncBackups/gdrive_oauth.py).
+PANEL_CLIENT_VERSION = 3
+# Accounts connected through the vendor before IndiansCloud had its own client
+# can only be refreshed by the vendor that issued their tokens.
+LEGACY_REFRESH_URL = 'https://platform.cyberpersons.com/refreshToken'
 
 
 def custom_client(auth):
@@ -12,6 +17,17 @@ def custom_client(auth):
     # Those are still shared-client destinations, not incomplete custom clients.
     return ('handoff_version' in auth or
             any(auth.get(key) not in (None, '') for key in ('client_id', 'client_secret')))
+
+
+def connection_kind(auth):
+    """'panel' (own client file), 'own-client' (client stored in record) or 'vendor'."""
+    if not isinstance(auth, dict):
+        return 'unknown'
+    if not custom_client(auth):
+        return 'vendor'
+    if auth.get('handoff_version') == PANEL_CLIENT_VERSION:
+        return 'panel'
+    return 'own-client'
 
 
 def _token(value):
@@ -32,10 +48,22 @@ def drive_credentials(auth, force_refresh=False):
         token = _token(result['token'])
         refresh = _token(result['refresh_token'])
         if custom_client(result):
-            if type(result.get('handoff_version')) is not int or result['handoff_version'] != 2 or result.get('token_uri') != GOOGLE_TOKEN_URI:
+            version = result.get('handoff_version')
+            if type(version) is not int or version not in (2, PANEL_CLIENT_VERSION) or result.get('token_uri') != GOOGLE_TOKEN_URI:
                 raise ValueError()
             client_id = result['client_id']
-            secret = result['client_secret']
+            if version == PANEL_CLIENT_VERSION:
+                # Connected through the panel's own OAuth client: the secret lives
+                # only in the 0600 client file, never in the account record.
+                if 'client_secret' in result:
+                    raise ValueError()
+                from plogical.gdriveClient import load_client
+                client = load_client()
+                if not client or client['client_id'] != client_id:
+                    raise ValueError()
+                secret = client['client_secret']
+            else:
+                secret = result['client_secret']
             if (not isinstance(client_id, str) or
                     not re.fullmatch(r'[A-Za-z0-9_.-]{1,256}\.apps\.googleusercontent\.com', client_id) or
                     not isinstance(secret, str) or not re.fullmatch(r'[A-Za-z0-9._~-]{1,512}', secret)):
@@ -67,7 +95,7 @@ def drive_credentials(auth, force_refresh=False):
 def legacy_access_token(refresh_token):
     import requests
     try:
-        response = requests.post('https://platform.cyberpersons.com/refreshToken',
+        response = requests.post(LEGACY_REFRESH_URL,
                                  data=json.dumps({'refresh_token': _token(refresh_token)}), timeout=30)
         response.raise_for_status()
         return _token(response.json()['access_token'])

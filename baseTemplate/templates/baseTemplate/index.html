@@ -380,7 +380,7 @@
             {% if admin or dkimManager %}{l:'{% trans "DKIM Manager" %}', h:'{% url "dkimManager" %}', i:'fa-signature', g:'{% trans "Email" %}'},{% endif %}
             {l:'{% trans "Webmail" %}', h:'/webmail/', i:'fa-envelope-open-text', g:'{% trans "Email" %}'},
             {% if admin %}{l:'{% trans "Roundcube add-on" %}', h:'/webmail/roundcube', i:'fa-envelope', g:'{% trans "Email" %}'},{% endif %}
-            {% if admin %}{l:'{% trans "Email Delivery" %}', h:'{% url "emailDeliveryHome" %}', i:'fa-paper-plane', g:'{% trans "Email" %}'},
+            {% if admin %}{l:'{% trans "SMTP Relay" %}', h:'{% url "ua-smtprelay" %}', i:'fa-route', g:'{% trans "Email" %}'},
             {l:'{% trans "Email Debugger" %}', h:'{% url "EmailDebugger" %}', i:'fa-stethoscope', g:'{% trans "Email" %}'},
             {l:'{% trans "Mail Queue" %}', h:'{% url "mailQueue" %}', i:'fa-list-check', g:'{% trans "Email" %}'},
             {l:'{% trans "Email Marketing" %}', h:'{% url "emailMarketing" %}', i:'fa-bullhorn', g:'{% trans "Email" %}'},{% endif %}
@@ -390,7 +390,7 @@
             {% if admin %}{l:'{% trans "MySQL Manager" %}', h:'{% url "MysqlManager" %}', i:'fa-sliders', g:'{% trans "Data" %}'},{% endif %}
             {% if admin or listFTPAccounts %}{l:'{% trans "FTP Accounts" %}', h:'{% url "listFTPAccounts" %}', i:'fa-folder', g:'{% trans "Data" %}'},{% endif %}
             // Backups
-            {% if admin or createBackup %}{l:'{% trans "One-Click Backups" %}', h:'{% url "OneClickBackups" %}', i:'fa-bolt', g:'{% trans "Backups" %}'},
+            {% if admin or createBackup %}{l:'{% trans "Cloud Backups (Backup V2)" %}', h:'{% url "OneClickBackups" %}', i:'fa-cloud-arrow-up', g:'{% trans "Backups" %}'},
             {l:'{% trans "Incremental Backups" %}', h:'{% url "backupDestinationsInc" %}', i:'fa-layer-group', g:'{% trans "Backups" %}'},
             {l:'{% trans "Create Backup" %}', h:'{% url "backupSite" %}', i:'fa-box-archive', g:'{% trans "Backups" %}'},{% endif %}
             {% if admin or restoreBackup %}{l:'{% trans "Restore Backup" %}', h:'{% url "restoreSite" %}', i:'fa-rotate-left', g:'{% trans "Backups" %}'},{% endif %}

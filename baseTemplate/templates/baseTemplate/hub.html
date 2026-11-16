@@ -43,7 +43,7 @@
         {% if admin %}
         <h2 class="section-title" style="margin-top:26px;">{% trans "DELIVERABILITY & ANTI-SPAM" %}</h2>
         <div class="cp-tile-grid">
-            <a class="cp-tile" href="{% url 'emailDeliveryHome' %}"><span class="cp-tile-ic"><i class="fas fa-paper-plane"></i></span><span><div class="cp-tile-title">{% trans "Email Delivery" %}</div><div class="cp-tile-sub">{% trans "SMTP relay & domains" %}</div></span></a>
+            <a class="cp-tile" href="{% url 'ua-smtprelay' %}"><span class="cp-tile-ic"><i class="fas fa-route"></i></span><span><div class="cp-tile-title">{% trans "SMTP Relay" %}</div><div class="cp-tile-sub">{% trans "Your own smarthost" %}</div></span></a>
             <a class="cp-tile" href="{% url 'EmailDebugger' %}"><span class="cp-tile-ic"><i class="fas fa-stethoscope"></i></span><span><div class="cp-tile-title">{% trans "Email Debugger" %}</div><div class="cp-tile-sub">{% trans "Diagnose mail issues" %}</div></span></a>
             <a class="cp-tile" href="{% url 'mailQueue' %}"><span class="cp-tile-ic"><i class="fas fa-list-check"></i></span><span><div class="cp-tile-title">{% trans "Mail Queue" %}</div><div class="cp-tile-sub">{% trans "Inspect the queue" %}</div></span></a>
             <a class="cp-tile" href="{% url 'SpamAssassin' %}"><span class="cp-tile-ic"><i class="fas fa-ban"></i></span><span><div class="cp-tile-title">{% trans "SpamAssassin" %}</div><div class="cp-tile-sub">{% trans "Spam filtering" %}</div></span></a>
@@ -76,7 +76,7 @@
     {% elif section == 'backups' %}
         <h2 class="section-title">{% trans "BACKUPS" %}</h2>
         <div class="cp-tile-grid">
-            {% if admin or createBackup %}<a class="cp-tile" href="{% url 'OneClickBackups' %}"><span class="cp-tile-ic"><i class="fas fa-bolt"></i></span><span><div class="cp-tile-title">{% trans "One-Click Backups" %}</div><div class="cp-tile-sub">{% trans "Managed off-site backups" %}</div></span></a>{% endif %}
+            {% if admin or createBackup %}<a class="cp-tile" href="{% url 'OneClickBackups' %}"><span class="cp-tile-ic"><i class="fas fa-cloud-arrow-up"></i></span><span><div class="cp-tile-title">{% trans "Cloud Backups" %}</div><div class="cp-tile-sub">{% trans "To your own SFTP, S3 or rclone storage" %}</div></span></a>{% endif %}
             {% if admin or createBackup %}<a class="cp-tile" href="{% url 'backupDestinationsInc' %}"><span class="cp-tile-ic"><i class="fas fa-layer-group"></i></span><span><div class="cp-tile-title">{% trans "Incremental Backups" %}</div><div class="cp-tile-sub">{% trans "Restic snapshots (v2)" %}</div></span></a>{% endif %}
             {% if admin or createBackup %}<a class="cp-tile" href="{% url 'backupSite' %}"><span class="cp-tile-ic"><i class="fas fa-box-archive"></i></span><span><div class="cp-tile-title">{% trans "Create Backup" %}</div><div class="cp-tile-sub">{% trans "Back up a site" %}</div></span></a>{% endif %}
             {% if admin or restoreBackup %}<a class="cp-tile" href="{% url 'restoreSite' %}"><span class="cp-tile-ic"><i class="fas fa-rotate-left"></i></span><span><div class="cp-tile-title">{% trans "Restore Backup" %}</div><div class="cp-tile-sub">{% trans "Restore from a backup" %}</div></span></a>{% endif %}

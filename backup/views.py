@@ -53,6 +53,10 @@ def GDriveSetupStatus(request):
     from IncBackups.gdrive_oauth import status
     return status(request, mode='normal')
 
+def gDriveOAuthClient(request):
+    from IncBackups.gdrive_oauth import client_settings
+    return client_settings(request)
+
 def fetchgDriveSites(request):
     try:
         userID = request.session['userID']
