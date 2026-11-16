@@ -584,6 +584,7 @@
                             </label>
                             <div class="col-sm-6">
                                 <select ng-change="fetchFolderDetails()" ng-model="folder" class="form-control">
+                                    <option value="" disabled>{% trans "-- Choose a folder --" %}</option>
                                     {% for item in folders %}
                                         <option>{{ item }}</option>
                                     {% endfor %}

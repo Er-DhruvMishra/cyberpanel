@@ -1646,7 +1646,7 @@
                                     <div style="margin-bottom: 1%;" class=" col-sm-1">
                                         <a ng-click="hidelogsbtn()" href="">
                                             <!--img src="/static/images/close-32.png"-->
-                                            <h3 class="glyph-icon icon-close text-danger mt-5"></h3>
+                                            <h3 class="text-danger mt-5" aria-hidden="true"><i class="fas fa-xmark"></i></h3>
                                         </a>
                                     </div>
                                     <div class="col-sm-12">
@@ -1691,7 +1691,7 @@
                                     <div style="margin-bottom: 1%;" class=" col-sm-1">
                                         <a ng-click="hideErrorLogsbtn()" href="">
                                             <!--img src="/static/images/close-32.png"-->
-                                            <h3 class="glyph-icon icon-close text-danger mt-5"></h3>
+                                            <h3 class="text-danger mt-5" aria-hidden="true"><i class="fas fa-xmark"></i></h3>
                                         </a>
                                     </div>
                                     <div class="col-sm-12">
@@ -1755,7 +1755,7 @@
                                     </div>
                                     <div style="margin-bottom: 1%;" class=" col-sm-1">
                                         <a title="{% trans 'Cancel' %}" ng-click="hideDomainCreationForm()" href="">
-                                            <h3 class="glyph-icon icon-close text-danger mt-5"></h3>
+                                            <h3 class="text-danger mt-5" aria-hidden="true"><i class="fas fa-xmark"></i></h3>
                                         </a>
                                     </div>
                                 </div>
@@ -1912,7 +1912,7 @@
 
                                     <div style="margin-bottom: 1%;" class=" col-sm-1">
                                         <a title="{% trans 'Close' %}" ng-click="hideListDomains()" href="">
-                                                <h3 class="glyph-icon icon-close text-danger mt-5"></h3>
+                                                <h3 class="text-danger mt-5" aria-hidden="true"><i class="fas fa-xmark"></i></h3>
                                             </a>
                                         </div>
 
@@ -2137,7 +2137,7 @@
                                 <div class="form-group">
                                     <label class="col-sm-3 control-label">{% trans "Select PHP" %}</label>
                                     <div class="col-sm-6">
-                                        <select ng-model="phpSelectionMaster" class="form-control">
+                                        <select ng-model="phpSelectionMaster" ng-init="phpSelectionMaster = '{{ currentPHP|default_if_none:''|escapejs }}' || '{{ phps|first|default_if_none:''|escapejs }}'" class="form-control">
                                             {% for php in phps %}
                                                 <option>{{ php }}</option>
                                             {% endfor %}
@@ -2146,7 +2146,7 @@
 
                                     <div style="margin-bottom: 1%;" class=" col-sm-1">
                                         <a title="{% trans 'Cancel' %}" ng-click="hideChangePHPMaster()"
-                                           href=""><h3 class="glyph-icon icon-close text-danger mt-5"></h3></a>
+                                           href=""><h3 class="text-danger mt-5" aria-hidden="true"><i class="fas fa-xmark"></i></h3></a>
                                     </div>
 
                                 </div>

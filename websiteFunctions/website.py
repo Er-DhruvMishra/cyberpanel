@@ -3690,6 +3690,7 @@ context /cyberpanel_suspension_page.html {
             Data.update(storage_card_context(website))
 
             Data['phps'] = PHPManager.findPHPVersions()
+            Data['currentPHP'] = website.phpSelection
             import os
 
             servicePath = '/home/cyberpanel/postfix'
@@ -6150,7 +6151,8 @@ StrictHostKeyChecking no
 
         try:
             website = Websites.objects.get(domain=self.domain)
-            folders = ['/home/%s/public_html' % (self.domain)]
+            from websiteFunctions.gitFolders import list_site_folders
+            folders = list_site_folders(self.domain, website.externalApp, ProcessUtilities.outputExecutioner)
 
             databases = website.databases_set.all()
 
@@ -6274,6 +6276,14 @@ StrictHostKeyChecking no
             if self.folder == vhRoot:
                 self.externalApp = externalApp
                 return 1
+
+            ## Other top-level folders of the site (e.g. laravel_app), as offered by manageGIT.
+
+            if self.masterDomain == self.domain and self.folder.startswith(vhRoot + '/'):
+                from websiteFunctions.gitFolders import list_site_folders
+                if self.folder in list_site_folders(self.domain, externalApp, ProcessUtilities.outputExecutioner):
+                    self.externalApp = externalApp
+                    return 1
 
             ##
 

@@ -413,6 +413,17 @@ html.cp-evergreen #main-content .page-header {
     box-shadow: none !important;
 }
 html.cp-evergreen #main-content .page-header::before { content: none; }
+/* Legacy "#page-title" hero cards (setupStaging, manageGIT, sshAccess, listCron,
+   installers...) hardcode white text over var(--bg-gradient), which this theme
+   maps to the light selection colour (dark green in the dark theme). Give them
+   the matching ink; pages without a hero background keep theirs. */
+html.cp-evergreen #main-content #page-title {
+    color: var(--cp-selection-text) !important;
+    box-shadow: none !important;
+}
+html.cp-evergreen #main-content #page-title::before { content: none; }
+html.cp-evergreen #main-content #page-title :is(h1, h2, h3, i, .fa, .fas, .far) { color: var(--text-heading) !important; }
+html.cp-evergreen #main-content #page-title :is(p, span, small) { color: var(--cp-selection-text) !important; opacity: 1; }
 html.cp-evergreen #main-content :is(.page-title, .page-header h1, .title-hero) {
     margin: 0 0 8px;
     color: var(--text-heading) !important;
@@ -433,7 +444,7 @@ html.cp-evergreen #main-content :is(.page-subtitle, .page-header p) {
     letter-spacing: 0;
     text-align: left;
 }
-html.cp-evergreen #main-content .page-header :is(.icon, .firewall-icon, .security-icon, .backup-icon, .header-icon) {
+html.cp-evergreen #main-content .page-header :is(.icon, .firewall-icon, .security-icon, .backup-icon, .header-icon, .server-icon) {
     width: 38px;
     height: 38px;
     min-width: 38px;
@@ -1199,7 +1210,7 @@ html.cp-evergreen .ui-pnotify-container { border-radius: 6px; box-shadow: var(--
     html.cp-evergreen #main-content .cp-qa-card { gap: 8px; }
     html.cp-evergreen #main-content .cp-qa-ic { width: 27px; height: 30px; font-size: 13px; }
     html.cp-evergreen #main-content :is(.form-row, .form-grid) { grid-template-columns: minmax(0, 1fr); }
-    html.cp-evergreen #main-content .page-header :is(.icon, .firewall-icon, .security-icon, .backup-icon, .header-icon) { width: 32px; height: 32px; min-width: 32px; font-size: 15px; }
+    html.cp-evergreen #main-content .page-header :is(.icon, .firewall-icon, .security-icon, .backup-icon, .header-icon, .server-icon) { width: 32px; height: 32px; min-width: 32px; font-size: 15px; }
 }
 
 

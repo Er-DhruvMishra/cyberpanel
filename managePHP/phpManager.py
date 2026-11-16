@@ -23,6 +23,14 @@ class PHPManager:
         # else:
         #     return ['PHP 7.0', 'PHP 7.1', 'PHP 7.2', 'PHP 7.3', 'PHP 7.4', 'PHP 8.0', 'PHP 8.1', 'PHP 8.2', 'PHP 8.3', 'PHP 8.4', 'PHP 8.5']
 
+        # /usr/local/lsws is world-readable, so read it directly. Going through
+        # lscpd (`ls -la` + column parsing) returned an empty list whenever the
+        # socket reply was empty or malformed, leaving every "Select PHP"
+        # dropdown blank.
+        installed = PHPManager.findInstalledLSPHPVersions()
+        if installed:
+            return installed
+
         try:
 
             # Run the shell command and capture the output
@@ -52,11 +60,27 @@ class PHPManager:
                 logging.writeToFile(f'Found PHP versions in findPHPVersions: {finalPHPVersions}')
 
             # Now php_versions contains the formatted PHP versions
-            return finalPHPVersions
+            if finalPHPVersions:
+                return finalPHPVersions
+            raise ValueError('no lsphp versions found in: %r' % result[:200])
         except BaseException as msg:
             from plogical.CyberCPLogFileWriter import CyberCPLogFileWriter as logging
             logging.writeToFile(f'Error while finding php versions on system: {str(msg)}')
             return ['PHP 7.0', 'PHP 7.1', 'PHP 7.2', 'PHP 7.3', 'PHP 7.4', 'PHP 8.0', 'PHP 8.1', 'PHP 8.2', 'PHP 8.3', 'PHP 8.4', 'PHP 8.5']
+
+    @staticmethod
+    def findInstalledLSPHPVersions(base='/usr/local/lsws'):
+        """Return ['PHP 5.6', 'PHP 7.1', ...] for every <base>/lsphpXY/bin/lsphp, sorted by version."""
+        try:
+            names = os.listdir(base)
+        except OSError:
+            return []
+        versions = []
+        for name in names:
+            match = re.fullmatch(r'lsphp(\d)(\d+)', name)
+            if match and os.path.exists(os.path.join(base, name, 'bin', 'lsphp')):
+                versions.append((int(match.group(1)), int(match.group(2))))
+        return ['PHP %d.%d' % version for version in sorted(set(versions))]
 
     @staticmethod
     def findApachePHPVersions():

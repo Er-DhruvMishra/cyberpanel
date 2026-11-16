@@ -143,6 +143,21 @@ def Switchoffsecurity(request):
     return proc.render()
 
 
+def parseLshttpdVersion(output):
+    """Split `lshttpd -v` output into (version line, modules heading, modules).
+
+    The output is indented and ends with a newline (and may carry stray
+    control characters from lscpd), so blank lines are dropped; otherwise they
+    render as empty module boxes.
+    """
+    lines = [''.join(ch for ch in line if ch.isprintable()).strip()
+             for line in (output or '').splitlines()]
+    lines = [line for line in lines if line]
+    lsversion = lines[0] if lines else ''
+    modules = lines[1] if len(lines) > 1 else ''
+    return lsversion, modules, lines[2:]
+
+
 def litespeedStatus(request):
     try:
         userID = request.session['userID']
@@ -165,19 +180,8 @@ def litespeedStatus(request):
             message = NOTHING
         try:
 
-            versionInformation = ProcessUtilities.outputExecutioner(["/usr/local/lsws/bin/lshttpd", "-v"]).split("\n")
-            lsversion = versionInformation[0]
-            modules = versionInformation[1]
-
-            counter = 0
-            loadedModules = []
-
-            for items in versionInformation:
-                if counter == 0 or counter == 1:
-                    counter = counter + 1
-                    continue
-                else:
-                    loadedModules.append(items)
+            lsversion, modules, loadedModules = parseLshttpdVersion(
+                ProcessUtilities.outputExecutioner(["/usr/local/lsws/bin/lshttpd", "-v"]))
 
         except BaseException as msg:
             logging.CyberCPLogFileWriter.writeToFile(str(msg) + "[litespeedStatus]")
