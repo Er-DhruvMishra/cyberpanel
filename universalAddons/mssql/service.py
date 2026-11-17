@@ -86,7 +86,35 @@ def tools_repo_text(version):
             'gpgkey=https://packages.microsoft.com/keys/microsoft.asc\n' % (TOOLS_REPO_ID, int(version), int(version)))
 
 
-def write_tools_repo(version, path=TOOLS_REPO_FILE):
+def existing_tools_repo(version, repo_dir='/etc/yum.repos.d', own=TOOLS_REPO_FILE):
+    """Path of another enabled .repo file that already serves Microsoft's RHEL <version> production
+    packages (e.g. microsoft-prod.repo from the packages-microsoft-prod RPM), or None."""
+    import configparser
+    import glob
+    wanted = 'packages.microsoft.com/rhel/%d/prod' % int(version)
+    for path in sorted(glob.glob(os.path.join(repo_dir, '*.repo'))):
+        if os.path.abspath(path) == os.path.abspath(own):
+            continue
+        parser = configparser.RawConfigParser()
+        try:
+            parser.read(path)
+        except configparser.Error:
+            continue
+        for section in parser.sections():
+            baseurl = parser.get(section, 'baseurl', fallback='')
+            if wanted in baseurl.replace('https://', '').replace('http://', '').rstrip('/') \
+                    and parser.get(section, 'enabled', fallback='1').strip() == '1':
+                return path
+    return None
+
+
+def write_tools_repo(version, path=TOOLS_REPO_FILE, repo_dir='/etc/yum.repos.d'):
+    """Add Microsoft's tools repository, unless a correct one is already configured: a second
+    copy only makes dnf fetch the same metadata twice."""
+    if existing_tools_repo(version, repo_dir=repo_dir, own=path):
+        if os.path.exists(path):
+            os.remove(path)
+        return
     with open(path + '.tmp', 'w') as handle:
         handle.write(tools_repo_text(version))
     os.chmod(path + '.tmp', 0o644)

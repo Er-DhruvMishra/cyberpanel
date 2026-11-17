@@ -873,3 +873,29 @@ class CsvInjection(SimpleTestCase):
         self.assertNotIn("'-12.5", out)
         self.assertIn("'@SUM", out)
         self.assertIn("'+1-2", out)
+
+
+class ToolsRepoDuplicate(SimpleTestCase):
+    """No second copy of Microsoft's RHEL repository when one is already configured."""
+
+    def test_existing_repo_reused_and_own_copy_removed(self):
+        import tempfile
+        from universalAddons.mssql import service as sq
+        repo_dir = tempfile.mkdtemp()
+        with open(os.path.join(repo_dir, 'microsoft-prod.repo'), 'w') as handle:
+            handle.write('[packages-microsoft-com-prod]\nbaseurl=https://packages.microsoft.com/rhel/8/prod/\nenabled=1\n')
+        own = os.path.join(repo_dir, 'cp-microsoft-prod.repo')
+        with open(own, 'w') as handle:
+            handle.write(sq.tools_repo_text(8))
+        sq.write_tools_repo(8, path=own, repo_dir=repo_dir)
+        self.assertFalse(os.path.exists(own))
+
+    def test_written_when_no_correct_repo(self):
+        import tempfile
+        from universalAddons.mssql import service as sq
+        repo_dir = tempfile.mkdtemp()
+        with open(os.path.join(repo_dir, 'microsoft-prod.repo'), 'w') as handle:   # stale CentOS 7 copy
+            handle.write('[packages-microsoft-com-prod]\nbaseurl=https://packages.microsoft.com/rhel/7/prod/\nenabled=1\n')
+        own = os.path.join(repo_dir, 'cp-microsoft-prod.repo')
+        sq.write_tools_repo(8, path=own, repo_dir=repo_dir)
+        self.assertTrue(os.path.exists(own))
