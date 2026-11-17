@@ -1,6 +1,6 @@
 {% extends "baseTemplate/index.html" %}
 {% load static %}
-{% block module_scripts %}<script defer src="{% static 'websiteFunctions/websiteFunctions.js' %}?v={{ CP_VERSION }}-20261117-term5678"></script>{% endblock %}
+{% block module_scripts %}<script defer src="{% static 'websiteFunctions/websiteFunctions.js' %}?v={{ CP_VERSION }}-20261118-addon"></script>{% endblock %}
 {% load i18n %}
 {% block title %}{% trans "Create Sub/Addon Domain - IndiansCloud" %}{% endblock %}
 
@@ -451,7 +451,8 @@
                     <span style="display: none" id="defaultSite">{{ defaultSite }}</span>
                     
                     <div class="form-group" ng-hide="webselection">
-                        <label class="form-label">{% trans "Select Website" %}</label>
+                        <label class="form-label">{% trans "Create under website" %}</label>
+                        <small style="display:block;color:var(--text-secondary,#8893a7);margin:-2px 0 6px;">{% trans "The domain's folder is created inside this website's home directory." %}</small>
                         <select ng-change="WebsiteSelection()" ng-model="masterDomain" class="form-control">
                             <option value="">-- {% trans "Select a website" %} --</option>
                             {% for items in websiteList %}

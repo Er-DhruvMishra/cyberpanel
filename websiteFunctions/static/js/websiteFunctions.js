@@ -11546,14 +11546,16 @@ app.controller('websitePages', function ($scope, $http, $timeout, $window) {
             $scope.DomainCreateForm = true;
 
         } else if (type == 'Addon Domain') {
-            $scope.DomainCreateForm = false;
-            $scope.webselection = true;
-            $scope.masterDomain = $('#defaultSite').html()
+            // Ask which website the addon domain belongs to (its folder is created under that
+            // site's home); preselect the account's default site.
+            $scope.webselection = false;
+            $scope.masterDomain = ($('#defaultSite').text() || '').trim();
+            $scope.DomainCreateForm = !$scope.masterDomain;
         }
     };
 
     $scope.WebsiteSelection = function () {
-        $scope.DomainCreateForm = false;
+        $scope.DomainCreateForm = !$scope.masterDomain;
     };
 
     $scope.createDomain = function () {
@@ -13064,14 +13066,16 @@ app.controller('manageAliasController', function ($scope, $http, $timeout, $wind
             $scope.DomainCreateForm = true;
 
         } else if (type == 'Addon Domain') {
-            $scope.DomainCreateForm = false;
-            $scope.webselection = true;
-            $scope.masterDomain = $('#defaultSite').html()
+            // Ask which website the addon domain belongs to (its folder is created under that
+            // site's home); preselect the account's default site.
+            $scope.webselection = false;
+            $scope.masterDomain = ($('#defaultSite').text() || '').trim();
+            $scope.DomainCreateForm = !$scope.masterDomain;
         }
     };
 
     $scope.WebsiteSelection = function () {
-        $scope.DomainCreateForm = false;
+        $scope.DomainCreateForm = !$scope.masterDomain;
     };
 
     $scope.createDomain = function () {

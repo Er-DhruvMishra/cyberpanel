@@ -155,3 +155,17 @@ class HeroHeaderContrastTests(SimpleTestCase):
     def test_base_template_busts_the_css_cache(self):
         base = (ROOT / 'baseTemplate/templates/baseTemplate/index.html').read_text()
         self.assertIn("cyberpanel-evergreen.css' %}?v=20261116-1", base)
+
+
+class AddonDomainAsksForWebsite(SimpleTestCase):
+    """Addon domains show the website selector (default site preselected) instead of silently
+    using the account's default site for the folder."""
+
+    def test_addon_domain_shows_selector(self):
+        import os
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        for rel in ('websiteFunctions/static/websiteFunctions/websiteFunctions.js', 'static/websiteFunctions/websiteFunctions.js'):
+            js = open(os.path.join(root, rel), encoding='utf-8').read()
+            block = js[js.index("type == 'Addon Domain'"):][:400]
+            self.assertIn('$scope.webselection = false;', block, rel)
+            self.assertNotIn('$scope.webselection = true;', block, rel)
