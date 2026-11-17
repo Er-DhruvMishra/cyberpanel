@@ -5,7 +5,7 @@
     var $ = function (id) { return document.getElementById(id); };
     var esc = UA.esc, base = root.dataset.base.replace(/\/$/, '') + '/ajax/';
     var api = function (name, body) { return UA.api(base + name, body); };
-    var state = {categories: {}};
+    var state = {categories: {}, days: {}};
     var BADGE = {safe: 'pass', review: 'warn', report: 'info'};
 
     function human(kb) {
@@ -58,22 +58,51 @@
         }).join('') + '</tbody></table>';
     }
 
+    function daysOf(id) { return state.days[id]; }
+    function catKb(id) {
+        var c = state.categories[id], b = c.by_days && c.by_days[String(daysOf(id))];
+        return b ? b.kb : c.kb;
+    }
+    function itemKb(id, it) {
+        var b = it.by_days && it.by_days[String(daysOf(id))];
+        return b ? b.kb : it.kb;
+    }
+    function maxKb(c) {
+        if (!c.by_days) { return c.kb; }
+        return Object.keys(c.by_days).reduce(function (m, k) { return Math.max(m, c.by_days[k].kb); }, c.kb);
+    }
+    function daysSelect(id, c) {
+        if (!c.choices) { return ''; }
+        return '<div style="margin-top:4px"><label class="ua-muted">Items <select class="st-days" data-cat="' + esc(id) + '">' + c.choices.map(function (d) {
+            return '<option value="' + esc(d) + '"' + (d === c.days ? ' selected' : '') + '>' + (d === 0 ? 'of any age' : 'older than ' + esc(d) + ' days') + '</option>';
+        }).join('') + '</select></label>' + (c.oldest ? ' <span class="ua-muted">oldest ' + esc(new Date(c.oldest * 1000).toLocaleDateString()) + '</span>' : '') + '</div>';
+    }
+    function refreshSizes(id) {
+        var c = state.categories[id], cell = root.querySelector('.st-size[data-cat="' + id + '"]');
+        if (cell) { cell.textContent = human(catKb(id)); }
+        root.querySelectorAll('.st-item-size[data-cat="' + id + '"]').forEach(function (span) {
+            span.textContent = human(itemKb(id, c.items[Number(span.dataset.n)]));
+        });
+    }
+
     function renderCategories(cats) {
         state.categories = cats;
+        state.days = {};
+        Object.keys(cats).forEach(function (id) { if (cats[id].choices) { state.days[id] = cats[id].days; } });
         var order = Object.keys(cats).sort(function (a, b) { return cats[b].kb - cats[a].kb; });
         var safe = 0, review = 0;
         $('st-categories').innerHTML = '<thead><tr><th></th><th>What</th><th>Risk</th><th>Size</th><th>Details</th></tr></thead><tbody>' + order.map(function (id) {
-            var c = cats[id], checkable = c.risk !== 'report' && c.kb > 0 && !c.error;
+            var c = cats[id], checkable = c.risk !== 'report' && maxKb(c) > 0 && !c.error;
             if (c.risk === 'safe') { safe += c.kb; } else if (c.risk === 'review') { review += c.kb; }
             var items = (c.items || []).length ? '<details><summary class="ua-muted">' + c.items.length + ' item(s)</summary>' + c.items.map(function (it, n) {
                 return '<div>' + (c.selectable && checkable ? '<label><input type="checkbox" class="st-item" data-cat="' + esc(id) + '" data-n="' + n + '"' +
-                    (c.risk === 'safe' ? ' checked' : '') + '> ' : '') + '<code>' + esc(it.path) + '</code> ' + esc(human(it.kb)) +
+                    (c.risk === 'safe' ? ' checked' : '') + '> ' : '') + '<code>' + esc(it.path) + '</code> <span class="st-item-size" data-cat="' + esc(id) + '" data-n="' + n + '">' + esc(human(it.kb)) + '</span>' +
                     (it.note ? ' <span class="ua-muted">' + esc(it.note) + '</span>' : '') + (c.selectable && checkable ? '</label>' : '') + '</div>';
             }).join('') + '</details>' : '';
             return '<tr><td>' + (checkable && !c.selectable ? '<input type="checkbox" class="st-cat" data-cat="' + esc(id) + '"' + (c.risk === 'safe' ? ' checked' : '') + '>' : '') +
                 '</td><td><strong>' + esc(c.title) + '</strong>' + (c.count ? ' <span class="ua-muted">(' + esc(c.count) + ' files)</span>' : '') +
-                (c.note ? '<div class="ua-fix">' + esc(c.note) + '</div>' : '') + (c.error ? '<div class="ua-fix">' + esc(c.error) + '</div>' : '') + items +
-                '</td><td><span class="ua-badge ua-badge-' + BADGE[c.risk] + '">' + esc(c.risk) + '</span></td><td><strong>' + esc(human(c.kb)) + '</strong></td><td></td></tr>';
+                (c.note ? '<div class="ua-fix">' + esc(c.note) + '</div>' : '') + daysSelect(id, c) + (c.error ? '<div class="ua-fix">' + esc(c.error) + '</div>' : '') + items +
+                '</td><td><span class="ua-badge ua-badge-' + BADGE[c.risk] + '">' + esc(c.risk) + '</span></td><td><strong class="st-size" data-cat="' + esc(id) + '">' + esc(human(c.kb)) + '</strong></td><td></td></tr>';
         }).join('') + '</tbody>';
         $('st-total').textContent = '(' + human(safe) + ' safe, ' + human(review) + ' to review)';
         $('st-results').style.display = 'block';
@@ -84,17 +113,26 @@
         var body = {}, total = 0;
         root.querySelectorAll('.st-cat:checked').forEach(function (box) {
             body['sel_' + box.dataset.cat] = true;
-            total += state.categories[box.dataset.cat].kb;
+            total += catKb(box.dataset.cat);
         });
         root.querySelectorAll('.st-item:checked').forEach(function (box) {
             var c = state.categories[box.dataset.cat], item = c.items[Number(box.dataset.n)];
             (body['sel_' + box.dataset.cat] = body['sel_' + box.dataset.cat] || []).push(item.path);
-            total += item.kb;
+            total += itemKb(box.dataset.cat, item);
+        });
+        Object.keys(state.days).forEach(function (id) {
+            if (body['sel_' + id]) { body['days_' + id] = state.days[id]; }
         });
         return {body: body, total: total};
     }
     function updateSelected() { $('st-selected').textContent = 'Selected: ' + human(selection().total); }
-    root.addEventListener('change', function (e) { if (e.target.matches('.st-cat, .st-item')) { updateSelected(); } });
+    root.addEventListener('change', function (e) {
+        if (e.target.matches('.st-days')) {
+            state.days[e.target.dataset.cat] = Number(e.target.value);
+            refreshSizes(e.target.dataset.cat);
+            updateSelected();
+        } else if (e.target.matches('.st-cat, .st-item')) { updateSelected(); }
+    });
 
     function renderUsage(u) {
         renderFilesystems(u.filesystems);
@@ -126,7 +164,9 @@
     function clean(dryRun) {
         var sel = selection();
         if (!Object.keys(sel.body).length) { UA.showError($('st-job-out'), new Error('Nothing selected.')); $('st-job').style.display = 'block'; return; }
-        if (!dryRun && !window.confirm('Reclaim about ' + human(sel.total) + '? Files are deleted permanently (MySQL tables are backed up first).')) { return; }
+        var trashNote = (sel.body.sel_trash || sel.body.sel_mail_trash || sel.body.sel_desktop_trash) ?
+            ' Emptied trash and expunged mail cannot be restored.' : '';
+        if (!dryRun && !window.confirm('Reclaim about ' + human(sel.total) + '? Files are deleted permanently (MySQL tables are backed up first).' + trashNote)) { return; }
         sel.body.dryRun = dryRun;
         api('clean', sel.body).then(function (d) {
             watch(d.result.job_id, function (j) {

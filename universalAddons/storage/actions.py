@@ -136,7 +136,9 @@ def scan_run(job_id):
     return jobs.run_job(job_id, [('Disk usage', usage), ('Reclaimable space', categories)])
 
 
-def clean_run(job_id, selection, dry_run=False):
+def clean_run(job_id, selection, dry_run=False, options=None):
+    """options: {category: {'days': n}} for the trash categories (see service.day_choices)."""
+    options = options or {}
     stamp = time.strftime('%Y%m%d-%H%M%S')
     log_path = '/var/log/cyberpanel-storage-clean-%s.log' % stamp
 
@@ -158,7 +160,8 @@ def clean_run(job_id, selection, dry_run=False):
                     _, title, risk, probe, run_fn, selectable = table[cid]
                     items = choice if isinstance(choice, list) else None
                     log('== %s%s' % (title, ' (dry run)' if dry_run else ''))
-                    freed[cid] = run_fn(dry_run=dry_run, log=log, items=items)
+                    extra = {'days': options[cid]['days']} if isinstance(options.get(cid), dict) and 'days' in options[cid] else {}
+                    freed[cid] = run_fn(dry_run=dry_run, log=log, items=items, **extra)
             except Exception as exc:  # task isolation: one failure does not stop the rest
                 log('ERROR in %s: %s' % (cid, exc))
         after = st.free_mb('/')
@@ -200,8 +203,8 @@ def _rebuild_tables(choice, dry_run, log, stamp):
 ACTIONS = {
     'scan': lambda: jobs.spawn('storage', 'scan_run', {}),
     'scan_run': scan_run,
-    'clean': lambda selection, dry_run=False: jobs.spawn('storage', 'clean_run', {'selection': selection,
-                                                                                   'dry_run': bool(dry_run)}),
+    'clean': lambda selection, dry_run=False, options=None: jobs.spawn('storage', 'clean_run', dict(
+        {'selection': selection, 'dry_run': bool(dry_run)}, **({'options': options} if options else {}))),
     'clean_run': clean_run,
     'job': lambda job_id: jobs.status(job_id),
     'filesystems': filesystems,

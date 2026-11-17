@@ -26,6 +26,7 @@ import gzip
 import os
 import re
 import shutil
+import stat
 import subprocess
 import time
 
@@ -34,7 +35,10 @@ ROTATED_LOG_AGE_DAYS = 30
 TMP_AGE_DAYS = 14
 ACTIVE_LOG_MAX_MB = 200
 EDITOR_AGE_DAYS = 60
-TRASH_AGE_DAYS = 30
+TRASH_DAY_CHOICES = (0, 7, 30)      # file manager and desktop trash; 0 = everything
+TRASH_DEFAULT_DAYS = 0
+MAIL_TRASH_DAY_CHOICES = (7, 30, 90)
+MAIL_TRASH_DEFAULT_DAYS = 30
 BACKUP_AGE_DAYS = 30
 PUBLIC_ARCHIVE_MIN_MB = 50
 MYSQL_BLOAT_MIN_MB = 50
@@ -561,32 +565,6 @@ def run_core_dumps(dry_run, log, **_):
     return kb
 
 
-def _old_trash():
-    items = []
-    for home in site_homes():
-        trash = os.path.join(home, '.trash')
-        files = list(old_files([trash], TRASH_AGE_DAYS))
-        if files:
-            items.append(_item(trash, sum(k for _, k in files), '%d files older than %d days' % (len(files), TRASH_AGE_DAYS)))
-    return items
-
-
-def probe_trash():
-    items = _old_trash()
-    return {'kb': sum(i['kb'] for i in items), 'items': items}
-
-
-def run_trash(dry_run, log, items=None, **_):
-    allowed = {i['path'] for i in _old_trash()}
-    kb = 0
-    for trash in (items or allowed):
-        if trash in allowed:
-            count, freed = delete_files(old_files([trash], TRASH_AGE_DAYS), dry_run)
-            log('emptied %d old files from %s' % (count, trash))
-            kb += freed
-    return kb
-
-
 BACKUP_PATTERNS = ('*.tar.gz', '*.tar', '*.tgz', '*.zip', '*.sql', '*.sql.gz')
 
 
@@ -667,6 +645,529 @@ def run_cli_versions(dry_run, log, **_):
         kb += safe_rm(item['path'], dry_run)
         log('removed %s' % item['path'])
     return kb
+
+
+# ----------------------------------------------------------------------------- Trash
+#
+# Three kinds of trash, all 'review' (somebody deleted these on purpose and may want them back):
+#   trash        /home/<site>/.trash, filled by the file manager; the Trash table remembers where each item came from
+#   mail_trash   Trash/Junk folders of every mailbox, expunged through Dovecot (never by deleting maildir files)
+#   desktop_trash  ~/.local/share/Trash (freedesktop.org trash used by gio, trash-cli and desktop tools)
+#
+# Deletion runs as root but never follows a symlink: every directory is opened relative to its parent with
+# O_NOFOLLOW, its inode is re-checked after opening, entries are removed with unlink/rmdir relative to that
+# descriptor, and nothing on another filesystem is entered. A symlink inside a trash is removed as a link; its
+# target is never touched.
+
+TRASH_MAX_DEPTH = 400
+TRASH_TOP_SITES = 20
+MAIL_ROOT = '/home/vmail'
+MAIL_TRASH_FOLDERS = ('Trash', 'Junk', 'Spam', 'Deleted Items', 'Deleted Messages', 'Junk E-mail')
+_EMAIL_PART = re.compile(r'^[A-Za-z0-9._%+=-]{1,128}$')
+_DOMAIN = re.compile(r'^[A-Za-z0-9](?:[A-Za-z0-9.-]{0,251}[A-Za-z0-9])?$')
+_DIR_FLAGS = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | getattr(os, 'O_CLOEXEC', 0)
+
+
+def day_choices(cid):
+    """Age choices (days) a category offers, or None."""
+    return {'trash': TRASH_DAY_CHOICES, 'desktop_trash': TRASH_DAY_CHOICES,
+            'mail_trash': MAIL_TRASH_DAY_CHOICES}.get(cid)
+
+
+def _days(cid, days):
+    choices = day_choices(cid)
+    default = MAIL_TRASH_DEFAULT_DAYS if cid == 'mail_trash' else TRASH_DEFAULT_DAYS
+    if days is None:
+        return default
+    if isinstance(days, bool) or days not in choices:
+        raise CleanError('Age must be one of %s days.' % ', '.join(str(c) for c in choices))
+    return days
+
+
+def open_dir_chain(base, parts):
+    """fd of base/parts[0]/parts[1]/..., refusing a symlink or another filesystem at every step."""
+    if not os.path.isabs(base) or os.path.islink(base):
+        raise CleanError('Refusing %s: not a real directory.' % base)
+    fd = os.open(base, _DIR_FLAGS)
+    try:
+        device = os.fstat(fd).st_dev
+        for part in parts:
+            if not part or '/' in part or part in ('.', '..'):
+                raise CleanError('Invalid path component %r.' % part)
+            info = os.stat(part, dir_fd=fd, follow_symlinks=False)
+            if stat.S_ISLNK(info.st_mode) or not stat.S_ISDIR(info.st_mode):
+                raise CleanError('Refusing %s/%s: symlink or not a directory.' % (base, part))
+            if info.st_dev != device:
+                raise CleanError('Refusing %s/%s: on another filesystem.' % (base, part))
+            child = os.open(part, _DIR_FLAGS, dir_fd=fd)
+            opened = os.fstat(child)
+            if (opened.st_dev, opened.st_ino) != (info.st_dev, info.st_ino):
+                os.close(child)
+                raise CleanError('Refusing %s/%s: changed while opening.' % (base, part))
+            os.close(fd)
+            fd = child
+        return fd
+    except BaseException:
+        os.close(fd)
+        raise
+
+
+def remove_at(parent_fd, name, device, depth=0):
+    """Remove parent_fd/name (file, link or whole tree) without following symlinks. Returns KB removed."""
+    if not name or '/' in name or name in ('.', '..'):
+        raise CleanError('Invalid name %r.' % name)
+    info = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
+    if not stat.S_ISDIR(info.st_mode):  # regular file, symlink (the link only), socket, fifo...
+        os.unlink(name, dir_fd=parent_fd)
+        return info.st_blocks // 2
+    if info.st_dev != device:
+        raise CleanError('%s is a mount point; left alone.' % name)
+    if depth >= TRASH_MAX_DEPTH:
+        raise CleanError('%s is nested too deeply; left alone.' % name)
+    fd = os.open(name, _DIR_FLAGS, dir_fd=parent_fd)
+    kb = 0
+    try:
+        opened = os.fstat(fd)
+        if (opened.st_dev, opened.st_ino) != (info.st_dev, info.st_ino):
+            raise CleanError('%s changed while opening; left alone.' % name)
+        for child in os.listdir(fd):
+            kb += remove_at(fd, child, device, depth + 1)
+    finally:
+        os.close(fd)
+    os.rmdir(name, dir_fd=parent_fd)
+    return kb + info.st_blocks // 2
+
+
+def _entry_kb(path):
+    return tree_kb(path)
+
+
+def trashed_at(info):
+    """When an item reached the trash: its inode change time (set by the rename into the trash; mv keeps the
+    modification time). Patched in the tests, where ctime cannot be set."""
+    return info.st_ctime
+
+
+def _age_buckets(entries, choices, now=None):
+    """entries: [(stamp, kb, count)] -> {str(days): {'kb', 'count'}} for every choice."""
+    now = now or time.time()
+    out = {}
+    for days in choices:
+        cutoff = now - days * 86400
+        chosen = [e for e in entries if days == 0 or e[0] <= cutoff]
+        out[str(days)] = {'kb': sum(e[1] for e in chosen), 'count': sum(e[2] for e in chosen)}
+    return out
+
+
+def _category(cid, items, entries, note):
+    days = _days(cid, None)
+    buckets = _age_buckets(entries, day_choices(cid))
+    oldest = min((e[0] for e in entries), default=None)
+    return {'kb': buckets[str(days)]['kb'], 'count': buckets[str(days)]['count'], 'oldest': int(oldest) if oldest else None,
+            'items': items, 'note': note, 'choices': list(day_choices(cid)), 'days': days, 'by_days': buckets}
+
+
+# --- file manager trash (/home/<site>/.trash) -----------------------------------------------------------------
+
+def quote_trash_name(name):
+    """How filemanager.py stores Trash.fileName (returnPathEnclosed: a single-quoted shell word)."""
+    return "'" + str(name).replace("'", "'\"'\"'") + "'"
+
+
+def unquote_trash_name(value):
+    value = str(value or '')
+    if len(value) >= 2 and value[0] == "'" and value[-1] == "'":
+        return value[1:-1].replace("'\"'\"'", "'")
+    return value
+
+
+class TrashRows:
+    """The file manager's Trash table (filemanager.models.Trash). Replaced by a fake in the tests."""
+
+    def rows(self, domain):
+        from universalAddons import django_env
+        django_env.setup()
+        from filemanager.models import Trash
+        return list(Trash.objects.filter(website__domain=domain).values_list('pk', 'fileName'))
+
+    def delete(self, pks):
+        from filemanager.models import Trash
+        Trash.objects.filter(pk__in=list(pks)).delete()
+
+
+def sync_trash_rows(domain, remaining, db, dry_run=False):
+    """Drop Trash rows whose item is no longer in the site's .trash. Returns the number of rows."""
+    stale = [pk for pk, name in db.rows(domain) if unquote_trash_name(name) not in remaining]
+    if stale and not dry_run:
+        db.delete(stale)
+    return len(stale)
+
+
+def fm_trash_entries(home):
+    """[(name, stamp, kb)] for the top-level items of home/.trash. stamp is the inode change time, which the
+    file manager's mv into .trash sets (mv keeps the modification time of the file itself)."""
+    fd = open_dir_chain(home, ['.trash'])
+    try:
+        names = sorted(os.listdir(fd))
+        out = []
+        for name in names:
+            try:
+                info = os.stat(name, dir_fd=fd, follow_symlinks=False)
+            except OSError:
+                continue
+            out.append((name, trashed_at(info), _entry_kb(os.path.join(home, '.trash', name))))
+        return out
+    finally:
+        os.close(fd)
+
+
+def _fm_trash_sites():
+    sites = []
+    for home in site_homes():
+        if not os.path.isdir(os.path.join(home, '.trash')) or os.path.islink(os.path.join(home, '.trash')):
+            continue
+        try:
+            entries = fm_trash_entries(home)
+        except (OSError, CleanError):
+            continue
+        if entries:
+            sites.append((home, entries))
+    return sites
+
+
+def probe_fm_trash():
+    sites = _fm_trash_sites()
+    entries = [(stamp, kb, 1) for _, items in sites for _, stamp, kb in items]
+    per_site = []
+    for home, items in sites:
+        oldest = min(s for _, s, _ in items)
+        per_site.append(_item(os.path.join(home, '.trash'), sum(k for _, _, k in items), '%d item(s), oldest %s' % (
+            len(items), time.strftime('%Y-%m-%d', time.localtime(oldest)))))
+    per_site.sort(key=lambda i: -i['kb'])
+    note = 'Items the file manager moved to each website\'s .trash; their restore records are removed too.'
+    if len(per_site) > TRASH_TOP_SITES:
+        note += ' %d websites have trash; the %d biggest are listed.' % (len(per_site), TRASH_TOP_SITES)
+    return _category('trash', per_site[:TRASH_TOP_SITES], entries, note)
+
+
+def clean_fm_trash(home, days, dry_run, log, db, now=None):
+    """Empty home/.trash of items older than `days` (0 = all) and drop their Trash rows. Returns KB freed."""
+    domain = os.path.basename(home.rstrip('/'))
+    trash = os.path.join(home, '.trash')
+    if not path_is_sane(trash):
+        raise CleanError('Refusing unsafe path %s' % trash)
+    cutoff = (now or time.time()) - days * 86400
+    fd = open_dir_chain(home, ['.trash'])
+    freed = removed = 0
+    try:
+        device = os.fstat(fd).st_dev
+        for name in sorted(os.listdir(fd)):
+            try:
+                info = os.stat(name, dir_fd=fd, follow_symlinks=False)
+            except OSError:
+                continue
+            if days and trashed_at(info) > cutoff:
+                continue
+            if dry_run:
+                freed += _entry_kb(os.path.join(trash, name))
+                removed += 1
+                continue
+            try:
+                freed += remove_at(fd, name, device)
+                removed += 1
+            except (OSError, CleanError) as exc:
+                log('%s/%s: %s' % (trash, name, exc))
+        remaining = set(os.listdir(fd))
+    finally:
+        os.close(fd)
+    try:
+        if dry_run:
+            # rows that would be orphaned once the chosen items are gone
+            entries = {n: s for n, s, _ in fm_trash_entries(home)}
+            remaining = {n for n, s in entries.items() if days and s > cutoff}
+        rows = sync_trash_rows(domain, remaining, db, dry_run)
+    except Exception as exc:  # the panel database being unavailable must not hide what was deleted
+        rows = 0
+        log('%s: could not update the file manager restore list: %s' % (domain, exc))
+    log('%s%s: %d item(s), %s; %d restore record(s) removed' % (
+        'would empty ' if dry_run else '', trash, removed, human(freed), rows))
+    return freed
+
+
+def run_fm_trash(dry_run, log, items=None, days=None, db=None, **_):
+    days = _days('trash', days)
+    db = db or TrashRows()
+    homes = [h for h, _ in _fm_trash_sites()]
+    if items:  # optional restriction to some websites (paths re-checked against discovery)
+        wanted = set(items)
+        homes = [h for h in homes if os.path.join(h, '.trash') in wanted]
+    log('file manager trash: items %s' % ('of any age' if not days else 'trashed more than %d days ago' % days))
+    total = 0
+    for home in homes:
+        try:
+            total += clean_fm_trash(home, days, dry_run, log, db)
+        except (OSError, CleanError) as exc:
+            log('%s: skipped (%s)' % (home, exc))
+    return total
+
+
+# --- mailbox Trash / Junk -------------------------------------------------------------------------------------
+
+def mail_trash_folders(root=None):
+    """[(path, email, folder)] for Maildir/.<Trash|Junk|...> under /home/vmail/<domain>/<user>/Maildir."""
+    root = root or MAIL_ROOT
+    out = []
+    for domain_dir in sorted(glob.glob(os.path.join(root, '*'))):
+        domain = os.path.basename(domain_dir)
+        if os.path.islink(domain_dir) or not os.path.isdir(domain_dir) or not _DOMAIN.match(domain):
+            continue
+        for user_dir in sorted(glob.glob(os.path.join(domain_dir, '*'))):
+            user = os.path.basename(user_dir)
+            maildir = os.path.join(user_dir, 'Maildir')
+            if os.path.islink(user_dir) or os.path.islink(maildir) or not os.path.isdir(maildir) \
+                    or not _EMAIL_PART.match(user):
+                continue
+            for folder in MAIL_TRASH_FOLDERS:
+                path = os.path.join(maildir, '.' + folder)
+                if os.path.isdir(path) and not os.path.islink(path):
+                    out.append((path, '%s@%s' % (user, domain), folder))
+    return out
+
+
+def maildir_messages(path):
+    """[(stamp, kb)] of the message files in cur/ and new/. stamp is ctime, which Dovecot uses as the
+    maildir save date (what `savedbefore` compares)."""
+    out = []
+    for sub in ('cur', 'new'):
+        folder = os.path.join(path, sub)
+        if os.path.islink(folder) or not os.path.isdir(folder):
+            continue
+        for name in os.listdir(folder):
+            try:
+                info = os.lstat(os.path.join(folder, name))
+            except OSError:
+                continue
+            if stat.S_ISREG(info.st_mode):
+                out.append((trashed_at(info), info.st_blocks // 2))
+    return out
+
+
+def probe_mail_trash(root=None):
+    entries, items = [], []
+    default = str(MAIL_TRASH_DEFAULT_DAYS)
+    for path, email, folder in mail_trash_folders(root):
+        messages = maildir_messages(path)
+        if not messages:
+            continue
+        mine = [(s, k, 1) for s, k in messages]
+        entries += mine
+        buckets = _age_buckets(mine, MAIL_TRASH_DAY_CHOICES)
+        oldest = min(s for s, _ in messages)
+        item = _item(path, buckets[default]['kb'], '%s %s: %d message(s), oldest %s' % (
+            email, folder, len(messages), time.strftime('%Y-%m-%d', time.localtime(oldest))))
+        item['by_days'] = buckets
+        items.append(item)
+    items.sort(key=lambda i: -i['kb'])
+    return _category('mail_trash', items, entries,
+                     'Messages are expunged through Dovecot (doveadm expunge ... savedbefore), never deleted from '
+                     'disk directly. Pick the mailboxes.')
+
+
+def doveadm_expunge_argv(email, mailbox, days):
+    if not isinstance(days, int) or isinstance(days, bool) or days < 1:
+        raise CleanError('Mailbox trash needs an age of at least one day.')
+    return ['doveadm', 'expunge', '-u', email, 'mailbox', mailbox, 'savedbefore', '%dd' % days]
+
+
+def dovecot_mailbox_name(email, folder, runner=subprocess.run):
+    """The Dovecot name of a maildir folder (e.g. 'INBOX.Trash' with the INBOX. namespace prefix)."""
+    code, out = run(['doveadm', 'mailbox', 'list', '-u', email], runner, timeout=60)
+    if code != 0:
+        raise CleanError('doveadm mailbox list failed for %s: %s' % (email, out.strip()[-200:]))
+    names = [line.strip() for line in out.splitlines() if line.strip()]
+    for name in names:
+        if name == folder:
+            return name
+    for name in names:
+        if name.startswith('INBOX') and len(name) > 6 and name[6:] == folder and name[5] in './':
+            return name
+    raise CleanError('%s has no mailbox %s.' % (email, folder))
+
+
+def run_mail_trash(dry_run, log, items=None, days=None, runner=subprocess.run, root=None, **_):
+    days = _days('mail_trash', days)
+    known = {p: (email, folder) for p, email, folder in mail_trash_folders(root)}
+    chosen = [p for p in (items or []) if p in known]  # never "all": each mailbox must be picked
+    if not chosen:
+        log('no mailbox picked')
+        return 0
+    if not dry_run and not have('doveadm'):
+        raise CleanError('doveadm is not installed; mailbox trash is only emptied through Dovecot.')
+    cutoff = time.time() - days * 86400
+    total = 0
+    for path in chosen:
+        email, folder = known[path]
+        estimate = sum(k for s, k in maildir_messages(path) if s <= cutoff)
+        if dry_run:
+            log('would expunge %s %s older than %d days (%s)' % (email, folder, days, human(estimate)))
+            total += estimate
+            continue
+        try:
+            mailbox = dovecot_mailbox_name(email, folder, runner)
+            before = sum(k for _, k in maildir_messages(path))
+            code, out = run(doveadm_expunge_argv(email, mailbox, days), runner, timeout=1800)
+            if code != 0:
+                log('%s %s: doveadm expunge failed: %s' % (email, mailbox, out.strip()[-200:]))
+                continue
+            freed = max(0, before - sum(k for _, k in maildir_messages(path)))
+            log('%s %s: expunged messages older than %d days (%s)' % (email, mailbox, days, human(freed)))
+            total += freed
+        except CleanError as exc:
+            log('%s: %s' % (path, exc))
+    return total
+
+
+# --- desktop trash (~/.local/share/Trash) ---------------------------------------------------------------------
+
+DESKTOP_TRASH_PARTS = ('.local', 'share', 'Trash')
+
+
+def all_homes(passwd='/etc/passwd'):
+    """Home directories of root, system users and website users that exist (desktop trash may be anywhere)."""
+    homes = ['/root']
+    try:
+        with open(passwd) as handle:
+            for line in handle:
+                parts = line.strip().split(':')
+                if len(parts) > 5 and parts[5].startswith('/') and parts[5] not in ('/', '/nonexistent'):
+                    homes.append(os.path.normpath(parts[5]))
+    except OSError:
+        pass
+    homes += site_homes()
+    return [h for h in dict.fromkeys(homes) if os.path.isdir(h) and not os.path.islink(h)]
+
+
+def _deletion_date(info_fd, name):
+    """DeletionDate from info/<name>.trashinfo as epoch seconds, or None."""
+    try:
+        fd = os.open(name + '.trashinfo', os.O_RDONLY | os.O_NOFOLLOW | getattr(os, 'O_CLOEXEC', 0), dir_fd=info_fd)
+    except OSError:
+        return None
+    try:
+        with os.fdopen(fd, 'r', errors='replace') as handle:
+            text = handle.read(8192)
+    except OSError:
+        return None
+    match = re.search(r'^DeletionDate=(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d)', text, re.M)
+    if not match:
+        return None
+    try:
+        return time.mktime(time.strptime(match.group(1), '%Y-%m-%dT%H:%M:%S'))
+    except (ValueError, OverflowError):
+        return None
+
+
+def desktop_trash_entries(home):
+    """[(name, stamp, kb)] for files/<name> in home/.local/share/Trash (stamp from the .trashinfo)."""
+    fd = open_dir_chain(home, list(DESKTOP_TRASH_PARTS) + ['files'])
+    try:
+        info_fd = None
+        try:
+            info_fd = open_dir_chain(home, list(DESKTOP_TRASH_PARTS) + ['info'])
+        except (OSError, CleanError):
+            pass
+        out = []
+        for name in sorted(os.listdir(fd)):
+            try:
+                info = os.stat(name, dir_fd=fd, follow_symlinks=False)
+            except OSError:
+                continue
+            stamp = _deletion_date(info_fd, name) if info_fd is not None else None
+            out.append((name, stamp or trashed_at(info),
+                        _entry_kb(os.path.join(home, *DESKTOP_TRASH_PARTS, 'files', name))))
+        if info_fd is not None:
+            os.close(info_fd)
+        return out
+    finally:
+        os.close(fd)
+
+
+def _desktop_trashes(homes=None):
+    found = []
+    for home in (homes if homes is not None else all_homes()):
+        if not os.path.isdir(os.path.join(home, *DESKTOP_TRASH_PARTS, 'files')):
+            continue
+        try:
+            entries = desktop_trash_entries(home)
+        except (OSError, CleanError):
+            continue
+        if entries:
+            found.append((home, entries))
+    return found
+
+
+def probe_desktop_trash(homes=None):
+    found = _desktop_trashes(homes)
+    entries = [(s, k, 1) for _, items in found for _, s, k in items]
+    items = sorted((_item(os.path.join(home, *DESKTOP_TRASH_PARTS), sum(k for _, _, k in e), '%d item(s)' % len(e))
+                    for home, e in found), key=lambda i: -i['kb'])
+    return _category('desktop_trash', items[:TRASH_TOP_SITES], entries,
+                     'Files deleted with gio, trash-cli or a desktop file manager for root and other users.')
+
+
+def clean_desktop_trash(home, days, dry_run, log, now=None):
+    cutoff = (now or time.time()) - days * 86400
+    trash = os.path.join(home, *DESKTOP_TRASH_PARTS)
+    if not path_is_sane(trash):
+        raise CleanError('Refusing unsafe path %s' % trash)
+    files_fd = open_dir_chain(home, list(DESKTOP_TRASH_PARTS) + ['files'])
+    info_fd = None
+    freed = removed = 0
+    try:
+        try:
+            info_fd = open_dir_chain(home, list(DESKTOP_TRASH_PARTS) + ['info'])
+        except (OSError, CleanError):
+            info_fd = None
+        device = os.fstat(files_fd).st_dev
+        for name in sorted(os.listdir(files_fd)):
+            try:
+                info = os.stat(name, dir_fd=files_fd, follow_symlinks=False)
+            except OSError:
+                continue
+            stamp = (_deletion_date(info_fd, name) if info_fd is not None else None) or trashed_at(info)
+            if days and stamp > cutoff:
+                continue
+            if dry_run:
+                freed += _entry_kb(os.path.join(trash, 'files', name))
+                removed += 1
+                continue
+            try:
+                freed += remove_at(files_fd, name, device)
+                removed += 1
+                if info_fd is not None:
+                    try:
+                        os.unlink(name + '.trashinfo', dir_fd=info_fd)
+                    except FileNotFoundError:
+                        pass
+            except (OSError, CleanError) as exc:
+                log('%s/files/%s: %s' % (trash, name, exc))
+    finally:
+        os.close(files_fd)
+        if info_fd is not None:
+            os.close(info_fd)
+    log('%s%s: %d item(s), %s' % ('would empty ' if dry_run else '', trash, removed, human(freed)))
+    return freed
+
+
+def run_desktop_trash(dry_run, log, items=None, days=None, homes=None, **_):
+    days = _days('desktop_trash', days)
+    total = 0
+    for home, _entries in _desktop_trashes(homes):
+        try:
+            total += clean_desktop_trash(home, days, dry_run, log)
+        except (OSError, CleanError) as exc:
+            log('%s: skipped (%s)' % (home, exc))
+    return total
 
 
 # ----------------------------------------------------------------------------- MySQL / MariaDB
@@ -790,7 +1291,10 @@ CATEGORIES = [
     ('cli_versions', 'Old Claude Code CLI versions (newest kept)', 'safe', probe_cli_versions, run_cli_versions, False),
     ('tmp_files', 'Old files in /tmp and /var/tmp (>%dd)' % TMP_AGE_DAYS, 'safe', probe_tmp_files, run_tmp_files, False),
     ('core_dumps', 'Core dumps', 'safe', probe_core_dumps, run_core_dumps, False),
-    ('trash', 'File manager trash (>%dd)' % TRASH_AGE_DAYS, 'review', probe_trash, run_trash, True),
+    ('trash', 'File manager trash (all websites)', 'review', probe_fm_trash, run_fm_trash, False),
+    ('mail_trash', 'Mailbox Trash and Junk folders (old messages)', 'review', probe_mail_trash, run_mail_trash, True),
+    ('desktop_trash', 'Desktop trash (~/.local/share/Trash) of root and users', 'review', probe_desktop_trash,
+     run_desktop_trash, False),
     ('old_backups', 'Panel backup archives (>%dd)' % BACKUP_AGE_DAYS, 'review', probe_old_backups, run_old_backups, True),
     ('public_archives', 'Large archives inside public_html (also a security risk)', 'review', probe_public_archives,
      run_public_archives, True),

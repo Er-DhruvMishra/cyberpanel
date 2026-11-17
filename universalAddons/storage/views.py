@@ -3,7 +3,7 @@ import re
 
 from universalAddons import privileged
 from universalAddons.access import admin_api, admin_page, error, ok
-from universalAddons.storage.service import CATEGORY_IDS
+from universalAddons.storage.service import CATEGORY_IDS, day_choices
 
 _ITEM = re.compile(r'^[A-Za-z0-9_./ $@+=,:-]{1,1024}$')
 
@@ -42,7 +42,18 @@ def clean(request, data):
             return error('Invalid selection for %s.' % category, status=400)
     if not selection:
         return error('Choose at least one category.', status=400)
-    return _call('clean', selection=selection, dry_run=data.get('dryRun') is True)
+    options = {}
+    for key, value in data.items():  # days_<category>: age filter of the trash categories
+        if not key.startswith('days_'):
+            continue
+        category = key[5:]
+        choices = day_choices(category)
+        if not choices or isinstance(value, bool) or value not in choices:
+            return error('Invalid age for %s.' % category, status=400)
+        if category in selection:
+            options[category] = {'days': int(value)}
+    extra = {'options': options} if options else {}
+    return _call('clean', selection=selection, dry_run=data.get('dryRun') is True, **extra)
 
 
 @admin_api
