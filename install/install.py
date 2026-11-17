@@ -1780,7 +1780,7 @@ $cfg['Servers'][$i]['LogoutURL'] = 'phpmyadminsignin.php?logout';
             FirewallUtilities.addRule("tcp", "995")
             FirewallUtilities.addRule("udp", "53")
             FirewallUtilities.addRule("tcp", "53")
-            FirewallUtilities.addRule("tcp", "8888")
+            FirewallUtilities.addRule("tcp", "5678")
             FirewallUtilities.addRule("udp", "443")
             FirewallUtilities.addRule("tcp", "40110-40210")
 
