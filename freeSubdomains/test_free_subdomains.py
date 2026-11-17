@@ -509,3 +509,13 @@ class Views(SimpleTestCase):
         from universalAddons import registry
         self.assertIn('freesub', [m.key for m in registry.MODULES])
         self.assertEqual('/addons/free-subdomains/', reverse('ua-freesub'))
+
+
+class SettingsPageScriptOrder(TestCase):
+    """The page script uses UA (addons.js), so it must sit in addon_scripts, after addons.js."""
+
+    def test_inline_script_is_in_addon_scripts_block(self):
+        import os
+        html = open(os.path.join(os.path.dirname(__file__), 'templates', 'freeSubdomains', 'settings.html'),
+                    encoding='utf-8').read()
+        self.assertLess(html.index('{% block addon_scripts %}'), html.index('<script>'))
