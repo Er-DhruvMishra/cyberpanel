@@ -517,7 +517,7 @@ def queue(account_id, event, title, body, severity='warning', key=None, state=No
               'body': str(body)[:4000], 'severity': severity, 'key': key, 'state': state, 'queued': int(time.time())}
     if event not in EVENT_KEYS:
         raise NotifyError('Unknown event.')
-    _write_private(os.path.join(_dir('outbox'), '%d-%s.json' % (time.time() * 1000, os.urandom(4).hex())), record)
+    _write_private(os.path.join(_dir('outbox'), '%020d-%s.json' % (time.time_ns(), os.urandom(4).hex())), record)
 
 
 def flush_outbox(sender=None, limit=200):

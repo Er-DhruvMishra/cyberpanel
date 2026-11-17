@@ -1579,6 +1579,7 @@ class virtualHostUtilities:
     @staticmethod
     def createDomain(masterDomain, virtualHostName, phpVersion, path, ssl, dkimCheck, openBasedir, owner, apache,
                      tempStatusPath='/home/cyberpanel/fakePath', LimitsCheck=1, alias = 0):
+        createdChild = None
         try:
 
             logging.CyberCPLogFileWriter.statusWriter(tempStatusPath, 'Running some checks..,0')
@@ -1643,6 +1644,19 @@ class virtualHostUtilities:
                     logging.CyberCPLogFileWriter.statusWriter(tempStatusPath, 'This domain exists as Alias. [404]')
                     #return 0, "This domain exists as Alias."
 
+            # Apache backend needs PHP-FPM for the chosen version. Refuse before anything is
+            # created; otherwise the Apache step fails after the vhost exists and the child
+            # domain is left half-made (DB record without web-server configuration).
+            if apache and ProcessUtilities.decideServer() == ProcessUtilities.OLS:
+                fpmPoolDir = os.path.dirname(
+                    ApacheVhost.DecidePHPPath(PHPManager.getPHPString(phpVersion), virtualHostName))
+                if not os.path.isdir(fpmPoolDir):
+                    message = ('%s with the Apache backend needs PHP-FPM for that version (%s is not '
+                               'installed). Install it first, choose another PHP version, or create the '
+                               'domain without Apache.' % (phpVersion, fpmPoolDir))
+                    logging.CyberCPLogFileWriter.statusWriter(tempStatusPath, message + ' [404]')
+                    return 0, message
+
             logging.CyberCPLogFileWriter.statusWriter(tempStatusPath, 'DKIM Setup..,30')
 
             if virtualHostUtilities.dkimServicesInstalled():
@@ -1681,6 +1695,7 @@ class virtualHostUtilities:
                 website = ChildDomains(master=master, domain=virtualHostName, path=path, phpSelection=phpVersion,
                                        ssl=ssl, alais=alias)
                 website.save()
+                createdChild = website
 
             if ssl == 1:
                 logging.CyberCPLogFileWriter.statusWriter(tempStatusPath, 'Creating SSL..,50')
@@ -1738,6 +1753,15 @@ class virtualHostUtilities:
             if ACLManager.FindIfChild() == 0:
                 numberOfWebsites = Websites.objects.count() + ChildDomains.objects.count()
                 vhost.deleteCoreConf(virtualHostName, numberOfWebsites)
+                # The web-server config is gone, so drop the record this call created as well;
+                # a record without configuration shows in the panel but serves 404.
+                if createdChild is not None:
+                    try:
+                        createdChild.delete()
+                    except BaseException as deleteError:
+                        logging.CyberCPLogFileWriter.writeToFile(
+                            'Could not remove half-created child domain record %s: %s [createDomain]'
+                            % (virtualHostName, deleteError))
 
             logging.CyberCPLogFileWriter.statusWriter(tempStatusPath, str(msg) + ". [404]")
             logging.CyberCPLogFileWriter.writeToFile(

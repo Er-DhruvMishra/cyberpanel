@@ -94,3 +94,31 @@ class SecurityMiddlewareTests(unittest.TestCase):
         )(request)
 
         self.assertNotEqual(b'database-view-reached', response.content)
+
+
+class FileManagerFilenameTests(unittest.TestCase):
+    """File names like "portfolio (2).zip" must reach the file manager, whose paths are
+    always single-quoted; command-chaining characters stay blocked there and elsewhere."""
+
+    def _post(self, path, payload):
+        request = RequestFactory().post(path, data=json.dumps(payload), content_type='application/json')
+        request.session = {'userID': 1}
+        return secMiddleware(lambda unused_request: HttpResponse('view-reached'))(request)
+
+    def test_parentheses_brackets_and_ampersand_reach_the_file_manager(self):
+        for name in ('portfolio (2).zip', 'photo [edited].png', 'Tom & Jerry.mp4', "it's.txt"):
+            response = self._post('/filemanager/controller', {
+                'method': 'deleteFolderOrFile', 'domainName': 'shukla.pro',
+                'path': '/home/shukla.pro/anuj.shukla.pro', 'fileAndFolders': [name]})
+            self.assertEqual(b'view-reached', response.content, name)
+
+    def test_command_characters_stay_blocked_in_file_manager(self):
+        for name in ('a;rm -rf x', 'a && b', 'a | b', 'a$(id)', 'a`id`', 'a > b'):
+            response = self._post('/filemanager/controller', {
+                'method': 'deleteFolderOrFile', 'domainName': 'shukla.pro',
+                'path': '/home/shukla.pro', 'fileAndFolders': [name]})
+            self.assertNotEqual(b'view-reached', response.content, name)
+
+    def test_parentheses_still_blocked_outside_the_file_manager(self):
+        response = self._post('/websites/submitWebsiteCreation', {'domainName': 'a(b).com'})
+        self.assertNotEqual(b'view-reached', response.content)

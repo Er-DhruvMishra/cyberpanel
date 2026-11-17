@@ -175,7 +175,10 @@ class vhost:
 
             FNULL = open(os.devnull, 'w')
 
-            shutil.copy("/usr/local/CyberCP/index.html", f"/home/{virtualHostName}/public_html/index.html")
+            # Never replace an index.html the site already has (e.g. a re-created website).
+            placeholder = f"/home/{virtualHostName}/public_html/index.html"
+            if not os.path.lexists(placeholder):
+                shutil.copy("/usr/local/CyberCP/index.html", placeholder)
 
             command = f"chown {virtualHostUser}:{virtualHostUser} /home/{virtualHostName}/public_html/index.html"
             cmd = shlex.split(command)
@@ -1077,7 +1080,9 @@ class vhost:
             cmd = shlex.split(command)
             subprocess.call(cmd, stdout=FNULL, stderr=subprocess.STDOUT)
 
-            command = 'sudo -u %s cp %s %s/index.html' % (virtualHostUser, FullPath, path)
+            # -n: never replace a document root's existing index.html (a re-created or
+            # repaired domain keeps the owner's site; only empty folders get the placeholder).
+            command = 'sudo -u %s cp -n %s %s/index.html' % (virtualHostUser, FullPath, path)
             ProcessUtilities.normalExecutioner(command)
 
             os.remove(FullPath)

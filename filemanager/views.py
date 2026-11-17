@@ -172,6 +172,12 @@ def loadFileManagerHome(request,domain):
             else:
                 return ACLManager.loadError()
         else:
+            # A child domain's files live inside its main website's home, which is what the
+            # file manager opens; send child domains there (ownership is checked on arrival).
+            from websiteFunctions.models import ChildDomains
+            child = ChildDomains.objects.filter(domain=domain).select_related('master').first()
+            if child is not None:
+                return redirect('/filemanager/%s' % quote(child.master.domain, safe=''))
             return HttpResponse("Domain does not exists.")
 
     except Exception as e:

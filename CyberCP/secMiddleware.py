@@ -167,8 +167,30 @@ class secMiddleware:
                 # CSP, Referrer-Policy) are applied.
                 webmailRequest = pathActual.startswith('/webmail/')
 
+                # File names often contain ( ) [ ] & ' (e.g. "portfolio (2).zip").
+                # The file manager single-quotes every path it passes to a shell
+                # (FileManager.returnPathEnclosed), so on its endpoints those
+                # characters are checked as removed; every other character rule
+                # (; | $ ` < > newline ...) still applies.
+                fileManagerRequest = pathActual.startswith('/filemanager/')
+
+                def _fm_relax(v):
+                    # Drop the filename punctuation the file manager quotes safely; "&&"
+                    # stays so the command-chaining check still sees it.
+                    if not fileManagerRequest or not isinstance(v, str):
+                        return v
+                    v = v.replace('&&', '\x00AND\x00').replace('&', '').replace('\x00AND\x00', '&&')
+                    for ch in ('(', ')', '[', ']', "'"):
+                        v = v.replace(ch, '')
+                    return v
+
                 for key, value in ({} if webmailRequest else data).items():
                     valueAlreadyChecked = 0
+                    if fileManagerRequest:
+                        if isinstance(value, list):
+                            value = [_fm_relax(item) for item in value]
+                        else:
+                            value = _fm_relax(value)
 
                     # Key/value scanning logging removed
 
