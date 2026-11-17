@@ -84,3 +84,25 @@ class DestinationBackupJob(models.Model):
     @property
     def created_by(self):
         return _admin(self.created_by_id)
+
+
+class FirewallRuleState(models.Model):
+    """Enabled/disabled state of a panel firewall rule (firewall.FirewallRules).
+
+    The firewall app ships without migration files (its table was created at install time),
+    so the state lives here, keyed by the rule's integer id (no foreign key). A rule without a
+    row here is enabled, which is what every rule was before this table existed. Disabling a
+    rule removes its firewalld rich rules but keeps the FirewallRules row, so it can be
+    re-enabled later exactly as it was.
+    """
+    id = models.AutoField(primary_key=True)
+    rule_id = models.IntegerField(unique=True)   # firewall.FirewallRules pk
+    enabled = models.BooleanField(default=True)
+    disabled_at = models.DateTimeField(null=True, blank=True)
+    updated = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'ua_firewall_rule_state'
+
+    def __str__(self):
+        return 'rule %s: %s' % (self.rule_id, 'enabled' if self.enabled else 'disabled')

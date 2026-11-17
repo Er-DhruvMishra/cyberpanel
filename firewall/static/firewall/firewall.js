@@ -105,117 +105,248 @@ app.controller('firewallController', function ($scope, $http) {
 
     };
 
+    /* Rules list: enable/disable, live status, filter, search and bulk actions. */
+
+    $scope.rules = [];
+    $scope.filterState = 'all';
+    $scope.ruleSearch = '';
+    $scope.selectedRules = {};
+    $scope.liveState = 1;
+    $scope.ruleActionMessage = '';
+
+    /* A function (not a var): populateCurrentRecords() runs before this point is reached. */
+    function fwConfig() {
+        return {
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken')
+            }
+        };
+    }
+
+    function resetRuleAlerts() {
+        $scope.actionFailed = true;
+        $scope.actionSuccess = true;
+        $scope.canNotAddRule = true;
+        $scope.ruleAdded = true;
+        $scope.couldNotConnect = true;
+        $scope.ruleActionMessage = '';
+    }
+
+    function showRuleError(message) {
+        $scope.canNotAddRule = false;
+        $scope.errorMessage = message;
+    }
+
     function populateCurrentRecords() {
 
         $scope.rulesLoading = false;
         $scope.actionFailed = true;
         $scope.actionSuccess = true;
 
-
-        url = "/firewall/getCurrentRules";
-
-        var data = {};
-
-        var config = {
-            headers: {
-                'X-CSRFToken': getCookie('csrftoken')
-            }
-        };
-
-
-        $http.post(url, data, config).then(ListInitialDatas, cantLoadInitialDatas);
-
-
-        function ListInitialDatas(response) {
+        $http.post("/firewall/getCurrentRules", {}, fwConfig()).then(function (response) {
+            $scope.rulesLoading = true;
             if (response.data.fetchStatus === 1) {
                 $scope.rules = JSON.parse(response.data.data);
-                $scope.rulesLoading = true;
-            }
-            else {
-                $scope.rulesLoading = true;
+                $scope.liveState = response.data.liveState;
+                var known = {};
+                angular.forEach($scope.rules, function (rule) { known[rule.id] = true; });
+                angular.forEach(Object.keys($scope.selectedRules), function (id) {
+                    if (!known[id]) { delete $scope.selectedRules[id]; }
+                });
+            } else {
                 $scope.errorMessage = response.data.error_message;
+                $scope.canNotAddRule = false;
             }
-        }
-
-        function cantLoadInitialDatas(response) {
+        }, function () {
+            $scope.rulesLoading = true;
             $scope.couldNotConnect = false;
+        });
+    }
 
-        }
-
+    $scope.ruleMatches = function (rule) {
+        if ($scope.filterState === 'enabled' && !rule.enabled) { return false; }
+        if ($scope.filterState === 'disabled' && rule.enabled) { return false; }
+        var q = ($scope.ruleSearch || '').toLowerCase().trim();
+        if (!q) { return true; }
+        var hay = [rule.id, rule.name, rule.proto, rule.port, rule.ipAddress, rule.status].join(' ').toLowerCase();
+        return hay.indexOf(q) > -1;
     };
 
-    $scope.deleteRule = function (id, proto, port, ruleIP) {
+    $scope.countRules = function (state) {
+        var n = 0;
+        angular.forEach($scope.rules, function (rule) {
+            if (state === 'all' || (state === 'enabled' && rule.enabled) || (state === 'disabled' && !rule.enabled)) { n++; }
+        });
+        return n;
+    };
 
+    function visibleRules() {
+        var out = [];
+        angular.forEach($scope.rules, function (rule) {
+            if ($scope.ruleMatches(rule)) { out.push(rule); }
+        });
+        return out;
+    }
+
+    function selectedIds() {
+        var ids = [];
+        angular.forEach(visibleRules(), function (rule) {
+            if ($scope.selectedRules[rule.id]) { ids.push(rule.id); }
+        });
+        return ids;
+    }
+
+    $scope.selectedCount = function () {
+        return selectedIds().length;
+    };
+
+    $scope.allVisibleSelected = function () {
+        var vis = visibleRules();
+        if (vis.length === 0) { return false; }
+        for (var i = 0; i < vis.length; i++) {
+            if (!$scope.selectedRules[vis[i].id]) { return false; }
+        }
+        return true;
+    };
+
+    $scope.toggleSelectAll = function () {
+        var select = !$scope.allVisibleSelected();
+        angular.forEach(visibleRules(), function (rule) {
+            if (select) { $scope.selectedRules[rule.id] = true; } else { delete $scope.selectedRules[rule.id]; }
+        });
+    };
+
+    $scope.statusLabel = function (rule) {
+        return {active: 'Active', disabled: 'Disabled', missing: 'Missing', unknown: 'Unknown'}[rule.status] || rule.status;
+    };
+
+    function rulesById(ids) {
+        var out = [];
+        angular.forEach($scope.rules, function (rule) {
+            if (ids.indexOf(rule.id) > -1) { out.push(rule); }
+        });
+        return out;
+    }
+
+    function describe(list) {
+        return list.map(function (r) {
+            return '#' + r.id + ' ' + r.name + ' (' + r.proto + '/' + r.port + (r.protects || r.protected ? ', ' + (r.protects || r.protected) : '') + ')';
+        }).join('\n');
+    }
+
+    /* Second confirmation for rules that keep the panel or SSH reachable. */
+    function confirmLockout(list, verb) {
+        var gerund = verb === 'delete' ? 'Deleting' : 'Disabling';
+        var text = 'WARNING: ' + gerund + ' these rules can lock you out of the IndiansCloud panel or SSH:\n\n' +
+            describe(list) + '\n\nType CONFIRM to ' + verb + ' them anyway.';
+        var answer = window.prompt(text, '');
+        return answer !== null && answer.trim().toUpperCase() === 'CONFIRM';
+    }
+
+    function protectedAmong(list) {
+        return list.filter(function (r) { return !!r.protected; });
+    }
+
+    function sendState(ids, action, lockoutConfirmed) {
+        resetRuleAlerts();
         $scope.rulesLoading = false;
-
-        url = "/firewall/deleteRule";
-
-        var data = {
-            id: id,
-            proto: proto,
-            port: port,
-            ruleIP: ruleIP
-        };
-
-        var config = {
-            headers: {
-                'X-CSRFToken': getCookie('csrftoken')
-            }
-        };
-
-
-        $http.post(url, data, config).then(ListInitialDatas, cantLoadInitialDatas);
-
-
-        function ListInitialDatas(response) {
-
-
-            if (response.data.delete_status === 1) {
-
-
-                populateCurrentRecords();
-                $scope.rulesLoading = true;
-                $scope.actionFailed = true;
-                $scope.actionSuccess = true;
-
-                $scope.canNotAddRule = true;
-                $scope.ruleAdded = true;
-                $scope.couldNotConnect = true;
-
-
-            }
-            else {
-
-                $scope.rulesLoading = true;
-                $scope.actionFailed = true;
-                $scope.actionSuccess = true;
-
-                $scope.canNotAddRule = false;
-                $scope.ruleAdded = true;
-                $scope.couldNotConnect = true;
-
-                $scope.rulesLoading = true;
-                $scope.errorMessage = response.data.error_message;
-
-
-            }
-
-        }
-
-        function cantLoadInitialDatas(response) {
-
+        var data = {ids: ids, action: action, confirmLockout: lockoutConfirmed === true};
+        $http.post("/firewall/setRulesState", data, fwConfig()).then(function (response) {
             $scope.rulesLoading = true;
-            $scope.actionFailed = true;
-            $scope.actionSuccess = true;
-
-            $scope.canNotAddRule = true;
-            $scope.ruleAdded = true;
+            var d = response.data;
+            if (d.needsConfirm && d.needsConfirm.length && lockoutConfirmed !== true) {
+                if (confirmLockout(d.needsConfirm, 'disable')) {
+                    sendState(ids, action, true);
+                }
+                return;
+            }
+            if (d.state_status === 1) {
+                var done = {enable: 'enabled', disable: 'disabled', reapply: 're-applied'}[action];
+                $scope.ruleActionMessage = ids.length + (ids.length === 1 ? ' rule ' : ' rules ') + done + '.';
+                if (action !== 'reapply') {
+                    angular.forEach(ids, function (id) { delete $scope.selectedRules[id]; });
+                }
+            } else {
+                showRuleError(d.error_message);
+            }
+            populateCurrentRecords();
+        }, function () {
+            $scope.rulesLoading = true;
             $scope.couldNotConnect = false;
+        });
+    }
 
-
+    $scope.toggleRule = function (rule) {
+        if (rule.enabled) {
+            if (rule.protected) {
+                if (!window.confirm('Disable rule "' + rule.name + '" (' + rule.proto + '/' + rule.port + ')?')) { return; }
+                if (!confirmLockout([rule], 'disable')) { return; }
+                sendState([rule.id], 'disable', true);
+            } else {
+                sendState([rule.id], 'disable', false);
+            }
+        } else {
+            sendState([rule.id], 'enable', false);
         }
+    };
 
+    $scope.reapplyRule = function (rule) {
+        sendState([rule.id], 'reapply', false);
+    };
 
+    $scope.bulkSetState = function (action) {
+        var ids = selectedIds();
+        if (ids.length === 0) { return; }
+        var list = rulesById(ids);
+        if (action === 'disable') {
+            if (!window.confirm('Disable ' + ids.length + ' selected rule(s)? They stay in the list and can be enabled again.')) { return; }
+            var locked = protectedAmong(list);
+            if (locked.length) {
+                if (!confirmLockout(locked, 'disable')) { return; }
+                sendState(ids, action, true);
+                return;
+            }
+        }
+        sendState(ids, action, false);
+    };
+
+    function sendDelete(rule, lockoutConfirmed) {
+        resetRuleAlerts();
+        $scope.rulesLoading = false;
+        var data = {id: rule.id, proto: rule.proto, port: rule.port, ruleIP: rule.ipAddress,
+            confirmLockout: lockoutConfirmed === true};
+        $http.post("/firewall/deleteRule", data, fwConfig()).then(function (response) {
+            $scope.rulesLoading = true;
+            var d = response.data;
+            if (d.needsConfirm && d.needsConfirm.length && lockoutConfirmed !== true) {
+                if (confirmLockout(d.needsConfirm, 'delete')) {
+                    sendDelete(rule, true);
+                }
+                return;
+            }
+            if (d.delete_status === 1) {
+                delete $scope.selectedRules[rule.id];
+                $scope.ruleActionMessage = 'Rule "' + rule.name + '" deleted.';
+            } else {
+                showRuleError(d.error_message);
+            }
+            populateCurrentRecords();
+        }, function () {
+            $scope.rulesLoading = true;
+            $scope.couldNotConnect = false;
+        });
+    }
+
+    $scope.deleteRule = function (rule) {
+        var text = 'Delete rule "' + rule.name + '" (' + rule.proto + '/' + rule.port + ' from ' + rule.ipAddress + ') permanently?\n\n' +
+            'This cannot be undone. To close the port but keep the rule for later, press Cancel and use "Disable" instead.';
+        if (!window.confirm(text)) { return; }
+        if (rule.protected) {
+            if (!confirmLockout([rule], 'delete')) { return; }
+            sendDelete(rule, true);
+            return;
+        }
+        sendDelete(rule, false);
     };
 
 

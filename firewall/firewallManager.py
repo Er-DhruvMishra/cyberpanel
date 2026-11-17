@@ -23,6 +23,7 @@ import time
 from plogical.firewallUtilities import FirewallUtilities
 from plogical.sshKeyUtilities import authorized_key_records
 from firewall.models import FirewallRules
+from firewall import ruleToggle
 from plogical.modSec import modSec
 from plogical.csf import CSF
 from plogical.processUtilities import ProcessUtilities
@@ -61,30 +62,12 @@ class FirewallManager:
             else:
                 return ACLManager.loadErrorJson('fetchStatus', 0)
 
-            rules = FirewallRules.objects.all()
-
-            json_data = "["
-            checker = 0
-
-            for items in rules:
-                dic = {
-                       'id': items.id,
-                       'name': items.name,
-                       'proto': items.proto,
-                       'port': items.port,
-                       'ipAddress': items.ipAddress,
-                       }
-
-                if checker == 0:
-                    json_data = json_data + json.dumps(dic)
-                    checker = 1
-                else:
-                    json_data = json_data + ',' + json.dumps(dic)
-
-            json_data = json_data + ']'
-            final_json = json.dumps({'status': 1, 'fetchStatus': 1, 'error_message': "None", "data": json_data})
+            rows, liveState, protected = ruleToggle.describe_rules(FirewallRules.objects.all().order_by('id'))
+            json_data = json.dumps(rows)
+            final_json = json.dumps({'status': 1, 'fetchStatus': 1, 'error_message': "None", "data": json_data,
+                                     'liveState': 1 if liveState else 0,
+                                     'protectedPorts': {str(k): v for k, v in sorted(protected.items())}})
             return HttpResponse(final_json)
-
         except BaseException as msg:
             final_dic = {'status': 0, 'fetchStatus': 0, 'error_message': str(msg)}
             final_json = json.dumps(final_dic)
@@ -110,6 +93,12 @@ class FirewallManager:
             newFWRule = FirewallRules(name=ruleName, proto=ruleProtocol, port=rulePort, ipAddress=ruleIP)
             newFWRule.save()
 
+            # A new rule starts enabled; drop any stale state left under a reused id.
+            try:
+                ruleToggle.forget(newFWRule.id)
+            except BaseException:
+                pass
+
             final_dic = {'status': 1, 'add_status': 1, 'error_message': "None"}
             final_json = json.dumps(final_dic)
             return HttpResponse(final_json)
@@ -130,15 +119,13 @@ class FirewallManager:
                 return ACLManager.loadErrorJson('delete_status', 0)
 
 
-            ruleID = data['id']
-            ruleProtocol = data['proto']
-            rulePort = data['port']
-            ruleIP = data['ruleIP']
-
-            FirewallUtilities.deleteRule(ruleProtocol, rulePort, ruleIP)
-
-            delRule = FirewallRules.objects.get(id=ruleID)
-            delRule.delete()
+            # The rule is looked up by id and deleted with its stored values; protocol, port
+            # and IP sent by the browser are ignored.
+            result = ruleToggle.delete_rule(data.get('id'), data.get('confirmLockout') is True)
+            if 'needsConfirm' in result:
+                final_dic = {'status': 0, 'delete_status': 0, 'needsConfirm': result['needsConfirm'],
+                             'error_message': 'This rule keeps the IndiansCloud panel or SSH reachable. Confirm again to delete it.'}
+                return HttpResponse(json.dumps(final_dic))
 
             final_dic = {'status': 1, 'delete_status': 1, 'error_message': "None"}
             final_json = json.dumps(final_dic)
@@ -148,6 +135,36 @@ class FirewallManager:
             final_dic = {'status': 0, 'delete_status': 0, 'error_message': str(msg)}
             final_json = json.dumps(final_dic)
             return HttpResponse(final_json)
+
+    def setRulesState(self, userID = None, data = None):
+        """Enable, disable or re-apply one or more rules (bulk); reloads firewalld once."""
+        try:
+            currentACL = ACLManager.loadedACL(userID)
+
+            if currentACL['admin'] == 1:
+                pass
+            else:
+                return ACLManager.loadErrorJson('state_status', 0)
+
+            if not isinstance(data, dict):
+                raise ruleToggle.RuleError('Invalid request.')
+            ids = data.get('ids')
+            if ids is None and 'id' in data:
+                ids = [data.get('id')]
+            result = ruleToggle.change_rules(ids, data.get('action'), data.get('confirmLockout') is True)
+            if 'needsConfirm' in result:
+                final_dic = {'status': 0, 'state_status': 0, 'needsConfirm': result['needsConfirm'],
+                             'error_message': 'These rules keep the IndiansCloud panel or SSH reachable. Confirm again to disable them.'}
+                return HttpResponse(json.dumps(final_dic))
+
+            failed = [r for r in result['results'] if not r['ok']]
+            final_dic = {'status': 0 if failed else 1, 'state_status': 0 if failed else 1,
+                         'results': result['results'], 'reloaded': 1 if result['reloaded'] else 0,
+                         'error_message': '; '.join('#%s: %s' % (r['id'], r['message']) for r in failed) or "None"}
+            return HttpResponse(json.dumps(final_dic))
+
+        except BaseException as msg:
+            return HttpResponse(json.dumps({'status': 0, 'state_status': 0, 'error_message': str(msg)}))
 
     def reloadFirewall(self, userID = None, data = None):
         try:

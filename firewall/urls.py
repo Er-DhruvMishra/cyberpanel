@@ -7,6 +7,7 @@ urlpatterns = [
     path('getCurrentRules', views.getCurrentRules, name='getCurrentRules'),
     path('addRule', views.addRule, name='addRule'),
     path('deleteRule', views.deleteRule, name='deleteRule'),
+    path('setRulesState', views.setRulesState, name='setRulesState'),
 
     path('reloadFirewall', views.reloadFirewall, name='reloadFirewall'),
     path('stopFirewall', views.stopFirewall, name='stopFirewall'),

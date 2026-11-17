@@ -1,6 +1,9 @@
 {% extends "baseTemplate/index.html" %}
 {% load i18n %}
+{% load static %}
 {% block title %}{% trans "Firewall - IndiansCloud" %}{% endblock %}
+
+{% block module_scripts %}<script defer src="{% static 'firewall/firewall.js' %}?v={{ CP_VERSION }}-rules-20261117"></script>{% endblock %}
 
 {% block header_scripts %}
 <style>
@@ -486,6 +489,155 @@
         100% { transform: rotate(360deg); }
     }
 
+    /* Rule state: toolbar, toggle, live status, lock (enable/disable feature) */
+    .rules-toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 1rem;
+    }
+
+    .rules-filter {
+        display: inline-flex;
+        border: 1px solid var(--border-color, #e8e9ff);
+        border-radius: 8px;
+        overflow: hidden;
+    }
+
+    .rules-filter button {
+        background: var(--bg-secondary, white);
+        color: var(--text-secondary, #475569);
+        border: none;
+        border-right: 1px solid var(--border-color, #e8e9ff);
+        padding: 0.5rem 0.9rem;
+        font-size: 0.8rem;
+        cursor: pointer;
+    }
+
+    .rules-filter button:last-child { border-right: none; }
+
+    .rules-filter button.active {
+        background: var(--accent-color, #194b33);
+        color: var(--text-on-accent, white);
+    }
+
+    .rules-search {
+        min-width: 220px;
+        flex: 1 1 220px;
+        max-width: 360px;
+    }
+
+    .rules-bulk {
+        display: inline-flex;
+        gap: 0.5rem;
+        align-items: center;
+        font-size: 0.8rem;
+        color: var(--text-muted, #64748b);
+    }
+
+    .rules-bulk .btn-secondary {
+        padding: 0.45rem 0.8rem;
+        border-radius: 6px;
+        border: 1px solid var(--border-color, #e8e9ff);
+        background: var(--bg-secondary, white);
+        color: var(--text-primary, #1e293b);
+        cursor: pointer;
+        font-size: 0.8rem;
+    }
+
+    .rules-bulk .btn-secondary[disabled] { opacity: 0.5; cursor: not-allowed; }
+
+    .toggle-switch {
+        position: relative;
+        display: inline-block;
+        width: 40px;
+        height: 22px;
+        vertical-align: middle;
+        margin: 0;
+    }
+
+    .toggle-switch input { opacity: 0; width: 0; height: 0; }
+
+    .toggle-switch .slider {
+        position: absolute;
+        cursor: pointer;
+        inset: 0;
+        background: var(--border-color, #cbd5e1);
+        border-radius: 22px;
+        transition: background 0.2s ease;
+    }
+
+    .toggle-switch .slider::before {
+        content: '';
+        position: absolute;
+        width: 16px;
+        height: 16px;
+        left: 3px;
+        top: 3px;
+        background: var(--bg-secondary, white);
+        border-radius: 50%;
+        transition: transform 0.2s ease;
+    }
+
+    .toggle-switch input:checked + .slider { background: var(--success-color, #10b981); }
+    .toggle-switch input:checked + .slider::before { transform: translateX(18px); }
+    .toggle-switch input:focus-visible + .slider { box-shadow: 0 0 0 3px var(--accent-shadow, rgba(16, 185, 129, 0.3)); }
+
+    .toggle-label {
+        font-size: 0.75rem;
+        color: var(--text-muted, #64748b);
+        margin-left: 0.4rem;
+        vertical-align: middle;
+    }
+
+    .rule-status {
+        display: inline-block;
+        padding: 0.2rem 0.55rem;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+
+    .rule-status-active { background: var(--success-soft-bg, #d1fae5); color: var(--success-soft-text, #065f46); }
+    .rule-status-disabled { background: var(--bg-muted, #f1f5f9); color: var(--text-muted, #64748b); }
+    .rule-status-missing { background: var(--warning-bg, #fef3c7); color: var(--warning-text, #92400e); }
+    .rule-status-unknown { background: var(--bg-muted, #f1f5f9); color: var(--text-secondary, #475569); }
+
+    .rule-status-note {
+        display: block;
+        font-size: 0.7rem;
+        color: var(--text-muted, #64748b);
+        margin-top: 0.2rem;
+    }
+
+    .rule-lock {
+        color: var(--warning-color, #d97706);
+        margin-left: 0.35rem;
+    }
+
+    .rule-disabled-row td { opacity: 0.7; }
+
+    .btn-reapply {
+        border: 1px solid var(--warning-border, #fcd34d);
+        background: var(--warning-bg, #fef3c7);
+        color: var(--warning-text, #92400e);
+        border-radius: 6px;
+        padding: 0.35rem 0.6rem;
+        font-size: 0.75rem;
+        cursor: pointer;
+        margin-right: 0.35rem;
+    }
+
+    .rule-actions { white-space: nowrap; }
+
+    .alert-warning {
+        background: var(--warning-bg, #fef3c7);
+        color: var(--warning-text, #92400e);
+        border: 1px solid var(--warning-border, #fcd34d);
+    }
+
     /* Responsive */
     @media (max-width: 1024px) {
         .rule-form {
@@ -600,7 +752,7 @@
                 </div>
                 {% trans "Firewall Rules" %}
             </div>
-            <div ng-show="rulesLoading" class="loading-spinner"></div>
+            <div ng-hide="rulesLoading" class="loading-spinner"></div>
         </div>
         
         <!-- Add Rule Section -->
@@ -652,23 +804,61 @@
         
         <!-- Rules Table -->
         <div ng-hide="rulesDetails" class="rules-table-section">
+            <div class="alert alert-warning" ng-if="rules.length > 0 && !liveState" style="margin: 0 0 1rem;">
+                <i class="fas fa-exclamation-triangle alert-icon"></i>
+                <span>{% trans "The live firewalld state could not be read, so each rule's status shows as Unknown." %}</span>
+            </div>
+
+            <div class="rules-toolbar" ng-if="rules.length > 0">
+                <div class="rules-filter" role="group" aria-label="{% trans 'Filter rules' %}">
+                    <button type="button" ng-class="{active: filterState == 'all'}" ng-click="$parent.filterState = 'all'">{% trans "All" %} ({$ countRules('all') $})</button>
+                    <button type="button" ng-class="{active: filterState == 'enabled'}" ng-click="$parent.filterState = 'enabled'">{% trans "Enabled" %} ({$ countRules('enabled') $})</button>
+                    <button type="button" ng-class="{active: filterState == 'disabled'}" ng-click="$parent.filterState = 'disabled'">{% trans "Disabled" %} ({$ countRules('disabled') $})</button>
+                </div>
+                <input type="search" class="form-control rules-search" ng-model="$parent.ruleSearch"
+                       placeholder="{% trans 'Search name, port, protocol or IP' %}" aria-label="{% trans 'Search rules' %}">
+                <div class="rules-bulk">
+                    <span>{$ selectedCount() $} {% trans "selected" %}</span>
+                    <button type="button" class="btn-secondary" ng-disabled="selectedCount() == 0" ng-click="bulkSetState('enable')">
+                        <i class="fas fa-toggle-on"></i> {% trans "Enable selected" %}
+                    </button>
+                    <button type="button" class="btn-secondary" ng-disabled="selectedCount() == 0" ng-click="bulkSetState('disable')">
+                        <i class="fas fa-toggle-off"></i> {% trans "Disable selected" %}
+                    </button>
+                </div>
+            </div>
+
             <table class="rules-table" ng-if="rules.length > 0">
                 <thead>
                     <tr>
+                        <th style="width: 32px;">
+                            <input type="checkbox" ng-checked="allVisibleSelected()" ng-click="toggleSelectAll()"
+                                   aria-label="{% trans 'Select all shown rules' %}">
+                        </th>
                         <th>{% trans "ID" %}</th>
                         <th>{% trans "Rule Name" %}</th>
                         <th>{% trans "Protocol" %}</th>
                         <th>{% trans "IP Address" %}</th>
                         <th>{% trans "Port" %}</th>
+                        <th>{% trans "Status" %}</th>
+                        <th>{% trans "Enabled" %}</th>
                         <th>{% trans "Action" %}</th>
                     </tr>
                 </thead>
                 <tbody>
-                    <tr ng-repeat="rule in rules track by $index">
-                        <td class="rule-id">#{$ rule.id $}</td>
-                        <td class="rule-name">{$ rule.name $}</td>
+                    <tr ng-repeat="rule in rules | filter:ruleMatches track by rule.id" ng-class="{'rule-disabled-row': !rule.enabled}">
                         <td>
-                            <span class="protocol-badge" 
+                            <input type="checkbox" ng-model="selectedRules[rule.id]" aria-label="{% trans 'Select rule' %} {$ rule.name $}">
+                        </td>
+                        <td class="rule-id">#{$ rule.id $}</td>
+                        <td class="rule-name">
+                            {$ rule.name $}
+                            <i class="fas fa-lock rule-lock" ng-if="rule.protected"
+                               title="{% trans 'Keeps the IndiansCloud panel or SSH reachable: disabling or deleting it asks for a second confirmation.' %}"
+                               aria-label="{% trans 'Protected rule' %}"></i>
+                        </td>
+                        <td>
+                            <span class="protocol-badge"
                                   ng-class="{'protocol-tcp': rule.proto == 'tcp', 'protocol-udp': rule.proto == 'udp'}">
                                 {$ rule.proto $}
                             </span>
@@ -680,8 +870,25 @@
                             <span class="port-number">{$ rule.port $}</span>
                         </td>
                         <td>
+                            <span class="rule-status" ng-class="'rule-status-' + rule.status">{$ statusLabel(rule) $}</span>
+                            <span class="rule-status-note" ng-if="rule.statusNote">{$ rule.statusNote $}</span>
+                            <span class="rule-status-note" ng-if="!rule.enabled && rule.disabledAt">{% trans "Since" %} {$ rule.disabledAt | date:'medium' $}</span>
+                        </td>
+                        <td>
+                            <label class="toggle-switch" title="{% trans 'Enable or disable this rule' %}">
+                                <input type="checkbox" ng-checked="rule.enabled" ng-click="$event.preventDefault(); toggleRule(rule)"
+                                       aria-label="{% trans 'Enabled' %}">
+                                <span class="slider"></span>
+                            </label>
+                            <span class="toggle-label">{$ rule.enabled ? 'Enabled' : 'Disabled' $}</span>
+                        </td>
+                        <td class="rule-actions">
+                            <button type="button" class="btn-reapply" ng-if="rule.status == 'missing'"
+                                    ng-click="reapplyRule(rule)" title="{% trans 'Add the rule to firewalld again' %}">
+                                <i class="fas fa-redo"></i> {% trans "Re-apply" %}
+                            </button>
                             <button type="button"
-                                    ng-click="deleteRule(rule.id, rule.proto, rule.port, rule.ipAddress)"
+                                    ng-click="deleteRule(rule)"
                                     class="btn-delete"
                                     title="{% trans 'Delete Rule' %}">
                                 <i class="fas fa-times"></i>
@@ -690,7 +897,7 @@
                     </tr>
                 </tbody>
             </table>
-            
+
             <!-- Empty State -->
             <div ng-if="rules.length == 0" class="empty-state">
                 <i class="fas fa-shield-alt empty-icon"></i>
@@ -709,6 +916,11 @@
             <div ng-hide="ruleAdded" class="alert alert-success">
                 <i class="fas fa-check-circle alert-icon"></i>
                 <span>{% trans "Rule successfully added." %}</span>
+            </div>
+
+            <div ng-if="ruleActionMessage" class="alert alert-success">
+                <i class="fas fa-check-circle alert-icon"></i>
+                <span>{$ ruleActionMessage $}</span>
             </div>
             
             <div ng-hide="couldNotConnect" class="alert alert-danger">

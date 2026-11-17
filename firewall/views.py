@@ -1,4 +1,4 @@
-from django.shortcuts import redirect
+from django.shortcuts import redirect, HttpResponse
 import json
 from loginSystem.views import loadLoginPage
 from plogical.processUtilities import ProcessUtilities
@@ -82,6 +82,22 @@ def deleteRule(request):
             return result
 
         return coreResult
+    except KeyError:
+        return redirect(loadLoginPage)
+
+
+def setRulesState(request):
+    """Enable / disable / re-apply firewall rules (single or bulk). Admin only (checked in the manager)."""
+    try:
+        userID = request.session['userID']
+        if request.method != 'POST':
+            return HttpResponse(json.dumps({'status': 0, 'state_status': 0, 'error_message': 'POST required.'}))
+        try:
+            data = json.loads(request.body)
+        except ValueError:
+            return HttpResponse(json.dumps({'status': 0, 'state_status': 0, 'error_message': 'Invalid request.'}))
+        fm = FirewallManager()
+        return fm.setRulesState(userID, data)
     except KeyError:
         return redirect(loadLoginPage)
 

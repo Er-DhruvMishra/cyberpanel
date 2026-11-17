@@ -66,30 +66,49 @@ class FirewallUtilities:
 
 
     @staticmethod
-    def addRule(proto,port,ipAddress):
+    def richRuleTexts(proto, port, ipAddress):
+        """The IPv4 and IPv6 rich rules that addRule/deleteRule apply for one panel rule.
+
+        Returns (ipv4_rule, ipv6_rule), or None when the inputs fail validation. The text is
+        exactly what the panel has always passed to firewall-cmd (including the double space
+        in the IPv6 rule, which has no source address).
+        """
+        if not _firewallInputsValid(proto, port, ipAddress):
+            return None
+        ruleProtocol = 'port protocol="' + proto + '"'
+        rulePort = 'port="' + port + '"'
+        ipv4 = 'rule family="ipv4"' + " " + 'source address="' + ipAddress + '"' + " " + ruleProtocol + " " + rulePort + " " + "accept"
+        ipv6 = 'rule family="ipv6"' + " " + '' + " " + ruleProtocol + " " + rulePort + " " + "accept"
+        return ipv4, ipv6
+
+    @staticmethod
+    def applyRichRules(op, proto, port, ipAddress, reload=True):
+        """Add (op='add') or remove (op='remove') both rich rules of one panel rule.
+
+        Returns (ok, ran): ok is 1 when both firewall-cmd calls succeeded; ran is True when
+        any command was sent (so the caller knows a reload is due). With reload=False the
+        caller runs firewall-cmd --reload once itself (bulk actions).
+        """
+        texts = FirewallUtilities.richRuleTexts(proto, port, ipAddress)
+        if texts is None:
+            logging.CyberCPLogFileWriter.writeToFile("Rejected firewall %sRule with invalid input: %s %s %s" % (op, str(proto), str(port), str(ipAddress)))
+            return 0, False
+        flag = '--add-rich-rule' if op == 'add' else '--remove-rich-rule'
+        ok = 1
+        for text in texts:
+            command = "firewall-cmd --permanent --zone=public " + flag + "='" + text + "'"
+            if ProcessUtilities.executioner(command) != 1:
+                ok = 0
+        if reload:
+            ProcessUtilities.executioner('firewall-cmd --reload')
+        return ok, True
+
+    @staticmethod
+    def addRule(proto, port, ipAddress, reload=True):
         if not _firewallInputsValid(proto, port, ipAddress):
             logging.CyberCPLogFileWriter.writeToFile("Rejected firewall addRule with invalid input: %s %s %s" % (str(proto), str(port), str(ipAddress)))
             return 0
-        ruleFamily = 'rule family="ipv4"'
-        sourceAddress = 'source address="' + ipAddress + '"'
-        ruleProtocol = 'port protocol="' + proto + '"'
-        rulePort = 'port="' + port + '"'
-
-        command = "firewall-cmd --permanent --zone=public --add-rich-rule='" + ruleFamily + " " + sourceAddress + " " + ruleProtocol + " " + rulePort + " " + "accept'"
-
-        ProcessUtilities.executioner(command)
-
-        ruleFamily = 'rule family="ipv6"'
-        sourceAddress = ''
-
-        command = "firewall-cmd --permanent --zone=public --add-rich-rule='" + ruleFamily + " " + sourceAddress + " " + ruleProtocol + " " + rulePort + " " + "accept'"
-
-        ProcessUtilities.executioner(command)
-
-        command = 'firewall-cmd --reload'
-
-        ProcessUtilities.executioner(command)
-
+        FirewallUtilities.applyRichRules('add', proto, port, ipAddress, reload=reload)
         return 1
 
     @staticmethod
@@ -105,30 +124,11 @@ class FirewallUtilities:
             return 0
 
     @staticmethod
-    def deleteRule(proto, port, ipAddress):
+    def deleteRule(proto, port, ipAddress, reload=True):
         if not _firewallInputsValid(proto, port, ipAddress):
             logging.CyberCPLogFileWriter.writeToFile("Rejected firewall deleteRule with invalid input: %s %s %s" % (str(proto), str(port), str(ipAddress)))
             return 0
-        ruleFamily = 'rule family="ipv4"'
-        sourceAddress = 'source address="' + ipAddress + '"'
-        ruleProtocol = 'port protocol="' + proto + '"'
-        rulePort = 'port="' + port + '"'
-
-        command = "firewall-cmd --permanent --zone=public --remove-rich-rule='" + ruleFamily + " " + sourceAddress + " " + ruleProtocol + " " + rulePort + " " + "accept'"
-
-        ProcessUtilities.executioner(command)
-
-        ruleFamily = 'rule family="ipv6"'
-        sourceAddress = ''
-
-        command = "firewall-cmd --permanent --zone=public --remove-rich-rule='" + ruleFamily + " " + sourceAddress + " " + ruleProtocol + " " + rulePort + " " + "accept'"
-
-        ProcessUtilities.executioner(command)
-
-        command = 'firewall-cmd --reload'
-
-        ProcessUtilities.executioner(command)
-
+        FirewallUtilities.applyRichRules('remove', proto, port, ipAddress, reload=reload)
         return 1
 
     @staticmethod
