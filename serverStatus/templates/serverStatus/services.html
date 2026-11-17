@@ -1,6 +1,6 @@
 {% extends "baseTemplate/index.html" %}
 {% load static %}
-{% block module_scripts %}<script defer src="{% static 'serverStatus/serverStatus.js' %}?v={{ CP_VERSION }}-20261115"></script>{% endblock %}
+{% block module_scripts %}<script defer src="{% static 'serverStatus/serverStatus.js' %}?v={{ CP_VERSION }}-20261117-boot"></script>{% endblock %}
 {% load i18n %}
 {% block title %}{% trans "Services Status - IndiansCloud" %}{% endblock %}
 
@@ -433,6 +433,12 @@
                             <i class="fas fa-sync-alt"></i>
                             {% trans "Restart" %}
                         </button>
+                        <button type="button" class="action-btn restart" ng-disabled="btnDisable || !autostart['lsws'].control"
+                                ng-if="autostart['lsws']" ng-click="toggleAutostart('lsws', autostart['lsws'].state)"
+                                title="{% trans 'Start automatically when the server boots' %}">
+                            <i class="fas fa-power-off"></i>
+                            <span ng-bind="autostart['lsws'].state === 'enabled' ? '{% trans "Boot: on" %}' : (autostart['lsws'].state === 'disabled' ? '{% trans "Boot: off" %}' : autostart['lsws'].state)"></span>
+                        </button>
                     </div>
                 </div>
 
@@ -477,6 +483,12 @@
                                 title="{% trans 'Restart' %}">
                             <i class="fas fa-sync-alt"></i>
                             {% trans "Restart" %}
+                        </button>
+                        <button type="button" class="action-btn restart" ng-disabled="btnDisable || !autostart['mysql'].control"
+                                ng-if="autostart['mysql']" ng-click="toggleAutostart('mysql', autostart['mysql'].state)"
+                                title="{% trans 'Start automatically when the server boots' %}">
+                            <i class="fas fa-power-off"></i>
+                            <span ng-bind="autostart['mysql'].state === 'enabled' ? '{% trans "Boot: on" %}' : (autostart['mysql'].state === 'disabled' ? '{% trans "Boot: off" %}' : autostart['mysql'].state)"></span>
                         </button>
                     </div>
                 </div>
@@ -523,6 +535,12 @@
                             <i class="fas fa-sync-alt"></i>
                             {% trans "Restart" %}
                         </button>
+                        <button type="button" class="action-btn restart" ng-disabled="btnDisable || !autostart['pdns'].control"
+                                ng-if="autostart['pdns']" ng-click="toggleAutostart('pdns', autostart['pdns'].state)"
+                                title="{% trans 'Start automatically when the server boots' %}">
+                            <i class="fas fa-power-off"></i>
+                            <span ng-bind="autostart['pdns'].state === 'enabled' ? '{% trans "Boot: on" %}' : (autostart['pdns'].state === 'disabled' ? '{% trans "Boot: off" %}' : autostart['pdns'].state)"></span>
+                        </button>
                     </div>
                 </div>
 
@@ -567,6 +585,12 @@
                                 title="{% trans 'Restart' %}">
                             <i class="fas fa-sync-alt"></i>
                             {% trans "Restart" %}
+                        </button>
+                        <button type="button" class="action-btn restart" ng-disabled="btnDisable || !autostart['pure-ftpd'].control"
+                                ng-if="autostart['pure-ftpd']" ng-click="toggleAutostart('pure-ftpd', autostart['pure-ftpd'].state)"
+                                title="{% trans 'Start automatically when the server boots' %}">
+                            <i class="fas fa-power-off"></i>
+                            <span ng-bind="autostart['pure-ftpd'].state === 'enabled' ? '{% trans "Boot: on" %}' : (autostart['pure-ftpd'].state === 'disabled' ? '{% trans "Boot: off" %}' : autostart['pure-ftpd'].state)"></span>
                         </button>
                     </div>
                 </div>
@@ -614,6 +638,12 @@
                             <i class="fas fa-sync-alt"></i>
                             {% trans "Restart" %}
                         </button>
+                        <button type="button" class="action-btn restart" ng-disabled="btnDisable || !autostart['docker'].control"
+                                ng-if="autostart['docker']" ng-click="toggleAutostart('docker', autostart['docker'].state)"
+                                title="{% trans 'Start automatically when the server boots' %}">
+                            <i class="fas fa-power-off"></i>
+                            <span ng-bind="autostart['docker'].state === 'enabled' ? '{% trans "Boot: on" %}' : (autostart['docker'].state === 'disabled' ? '{% trans "Boot: off" %}' : autostart['docker'].state)"></span>
+                        </button>
                     </div>
                 </div>
                 {% endif %}
@@ -624,12 +654,18 @@
                 <h3 style="margin:0 0 12px">{% trans "Other services" %}</h3>
                 <div style="overflow-x:auto">
                 <table class="table" style="width:100%">
-                    <thead><tr><th>{% trans "Service" %}</th><th>{% trans "Status" %}</th><th>{% trans "Memory" %}</th><th>{% trans "Actions" %}</th></tr></thead>
+                    <thead><tr><th>{% trans "Service" %}</th><th>{% trans "Status" %}</th><th>{% trans "Memory" %}</th><th>{% trans "Start at boot" %}</th><th>{% trans "Actions" %}</th></tr></thead>
                     <tbody>
                     <tr ng-repeat="s in extraServices track by s.unit">
                         <td><strong ng-bind="s.label"></strong><div style="font-size:12px;opacity:.7" ng-bind="s.unit"></div></td>
                         <td><span ng-class="s.running ? 'text-success' : 'text-danger'" ng-bind="s.running ? '{% trans "Running" %}' : s.state"></span></td>
                         <td ng-bind="s.memText"></td>
+                        <td style="white-space:nowrap">
+                            <span ng-class="s.boot === 'enabled' ? 'text-success' : 'text-muted'" ng-bind="s.boot === 'enabled' ? '{% trans "On" %}' : (s.boot === 'disabled' ? '{% trans "Off" %}' : s.boot)"></span>
+                            <button type="button" class="action-btn restart" style="margin-left:6px" ng-if="s.bootControl" ng-disabled="btnDisable"
+                                    ng-click="toggleAutostart(s.unit, s.boot)"><i class="fas fa-power-off"></i>
+                                <span ng-bind="s.boot === 'enabled' ? '{% trans "Disable" %}' : '{% trans "Enable" %}'"></span></button>
+                        </td>
                         <td style="white-space:nowrap">
                             <button type="button" class="action-btn start" ng-disabled="btnDisable" ng-show="!s.running && s.actions.indexOf('start') > -1" ng-click="serviceAction(s.unit,'start')"><i class="fas fa-play"></i> {% trans "Start" %}</button>
                             <button type="button" class="action-btn stop" ng-disabled="btnDisable" ng-show="s.running && s.actions.indexOf('stop') > -1" ng-click="serviceAction(s.unit,'stop')"><i class="fas fa-pause"></i> {% trans "Stop" %}</button>

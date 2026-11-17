@@ -528,6 +528,9 @@ app.controller('servicesManager', function ($scope, $http) {
 
         function ListInitialDatas(response) {
 
+            // Start-at-boot state of the core services (key -> {state, control}).
+            $scope.autostart = response.data.autostart || {};
+
             // Other installed services (status, memory and the actions offered for each).
             $scope.extraServices = (response.data.extra || []).map(function (s) {
                 s.memText = s.running ? Math.round(parseInt(s.mem, 10) / 1048576) + " MB" : "-";
@@ -615,6 +618,15 @@ app.controller('servicesManager', function ($scope, $http) {
     }
 
     getServiceStatus();
+
+    // Enable or disable a service at boot (does not start or stop it now).
+    $scope.toggleAutostart = function (serviceName, current) {
+        var action = current === 'enabled' ? 'disable' : 'enable';
+        if (action === 'disable' && !window.confirm('Stop ' + serviceName + ' from starting automatically when the server boots? It keeps running until it is stopped or the server restarts.')) {
+            return;
+        }
+        $scope.serviceAction(serviceName, action);
+    };
 
     $scope.serviceAction = function (serviceName, action) {
         $scope.ActionProgress = true;

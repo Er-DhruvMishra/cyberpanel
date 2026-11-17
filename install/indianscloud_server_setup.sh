@@ -9,7 +9,7 @@
 # Run by cyberpanel.sh after a fresh install and by plogical/upgrade.py after an upgrade.
 # Manual use:   bash /usr/local/CyberCP/install/indianscloud_server_setup.sh [step ...]
 # Steps:        repos swap postfix dovecot_dh php_memory php_opcache_cli pdns sieve rclone
-#               mailscanner webterminal cron migrate   (default: all, in that order)
+#               mailscanner webterminal cockpit cron migrate   (default: all, in that order)
 # Skip a step:  INDIANSCLOUD_SKIP="sieve rclone" bash indianscloud_server_setup.sh
 
 set -u
@@ -259,6 +259,29 @@ step_webterminal() {
   fi
 }
 
+step_cockpit() {
+  # Cockpit (port 9090) serves the panel's own certificate, which the panel keeps renewed, instead
+  # of its self-signed one. Cockpit 251 needs the chain in NAME.cert and a PKCS#8 key in NAME.key
+  # (an EC key in the same file is rejected). Re-run daily from cron so renewals reach Cockpit.
+  rpm -q cockpit-ws >/dev/null 2>&1 || dpkg -s cockpit-ws >/dev/null 2>&1 || return 0
+  local crt=/usr/local/lscp/conf/cert.pem key=/usr/local/lscp/conf/key.pem dir=/etc/cockpit/ws-certs.d name=50-indianscloud
+  [ -s "$crt" ] && [ -s "$key" ] || return 0
+  openssl x509 -in "$crt" -noout -checkend 0 >/dev/null 2>&1 || { log "cockpit: panel certificate expired, not copied"; return 0; }
+  mkdir -p "$dir"
+  local tcrt tkey changed=0
+  tcrt=$(mktemp "$dir/.ic-XXXXXX") && tkey=$(mktemp "$dir/.ic-XXXXXX") || return 0
+  chmod 640 "$tcrt" "$tkey"
+  cat "$crt" > "$tcrt"
+  openssl pkey -in "$key" -out "$tkey" 2>/dev/null || { rm -f "$tcrt" "$tkey"; log "cockpit: could not convert the panel key"; return 0; }
+  getent group cockpit-ws >/dev/null && chgrp cockpit-ws "$tcrt" "$tkey"
+  cmp -s "$tcrt" "$dir/$name.cert" || changed=1
+  cmp -s "$tkey" "$dir/$name.key" || changed=1
+  if [ "$changed" = 0 ]; then rm -f "$tcrt" "$tkey"; return 0; fi
+  mv -f "$tcrt" "$dir/$name.cert"; mv -f "$tkey" "$dir/$name.key"
+  systemctl try-restart cockpit.service >/dev/null 2>&1
+  log "cockpit: now using the panel certificate ($(openssl x509 -in "$crt" -noout -subject | sed 's/^subject=//'))"
+}
+
 step_cron() {
   [ -d "$CP/universalAddons" ] || return 0
   write_cron() {
@@ -270,6 +293,8 @@ step_cron() {
     write_cron uptime "* * * * * cyberpanel $PY $CP/universalAddons/uptime/cron.py >/dev/null 2>&1"
   [ -d "$CP/universalAddons/notify" ] && \
     write_cron notify "*/5 * * * * root $PY $CP/universalAddons/runner.py notify server_check e30= >/dev/null 2>&1"
+  rpm -q cockpit-ws >/dev/null 2>&1 && \
+    write_cron cockpit-cert "17 4 * * * root /bin/bash $CP/install/indianscloud_server_setup.sh cockpit >/dev/null 2>&1"
   [ -d "$CP/universalAddons/visitstats" ] && \
     write_cron visitstats "40 3 * * * root $PY $CP/universalAddons/runner.py visitstats nightly e30= >/dev/null 2>&1"
   return 0
@@ -288,7 +313,7 @@ step_migrate() {
 
 # --------------------------------------------------------------------------------------------
 [ "$(id -u)" -eq 0 ] || { echo "Run as root." >&2; exit 1; }
-ALL="repos swap postfix dovecot_dh php_memory php_opcache_cli pdns sieve rclone mailscanner webterminal cron migrate"
+ALL="repos swap postfix dovecot_dh php_memory php_opcache_cli pdns sieve rclone mailscanner webterminal cockpit cron migrate"
 STEPS=${*:-$ALL}
 SKIP=" ${INDIANSCLOUD_SKIP:-} "
 log "IndiansCloud server setup started ($STEPS)"

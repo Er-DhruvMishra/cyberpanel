@@ -62,11 +62,50 @@ EXTRA_SERVICES = (
     ('imunify-antivirus', 'ImunifyAV', ('start', 'stop', 'restart')),
     ('imunify360', 'Imunify360', ('start', 'stop', 'restart')),
     ('fail2ban', 'Fail2ban', ('start', 'stop', 'restart')),
+    ('cockpit.socket', 'Cockpit web console (port 9090)', ('start', 'stop', 'restart')),
     ('firewalld', 'Firewall (firewalld)', ('restart',)),
     ('crond', 'Cron', ('restart',)),
 )
 EXTRA_ACTIONS = {unit: actions for unit, _, actions in EXTRA_SERVICES}
 APP_UNIT_ACTIONS = ('restart',)   # per-site app units (Universal Apps): status, and restart for admins
+
+# Start-at-boot control. Core cards use these keys; the value is the systemd unit candidates
+# (first one installed wins). Disabling these at boot could lock the admin out or stop
+# scheduled jobs, so the page refuses it.
+CORE_UNITS = {
+    'lsws': ('lsws',),
+    'mysql': ('mariadb', 'mysqld', 'mysql'),
+    'pdns': ('pdns', 'pdns-server'),
+    'pure-ftpd': ('pure-ftpd', 'pure-ftpd-mysql'),
+    'docker': ('docker',),
+    'postfix': ('postfix',),
+}
+AUTOSTART_LOCKED = {'firewalld', 'crond', 'lsws', 'lscpd', 'sshd'}
+
+
+def unit_file_name(unit):
+    """'cockpit.socket' stays as is; plain names are services."""
+    return unit if unit.endswith(('.service', '.socket', '.timer')) else unit + '.service'
+
+
+def boot_states(units, executor=None):
+    """{unit: 'enabled'|'disabled'|'static'|...} from one `systemctl is-enabled` call."""
+    executor = executor or ProcessUtilities.outputExecutioner
+    units = [u for u in units if u]
+    if not units:
+        return {}
+    out = (executor('systemctl is-enabled %s' % ' '.join(unit_file_name(u) for u in units)) or '').split()
+    return dict(zip(units, out)) if len(out) == len(units) else {u: 'unknown' for u in units}
+
+
+def resolve_core_units(executor=None):
+    """{key: unit} for the core cards whose unit is installed."""
+    executor = executor or ProcessUtilities.outputExecutioner
+    candidates = sorted({c for names in CORE_UNITS.values() for c in names})
+    listed = executor('systemctl list-unit-files --no-legend %s' % ' '.join(c + '.service' for c in candidates)) or ''
+    present = {line.split()[0][:-len('.service')] for line in listed.splitlines()
+               if line.split() and line.split()[0].endswith('.service')}
+    return {key: next((c for c in names if c in present), None) for key, names in CORE_UNITS.items()}
 
 
 def extra_services(table, executor=None):
@@ -74,20 +113,31 @@ def extra_services(table, executor=None):
     executor = executor or ProcessUtilities.outputExecutioner
     units = [unit for unit, _, _ in EXTRA_SERVICES]
     installed = executor("systemctl list-unit-files --no-legend %s '%s*.service'"
-                         % (' '.join(u + '.service' for u in units), APP_UNIT_PREFIX)) or ''
-    present = {line.split()[0][:-len('.service')] for line in installed.splitlines()
-               if line.split() and line.split()[0].endswith('.service')}
+                         % (' '.join(unit_file_name(u) for u in units), APP_UNIT_PREFIX)) or ''
+    present = set()
+    for line in installed.splitlines():
+        name = line.split()[0] if line.split() else ''
+        if name.endswith('.service'):
+            present.add(name[:-len('.service')])
+        elif name.endswith(('.socket', '.timer')):
+            present.add(name)
     app_units = sorted(u for u in present if APP_UNIT_RE.match(u))
     listed = [u for u in units if u in present] + app_units
     states = (executor('systemctl is-active %s' % ' '.join(listed)) or '').split() if listed else []
     active = dict(zip(listed, states))
     entries = [(unit, label, actions) for unit, label, actions in EXTRA_SERVICES if unit in present]
     entries += [(unit, 'Site app %s' % unit[len(APP_UNIT_PREFIX):], APP_UNIT_ACTIONS) for unit in app_units]
+    boot = boot_states([unit for unit, _, _ in entries], executor)
     extra = []
     for unit, label, actions in entries:
         state = active.get(unit, 'unknown')
+        mem_unit = unit[:-len('.socket')] if unit.endswith('.socket') else unit   # socket-activated: count the service
+        boot_state = boot.get(unit, 'unknown')
         extra.append({'unit': unit, 'label': label, 'state': state, 'running': state == 'active',
-                      'mem': unit_memory(table, unit) if state == 'active' else 0, 'actions': list(actions)})
+                      'mem': unit_memory(table, mem_unit) if state == 'active' else 0, 'actions': list(actions),
+                      'boot': boot_state,
+                      'bootControl': (not APP_UNIT_RE.match(unit)) and unit not in AUTOSTART_LOCKED
+                                     and boot_state in ('enabled', 'disabled')})
     return extra
 
 
@@ -365,8 +415,14 @@ def servicesStatus(request):
             mailStatus.append(0)
 
         extra = extra_services(table)
+        core = resolve_core_units()
+        core_boot = boot_states([u for u in core.values() if u])
+        autostart = {key: {'state': core_boot.get(unit, 'unknown') if unit else 'not installed',
+                           'control': bool(unit) and unit not in AUTOSTART_LOCKED
+                                      and core_boot.get(unit) in ('enabled', 'disabled')}
+                     for key, unit in core.items()}
 
-        json_data = {'extra': extra,
+        json_data = {'extra': extra, 'autostart': autostart,
                      'status':
                          {'litespeed': lsStatus[0],
                           'mysql': sqlStatus[0],
@@ -386,6 +442,28 @@ def servicesStatus(request):
         return redirect(loadLoginPage)
 
 
+def set_autostart(service, action, executor=None):
+    """Enable or disable a listed service at boot. Returns the JSON reply dict."""
+    executor = executor or ProcessUtilities.outputExecutioner
+    service = str(service)
+    if service in CORE_UNITS:
+        unit = resolve_core_units(executor).get(service)
+    elif service in EXTRA_ACTIONS:
+        unit = service
+    else:
+        return {'serviceAction': 0, 'error_message': 'Invalid Service'}
+    if not unit:
+        return {'serviceAction': 0, 'error_message': 'That service is not installed.'}
+    if unit in AUTOSTART_LOCKED:
+        return {'serviceAction': 0,
+                'error_message': 'Start at boot cannot be changed for %s from the panel: it keeps the '
+                                 'server reachable or running scheduled jobs.' % unit}
+    result = executor('sudo systemctl %s %s' % (action, unit_file_name(unit)), shell=False, retRequired=True)
+    if not result or result[0] != 1:
+        return {'serviceAction': 0, 'error_message': 'Could not %s %s at boot.' % (action, unit)}
+    return {'serviceAction': 1, 'error_message': 0, 'boot': boot_states([unit], executor).get(unit, 'unknown')}
+
+
 def servicesAction(request):
     try:
         userID = request.session['userID']
@@ -401,6 +479,9 @@ def servicesAction(request):
                 data = json.loads(request.body)
                 service = data['service']
                 action = data['action']
+
+                if action in ("enable", "disable"):
+                    return HttpResponse(json.dumps(set_autostart(service, action)))
 
                 if action not in ["stop", "start", "restart"]:
 
@@ -427,6 +508,9 @@ def servicesAction(request):
                             service = 'pure-ftpd'
 
                     command = 'sudo systemctl %s %s' % (action, service)
+                    if service == 'cockpit.socket' and action in ('stop', 'restart'):
+                        # stopping only the socket leaves a running session's cockpit.service alive
+                        command = 'sudo systemctl %s cockpit.socket cockpit.service' % action
                     result = ProcessUtilities.outputExecutioner(command, shell=False, retRequired=True)
                     if not result or result[0] != 1:
                         final_dic = {
