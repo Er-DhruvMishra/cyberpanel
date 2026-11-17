@@ -9,7 +9,7 @@
 # Run by cyberpanel.sh after a fresh install and by plogical/upgrade.py after an upgrade.
 # Manual use:   bash /usr/local/CyberCP/install/indianscloud_server_setup.sh [step ...]
 # Steps:        repos swap postfix dovecot_dh php_memory php_opcache_cli pdns sieve rclone
-#               mailscanner cron migrate        (default: all, in that order)
+#               mailscanner webterminal cron migrate   (default: all, in that order)
 # Skip a step:  INDIANSCLOUD_SKIP="sieve rclone" bash indianscloud_server_setup.sh
 
 set -u
@@ -236,6 +236,27 @@ step_mailscanner() {
   log "mailscanner: Max Children $n -> 2"
 }
 
+step_webterminal() {
+  # The per-site SSH terminal (website page) connects to fastapi_ssh_server on :8888. Fresh
+  # installs set it up; upgraded servers never got it. Respect an admin who masked it.
+  [ -f "$CP/fastapi_ssh_server.service" ] || return 0
+  [ "$(systemctl show -p LoadState --value fastapi_ssh_server 2>/dev/null)" = masked ] && return 0
+  if ! systemctl is-enabled --quiet fastapi_ssh_server 2>/dev/null; then
+    (cd "$CP" && "$PY" -c 'from plogical.terminalService import configure_terminal_service as c; c(fresh_install=True)') >/dev/null 2>&1 \
+      && log "webterminal: fastapi_ssh_server enabled on :8888" || { log "webterminal: could not enable fastapi_ssh_server"; return 0; }
+  fi
+  if have firewall-cmd && firewall-cmd --state >/dev/null 2>&1 && \
+     ! firewall-cmd --zone=public --list-rich-rules | grep -q 'port port="8888" protocol="tcp" accept'; then
+    firewall-cmd --permanent --zone=public --add-rich-rule='rule family="ipv4" source address="0.0.0.0/0" port port="8888" protocol="tcp" accept' >/dev/null
+    firewall-cmd --permanent --zone=public --add-rich-rule='rule family="ipv6" port port="8888" protocol="tcp" accept' >/dev/null
+    firewall-cmd --reload >/dev/null && log "webterminal: opened tcp/8888 in firewalld"
+    if mysql_cnf; then
+      mysql_q "INSERT INTO cyberpanel.firewall_firewallrules (name,proto,port,ipAddress) SELECT 'webterminal','tcp','8888','0.0.0.0/0' FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM cyberpanel.firewall_firewallrules WHERE port='8888' AND proto='tcp')"
+      rm -f "$MYCNF"
+    fi
+  fi
+}
+
 step_cron() {
   [ -d "$CP/universalAddons" ] || return 0
   write_cron() {
@@ -265,7 +286,7 @@ step_migrate() {
 
 # --------------------------------------------------------------------------------------------
 [ "$(id -u)" -eq 0 ] || { echo "Run as root." >&2; exit 1; }
-ALL="repos swap postfix dovecot_dh php_memory php_opcache_cli pdns sieve rclone mailscanner cron migrate"
+ALL="repos swap postfix dovecot_dh php_memory php_opcache_cli pdns sieve rclone mailscanner webterminal cron migrate"
 STEPS=${*:-$ALL}
 SKIP=" ${INDIANSCLOUD_SKIP:-} "
 log "IndiansCloud server setup started ($STEPS)"
