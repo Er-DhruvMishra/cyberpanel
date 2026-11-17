@@ -1,7 +1,8 @@
 """Root-side SSH Security actions (dispatched by universalAddons/runner.py).
 
 Read-only except: block/unblock (firewalld rich rules + the registry file) and enable_f2b_sshd
-(writes only /etc/fail2ban/jail.d/cp-sshd.local). sshd_config is never touched.
+(writes only /etc/fail2ban/jail.d/cp-sshd.local). The login settings and authorized_keys actions
+(the only ones that write sshd_config or keys) live in manage.py and are merged in at the end.
 """
 import fcntl
 import glob
@@ -380,3 +381,17 @@ ACTIONS = {
     'enable_f2b_sshd': lambda: enable_f2b_sshd(),
     'job': lambda job_id: jobs.status(job_id),
 }
+
+
+
+def _managed(name):
+    """Login settings and authorized_keys actions live in manage.py (which imports this module)."""
+    def call(**kwargs):
+        from universalAddons.sshsec import manage
+        return manage.ACTIONS[name](**kwargs)
+    return call
+
+
+for _name in ('login_state', 'login_apply', 'login_confirm', 'login_revert', 'keys_list', 'keys_add',
+              'keys_remove', 'keys_rotate', 'keys_generate'):
+    ACTIONS[_name] = _managed(_name)

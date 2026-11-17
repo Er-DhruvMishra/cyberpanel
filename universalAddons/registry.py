@@ -43,7 +43,8 @@ MODULES = (
            'test message with transcript, queue and log status.',
            'ua-smtprelay', 'ready'),
     Module('sshsec', 'SSH Security', 'fa-user-shield',
-           'SSH login analysis, sshd hardening audit and a firewalld IP blocklist.',
+           'SSH login analysis, hardening audit, password/root login switches with a 5-minute undo, '
+           'root SSH keys and a firewalld IP blocklist.',
            'ua-sshsec', 'ready'),
     Module('mysqlmgr', 'MySQL Manager', 'fa-server',
            'Database status, running queries, a tuning advisor and an upgrade-readiness report for MariaDB/MySQL.',

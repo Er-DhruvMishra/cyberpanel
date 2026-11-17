@@ -154,6 +154,198 @@
         }).catch(function (e) { UA.showError($('ss-blocklist'), e); });
     }
 
+    // ------------------------------------------------------------------ login options
+    var login = {state: null, timer: null};
+    function b64(text) { return window.btoa(unescape(encodeURIComponent(text))); }
+    function fpWire(fp) { return String(fp).replace(/^SHA256:/, ''); }
+    function radio(name, value) {
+        Array.prototype.forEach.call(document.getElementsByName(name), function (r) { r.checked = r.value === value; });
+    }
+    function radioValue(name) {
+        var picked = Array.prototype.filter.call(document.getElementsByName(name), function (r) { return r.checked; })[0];
+        return picked ? picked.value : null;
+    }
+    function keyTable(keys, selectable) {
+        return table((selectable ? [''] : []).concat(['Type', 'Bits', 'Fingerprint (SHA256)', 'Comment', 'Options', 'Line']), keys.map(function (k) {
+            return '<tr>' + (selectable ? '<td><input type="checkbox" class="ss-key-pick" value="' + esc(fpWire(k.fingerprint)) + '"></td>' : '') +
+                '<td>' + esc(k.type) + '</td><td>' + esc(k.bits) + '</td><td><code>' + esc(k.fingerprint) + '</code></td><td>' + esc(k.comment) +
+                '</td><td class="ua-muted">' + esc((k.options || []).join(', ')) + '</td><td>' + esc(k.line) + '</td></tr>';
+        }));
+    }
+    function selectUsers(select, users, current) {
+        select.innerHTML = users.map(function (u) { return '<option value="' + esc(u) + '"' + (u === current ? ' selected' : '') + '>' + esc(u) + '</option>'; }).join('');
+    }
+
+    function renderPending(p) {
+        clearInterval(login.timer);
+        if (!p) { $('ss-login-pending').innerHTML = ''; return; }
+        function draw() {
+            var left = Math.max(0, p.deadline - Math.floor(Date.now() / 1000));
+            $('ss-login-pending').innerHTML = '<div class="ua-alert" style="background:#fffbeb;border-color:#f59e0b;color:#92400e">' +
+                '<strong>Trial running.</strong> Open a NEW SSH session now and check that you can log in. ' +
+                (p.expired || left === 0 ? 'The 5-minute safety timer should have undone this change; if it is still shown, the timer did not run (for example after a reboot). Choose below.'
+                    : 'The previous settings come back automatically in <strong>' + Math.floor(left / 60) + ':' + ('0' + left % 60).slice(-2) + '</strong> unless you confirm.') +
+                '<div class="ua-row" style="margin-top:8px"><button class="ua-btn" id="ss-confirm">Confirm: keep the new settings</button>' +
+                '<button class="ua-btn ua-btn-secondary" id="ss-undo">Undo now</button></div></div>';
+            if (left === 0 && !p.expired) { clearInterval(login.timer); setTimeout(loadLogin, 15000); }
+        }
+        draw();
+        login.timer = setInterval(draw, 1000);
+    }
+
+    function loadLoginKeys() {
+        var user = $('ss-login-user').value || 'root';
+        $('ss-tested-help').textContent = 'in a second terminal I logged in with my key as ' + user + ', and that session is still open.';
+        api('keys_list', {user: user}).then(function (d) {
+            var r = d.result;
+            $('ss-login-keys').innerHTML = (r.keys.length ? '<p>' + esc(user) + ' has ' + esc(r.keys.length) + ' key(s). Check that yours is one of these:</p>' + keyTable(r.keys, false)
+                : '<div class="ua-alert">' + esc(user) + ' has no public key in ' + esc(r.path) + '. Password login cannot be turned off' + (user === 'root' ? ', and root cannot be set to keys only,' : '') + ' until you add one (SSH keys card below) and test it.</div>') +
+                (r.problems.length ? '<p class="ua-muted">' + esc(r.problems.length) + ' line(s) in the file are not valid keys and are ignored by sshd.</p>' : '');
+        }).catch(function (e) { UA.showError($('ss-login-keys'), e); });
+    }
+
+    function loadLogin() {
+        api('login_state', {}).then(function (d) {
+            var r = d.result, eff = r.effective, notes = [];
+            login.state = r;
+            renderPending(r.pending);
+            if (r.last && r.last.result === 'reverted') { notes.push(badge('warn', 'Undone') + ' The last change was undone (' + esc(r.last.reason) + ') at ' + esc(when(r.last.time)) + '. ' + esc(r.last.detail || '')); }
+            if (r.last && r.last.result === 'not-reverted') { notes.push(badge('fail', 'Not undone') + ' ' + esc(r.last.detail)); }
+            if (r.block.present && r.block.edited) { notes.push(badge('warn', 'Edited elsewhere') + ' The IndiansCloud block in <code>' + esc(r.file) + '</code> was changed outside this page (for example by Security &gt; Secure SSH). The values below are what sshd uses now.'); }
+            r.match_blocks.forEach(function (m) {
+                if (m.sets.length) { notes.push(badge('info', 'Match') + ' <code>Match ' + esc(m.match) + '</code> overrides ' + esc(m.sets.join(', ')) + ' for the connections it matches; this page does not change Match blocks.'); }
+            });
+            if (eff.authenticationmethods && eff.authenticationmethods !== 'any') { notes.push(badge('info', 'AuthenticationMethods') + ' <code>' + esc(eff.authenticationmethods) + '</code>'); }
+            notes.push('<span class="ua-muted">Now in effect (sshd -T): password login <strong>' + esc(eff.passwordauthentication) + '</strong>, keyboard-interactive <strong>' +
+                esc(eff.kbdinteractiveauthentication || eff.challengeresponseauthentication || '?') + '</strong>, root login <strong>' + esc(eff.permitrootlogin) + '</strong>, port <strong>' + esc(eff.port) +
+                '</strong>. Settings live in <code>' + esc(r.file) + '</code>' + (r.mode === 'block' ? ' (marked block before any Match section)' : ' (drop-in read first)') + '.</span>');
+            $('ss-login-notes').innerHTML = notes.map(function (n) { return '<p>' + n + '</p>'; }).join('');
+            radio('ss-pw', eff.passwordauthentication === 'no' ? 'no' : 'yes');
+            radio('ss-root', eff.permitrootlogin === 'without-password' ? 'prohibit-password' : (eff.permitrootlogin === 'forced-commands-only' ? 'prohibit-password' : eff.permitrootlogin));
+            var ports = String(eff.port || '').split(' ');
+            $('ss-port').value = ports.length === 1 ? ports[0] : '';
+            $('ss-maxauth').value = eff.maxauthtries || '';
+            $('ss-grace').value = eff.logingracetime || '';
+            var portNote = r.socket_activated ? 'sshd is socket-activated here; the port cannot be changed from this page.' : (r.csf ? 'CSF manages the firewall here; the port cannot be changed from this page.' : '');
+            $('ss-port').disabled = !!portNote;
+            $('ss-port-note').dataset.extra = portNote;
+            if (portNote) { $('ss-port-note').textContent = portNote; }
+            var current = $('ss-login-user').value || (r.pending && r.pending.login_user) || 'root';
+            selectUsers($('ss-login-user'), r.users, current);
+            selectUsers($('ss-keys-user'), r.users, $('ss-keys-user').value || 'root');
+            $('ss-login-form').style.display = r.pending ? 'none' : '';
+            loadLoginKeys();
+        }).catch(function (e) { UA.showError($('ss-login-notes'), e); });
+    }
+
+    $('ss-login-user').addEventListener('change', loadLoginKeys);
+    $('ss-login-apply').addEventListener('click', function () {
+        var button = this, settings = {password: radioValue('ss-pw'), root: radioValue('ss-root'), port: $('ss-port').disabled ? '' : $('ss-port').value,
+            maxauthtries: $('ss-maxauth').value, logingracetime: $('ss-grace').value};
+        var summary = 'Password login: ' + (settings.password === 'yes' ? 'ON' : 'OFF') + '\nRoot login: ' + settings.root + (settings.port ? '\nPort: ' + settings.port : '') +
+            '\n\nKeep this SSH session open. You will have 5 minutes to test a new login and confirm.';
+        if (!window.confirm(summary)) { return; }
+        UA.busy(button, true);
+        $('ss-login-msg').innerHTML = '';
+        api('login_apply', {settings: settings, login_user: $('ss-login-user').value, tested: $('ss-tested').checked}).then(function (d) {
+            UA.busy(button, false);
+            var r = d.result;
+            $('ss-login-msg').innerHTML = '<p>' + badge(r.changed ? 'pass' : 'info', r.changed ? 'Applied' : 'No change') + ' ' + esc(r.message) + '</p>' +
+                (r.notes || []).map(function (n) { return '<p class="ua-muted">' + esc(n) + '</p>'; }).join('');
+            $('ss-tested').checked = false;
+            loadLogin();
+        }).catch(function (e) { UA.busy(button, false); UA.showError($('ss-login-msg'), e); });
+    });
+    root.addEventListener('click', function (e) {
+        var p = login.state && login.state.pending;
+        if (!p || (e.target.id !== 'ss-confirm' && e.target.id !== 'ss-undo')) { return; }
+        UA.busy(e.target, true);
+        api(e.target.id === 'ss-confirm' ? 'login_confirm' : 'login_revert', {token: p.token}).then(function (d) {
+            $('ss-login-msg').innerHTML = '<p>' + badge('pass', 'Done') + ' ' + esc(d.result.message) + '</p>';
+            loadLogin();
+            loadStatus();
+        }).catch(function (err) { UA.busy(e.target, false); UA.showError($('ss-login-msg'), err); loadLogin(); });
+    });
+
+    // ------------------------------------------------------------------ SSH keys
+    function keysUser() { return $('ss-keys-user').value || 'root'; }
+    function picked() { return Array.prototype.map.call(root.querySelectorAll('.ss-key-pick:checked'), function (c) { return c.value; }); }
+    function loadKeys() {
+        api('keys_list', {user: keysUser()}).then(function (d) {
+            var r = d.result;
+            $('ss-keys-list').innerHTML = '<p class="ua-muted"><code>' + esc(r.path) + '</code>' + (r.key_only ? ' ' + badge('warn', 'key login only: ' + r.key_only) + ' the last key cannot be removed.' : '') + '</p>' +
+                keyTable(r.keys, true) + (r.problems.length ? '<p class="ua-muted">Ignored lines (not valid keys): ' + esc(r.problems.map(function (p) { return p.line; }).join(', ')) + '</p>' : '');
+        }).catch(function (e) { UA.showError($('ss-keys-list'), e); });
+    }
+    function keysDone(text) {
+        $('ss-keys-msg').innerHTML = '<p>' + badge('pass', 'Done') + ' ' + esc(text) + '</p>';
+        loadKeys();
+        if ($('ss-login-user').value === keysUser()) { loadLoginKeys(); }
+    }
+    $('ss-keys-user').addEventListener('change', loadKeys);
+    $('ss-keys-reload').addEventListener('click', loadKeys);
+    $('ss-keys-remove').addEventListener('click', function () {
+        var fps = picked();
+        if (!fps.length) { $('ss-keys-msg').innerHTML = '<p class="ua-muted">Tick the keys to remove first.</p>'; return; }
+        if (!window.confirm('Remove ' + fps.length + ' key(s) from ' + keysUser() + '\'s authorized_keys? Whoever uses them can no longer log in.')) { return; }
+        api('keys_remove', {user: keysUser(), fps: fps}).then(function (d) { keysDone('Removed ' + d.result.removed.length + ' key(s).'); })
+            .catch(function (e) { UA.showError($('ss-keys-msg'), e); });
+    });
+    function addKey(rotate) {
+        var text = $('ss-key-text').value.trim(), fps = picked();
+        if (!text) { return; }
+        if (/PRIVATE KEY|BEGIN OPENSSH|PuTTY-User-Key-File/.test(text)) {
+            $('ss-key-text').value = '';
+            UA.showError($('ss-keys-msg'), 'That is a PRIVATE key. It was not sent anywhere. Paste the .pub file instead.');
+            return;
+        }
+        if (rotate && !fps.length) { $('ss-keys-msg').innerHTML = '<p class="ua-muted">Tick the old keys to replace first.</p>'; return; }
+        if (rotate && !window.confirm('Add the new key, then remove ' + fps.length + ' old key(s)?')) { return; }
+        api(rotate ? 'keys_rotate' : 'keys_add', {user: keysUser(), key_b64: b64(text), fps: fps, allow_options: $('ss-key-options').checked}).then(function (d) {
+            $('ss-key-text').value = '';
+            keysDone('Added ' + d.result.added.fingerprint + (rotate ? '; removed ' + d.result.removed.length + ' old key(s).' : '.'));
+        }).catch(function (e) { UA.showError($('ss-keys-msg'), e); });
+    }
+    $('ss-key-add').addEventListener('click', function () { addKey(false); });
+    $('ss-key-rotate').addEventListener('click', function () { addKey(true); });
+
+    function download(name, text) {
+        var url = URL.createObjectURL(new Blob([text], {type: 'application/octet-stream'}));
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = name;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+    }
+    $('ss-gen').addEventListener('click', function () {
+        var button = this, pass = $('ss-gen-pass').value, replace = $('ss-gen-replace').checked, fps = replace ? picked() : [];
+        if (!$('ss-gen-ok').checked) { UA.showError($('ss-gen-out'), 'Tick that you understand the private key is shown only once.'); return; }
+        if (pass !== $('ss-gen-pass2').value) { UA.showError($('ss-gen-out'), 'The passphrases do not match.'); return; }
+        if (pass && pass.length < 8) { UA.showError($('ss-gen-out'), 'Use at least 8 characters, or leave the passphrase empty.'); return; }
+        if (!pass && !window.confirm('Create the key WITHOUT a passphrase? Anyone who gets the file can log in.')) { return; }
+        if (replace && !fps.length) { UA.showError($('ss-gen-out'), 'Tick the old keys to replace, or untick "Replace".'); return; }
+        UA.busy(button, true);
+        var body = {user: keysUser(), comment: $('ss-gen-comment').value.trim(), understood: true, fps: fps};
+        if (pass) { body.secret_b64 = b64(pass); }
+        api('keys_generate', body).then(function (d) {
+            UA.busy(button, false);
+            var r = d.result;
+            $('ss-gen-pass').value = $('ss-gen-pass2').value = '';
+            $('ss-gen-ok').checked = false;
+            download(r.filename, r.private_key);
+            r.private_key = null;
+            $('ss-gen-out').innerHTML = '<p>' + badge('pass', 'Key installed') + ' <code>' + esc(r.added.fingerprint) + '</code> for ' + esc(r.user) +
+                (r.removed && r.removed.length ? '; removed ' + esc(r.removed.length) + ' old key(s)' : '') + '. The private key was downloaded as <code>' + esc(r.filename) +
+                '</code>' + (r.encrypted ? ' (passphrase-protected)' : ' (<strong>no passphrase</strong>)') + ' and deleted from the server; it cannot be downloaded again.</p>' +
+                '<p class="ua-muted">Move it to ~/.ssh/, run <code>chmod 600</code> on it, and test: <code>ssh -i ' + esc(r.filename) + ' ' + esc(r.user) + '@this-server</code>. Public key:</p><pre class="ua-pre">' + esc(r.public_key) + '</pre>';
+            keysDone('New key added.');
+        }).catch(function (e) { UA.busy(button, false); UA.showError($('ss-gen-out'), e); });
+    });
+
     loadStatus();
     loadBlocklist();
+    loadLogin();
+    loadKeys();
 })();

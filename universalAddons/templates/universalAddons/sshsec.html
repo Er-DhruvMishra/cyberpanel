@@ -6,9 +6,74 @@
 <div class="ua-wrap" id="ua-sshsec" data-base="{% url 'ua-sshsec' %}">
   <div class="ua-header">
     <h1><i class="fas fa-user-shield"></i> {% trans "SSH Security" %}</h1>
-    <p>{% trans "Who is trying to log in over SSH, how your sshd is configured, and a firewalld blocklist. The analysis and the audit change nothing; sshd_config is never edited." %}</p>
+    <p>{% trans "Who is trying to log in over SSH, how your sshd is configured, easy login switches, root's SSH keys and a firewalld blocklist. The analysis and the audit change nothing; only the Login options and SSH keys cards below write the SSH configuration or keys, and only when you apply a change." %}</p>
   </div>
   <div class="ua-card"><div id="ss-status" class="ua-muted">{% trans "Checking firewalld and fail2ban…" %}</div></div>
+
+  <div class="ua-card" id="ss-login">
+    <h2>{% trans "Login options" %}</h2>
+    <p class="ua-muted">{% trans "Changes are written to a block marked IndiansCloud in the SSH configuration, checked with sshd -t, and sshd is reloaded (open sessions stay connected). If you do not click Confirm within 5 minutes, IndiansCloud puts the previous settings back by itself. Keep your current SSH session open until you have confirmed." %}</p>
+    <div id="ss-login-pending"></div>
+    <div id="ss-login-notes"></div>
+    <div id="ss-login-form" style="display:none">
+      <h3>{% trans "Password login" %}</h3>
+      <label class="ua-check"><input type="radio" name="ss-pw" value="yes"> <strong>{% trans "On" %}</strong> &mdash; {% trans "anyone who knows (or guesses) a password can log in. Bots try thousands of passwords a day." %}</label>
+      <label class="ua-check"><input type="radio" name="ss-pw" value="no"> <strong>{% trans "Off (keys only)" %}</strong> &mdash; {% trans "only someone holding a private key listed in authorized_keys can log in. Much safer, but if you lose your key you need the provider's console to get back in." %}</label>
+      <h3>{% trans "Root login" %}</h3>
+      <label class="ua-check"><input type="radio" name="ss-root" value="yes"> <strong>{% trans "Allow" %}</strong> &mdash; {% trans "root may log in with a password (if password login is on) or a key." %}</label>
+      <label class="ua-check"><input type="radio" name="ss-root" value="prohibit-password"> <strong>{% trans "Keys only" %}</strong> &mdash; {% trans "root may log in with a key, never with a password. Recommended." %}</label>
+      <label class="ua-check"><input type="radio" name="ss-root" value="no"> <strong>{% trans "Never" %}</strong> &mdash; {% trans "nobody can log in as root directly; you log in as another user and use su or sudo." %}</label>
+      <h3>{% trans "The account you log in with" %}</h3>
+      <div class="ua-row">
+        <select id="ss-login-user"></select>
+        <span class="ua-muted">{% trans "Before passwords or root are restricted, this account must have a working key. Its keys are listed below." %}</span>
+      </div>
+      <div id="ss-login-keys"></div>
+      <details style="margin:12px 0">
+        <summary>{% trans "Advanced: port and limits" %}</summary>
+        <div class="ua-row" style="margin-top:8px">
+          <label>{% trans "SSH port" %} <input id="ss-port" type="number" min="1" max="65535" style="width:110px"></label>
+          <label>MaxAuthTries <input id="ss-maxauth" type="number" min="1" max="10" style="width:80px"></label>
+          <label>LoginGraceTime ({% trans "seconds" %}) <input id="ss-grace" type="number" min="10" max="600" style="width:90px"></label>
+        </div>
+        <p class="ua-muted" id="ss-port-note">{% trans "A new port is opened in firewalld (and labelled for SELinux when SELinux is on) before sshd moves. The old port stays open in the firewall until you close it. MaxAuthTries: guesses per connection. LoginGraceTime: how long a client may take to log in." %}</p>
+      </details>
+      <label class="ua-check"><input type="checkbox" id="ss-tested"> <strong>{% trans "I have tested key login" %}</strong> &mdash; <span id="ss-tested-help">{% trans "in a second terminal I logged in with my key as the account above, and that session is still open." %}</span></label>
+      <div class="ua-row" style="margin-top:12px"><button class="ua-btn" id="ss-login-apply">{% trans "Apply (5-minute trial)" %}</button></div>
+      <div id="ss-login-msg"></div>
+    </div>
+  </div>
+
+  <div class="ua-card" id="ss-keys">
+    <h2>{% trans "SSH keys" %}</h2>
+    <p class="ua-muted">{% trans "The public keys allowed to log in as this account (~/.ssh/authorized_keys). Only the type, size, fingerprint and comment are shown. Every change keeps a backup (the last 5) and replaces the file in one step." %}</p>
+    <div class="ua-row"><label>{% trans "Account" %} <select id="ss-keys-user"><option value="root">root</option></select></label>
+      <button class="ua-btn ua-btn-secondary" id="ss-keys-reload">{% trans "Reload" %}</button></div>
+    <div id="ss-keys-list"></div>
+    <div class="ua-row"><button class="ua-btn ua-btn-secondary" id="ss-keys-remove" style="color:#dc2626">{% trans "Remove selected" %}</button></div>
+    <div id="ss-keys-msg"></div>
+
+    <h3>{% trans "Add a public key" %}</h3>
+    <p class="ua-muted">{% trans "Paste the one-line contents of your .pub file (for example ~/.ssh/id_ed25519.pub). Never paste a private key: it is refused." %}</p>
+    <textarea id="ss-key-text" rows="3" style="width:100%;font-family:monospace" placeholder="ssh-ed25519 AAAA... you@laptop"></textarea>
+    <label class="ua-check"><input type="checkbox" id="ss-key-options"> {% trans "Allow key options (from=, command=, no-pty… in front of the key)" %}</label>
+    <div class="ua-row">
+      <button class="ua-btn" id="ss-key-add">{% trans "Add key" %}</button>
+      <button class="ua-btn ua-btn-secondary" id="ss-key-rotate">{% trans "Add, then remove the selected old keys" %}</button>
+    </div>
+
+    <h3>{% trans "Generate a new key pair" %}</h3>
+    <div class="ua-alert" style="background:#fff7ed;border-color:#fdba74;color:#9a3412">{% trans "IndiansCloud makes an ed25519 key on the server, adds its public half to authorized_keys and gives you the private key ONCE as a download; the server keeps no copy. Anyone who gets that file can log in as this account, so store it safely, set a passphrase, and prefer making keys on your own computer (ssh-keygen -t ed25519) when you can." %}</div>
+    <div class="ua-row">
+      <input id="ss-gen-comment" placeholder="{% trans 'comment, e.g. admin@laptop' %}" maxlength="64">
+      <input id="ss-gen-pass" type="password" autocomplete="new-password" placeholder="{% trans 'passphrase (recommended, 8+ characters)' %}">
+      <input id="ss-gen-pass2" type="password" autocomplete="new-password" placeholder="{% trans 'repeat passphrase' %}">
+    </div>
+    <label class="ua-check"><input type="checkbox" id="ss-gen-replace"> {% trans "Replace the selected old keys with the new one" %}</label>
+    <label class="ua-check"><input type="checkbox" id="ss-gen-ok"> {% trans "I understand the private key is shown only once and cannot be downloaded again." %}</label>
+    <div class="ua-row"><button class="ua-btn" id="ss-gen">{% trans "Generate and download" %}</button></div>
+    <div id="ss-gen-out"></div>
+  </div>
 
   <div class="ua-card">
     <h2>{% trans "Login analysis" %}</h2>
@@ -23,7 +88,7 @@
 
   <div class="ua-card">
     <h2>{% trans "sshd hardening audit" %}</h2>
-    <p class="ua-muted">{% trans "Read from sshd -T (the effective configuration). Recommendations only: change sshd_config yourself, keep a second session or the console open, and test before you log out." %}</p>
+    <p class="ua-muted">{% trans "Read from sshd -T (the effective configuration). Password and root login can be changed above; the rest are recommendations: keep a second session or the console open and test before you log out." %}</p>
     <div class="ua-row"><button class="ua-btn ua-btn-secondary" id="ss-audit">{% trans "Run audit" %}</button></div>
     <div id="ss-audit-out"></div>
   </div>

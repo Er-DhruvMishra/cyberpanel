@@ -308,6 +308,22 @@ class FirewallManager:
                 permitRootLogin = 0
                 sshPort = "22"
 
+                # IndiansCloud: prefer the values sshd really uses (sshd -T). The text scan below also
+                # matches comments and lines superseded by the SSH Security add-on's managed block.
+                effective = {}
+                try:
+                    for line in str(ProcessUtilities.outputExecutioner('/usr/sbin/sshd -T') or '').splitlines():
+                        key, _, value = line.strip().partition(' ')
+                        if key in ('port', 'permitrootlogin') and key not in effective and value.strip():
+                            effective[key] = value.strip()
+                except BaseException:
+                    effective = {}
+
+                if 'port' in effective and 'permitrootlogin' in effective and effective['port'].isdigit():
+                    permitRootLogin = 1 if effective['permitrootlogin'] == 'yes' else 0
+                    sshPort = effective['port']
+                    data = []
+
                 for items in data:
                     if items.find("PermitRootLogin") > -1:
                         if items.find("Yes") > -1 or items.find("yes") > -1:
