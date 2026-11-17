@@ -9,7 +9,7 @@
 # Run by cyberpanel.sh after a fresh install and by plogical/upgrade.py after an upgrade.
 # Manual use:   bash /usr/local/CyberCP/install/indianscloud_server_setup.sh [step ...]
 # Steps:        repos swap postfix dovecot_dh php_memory php_opcache_cli pdns sieve rclone
-#               mailscanner webterminal cockpit cron migrate   (default: all, in that order)
+#               mailscanner webterminal cockpit mcelog cron migrate   (default: all, in that order)
 # Skip a step:  INDIANSCLOUD_SKIP="sieve rclone" bash indianscloud_server_setup.sh
 
 set -u
@@ -282,6 +282,21 @@ step_cockpit() {
   log "cockpit: now using the panel certificate ($(openssl x509 -in "$crt" -noout -subject | sed 's/^subject=//'))"
 }
 
+step_mcelog() {
+  # mcelog only supports Intel CPUs (it exits with "CPU is unsupported" on AMD family 17h+), and
+  # inside a VM the host handles machine checks. Left enabled it fails on every boot and shows
+  # as a failed unit. Disable it there; leave it alone on bare-metal Intel.
+  systemctl list-unit-files mcelog.service 2>/dev/null | grep -q '^mcelog.service' || return 0
+  systemctl is-enabled --quiet mcelog 2>/dev/null || return 0
+  local vendor virt
+  vendor=$(awk -F: '/^vendor_id/ {gsub(/ /,"",$2); print $2; exit}' /proc/cpuinfo)
+  virt=$(systemd-detect-virt 2>/dev/null || echo none)
+  if [ "$vendor" = AuthenticAMD ] || [ "$virt" != none ]; then
+    systemctl disable --now mcelog >/dev/null 2>&1; systemctl reset-failed mcelog >/dev/null 2>&1
+    log "mcelog: disabled (CPU $vendor, virtualisation $virt)"
+  fi
+}
+
 step_cron() {
   [ -d "$CP/universalAddons" ] || return 0
   write_cron() {
@@ -313,7 +328,7 @@ step_migrate() {
 
 # --------------------------------------------------------------------------------------------
 [ "$(id -u)" -eq 0 ] || { echo "Run as root." >&2; exit 1; }
-ALL="repos swap postfix dovecot_dh php_memory php_opcache_cli pdns sieve rclone mailscanner webterminal cockpit cron migrate"
+ALL="repos swap postfix dovecot_dh php_memory php_opcache_cli pdns sieve rclone mailscanner webterminal cockpit mcelog cron migrate"
 STEPS=${*:-$ALL}
 SKIP=" ${INDIANSCLOUD_SKIP:-} "
 log "IndiansCloud server setup started ($STEPS)"
