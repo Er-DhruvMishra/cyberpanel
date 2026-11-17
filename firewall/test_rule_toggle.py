@@ -403,3 +403,24 @@ class Page(TestCase):
         self.assertIn('Disable', js)
         self.assertIn('"/firewall/setRulesState"', js)
         self.assertIn('use "Disable" instead', js)
+
+
+class FirewalldServiceRows(TestCase):
+    """Ports opened by firewalld services (ssh, ftp) have no panel rule but must be visible."""
+
+    def test_service_ports_parsed_and_listed_with_ssh_locked(self):
+        info = 'ssh\n  ports: 22/tcp\n  protocols: \n'
+        self.assertEqual(ruleToggle.parse_service_ports(info), [('22', 'tcp')])
+        live = {'rich': set(), 'ports': set(),
+                'services': [{'service': 'ssh', 'ports': [('22', 'tcp')]},
+                             {'service': 'ftp', 'ports': [('21', 'tcp')]}]}
+        rows = ruleToggle.describe_services(live, {22: 'SSH', 8090: 'panel'})
+        self.assertEqual(rows[0], {'service': 'ssh', 'ports': ['22/tcp'], 'protected': True})
+        self.assertFalse(rows[1]['protected'])
+
+    def test_rule_open_through_a_service_is_active_not_missing(self):
+        live = {'rich': set(), 'ports': set(), 'services': [{'service': 'ftp', 'ports': [('21', 'tcp')]}]}
+        rule = FirewallRules(id=4, name='ftp', proto='tcp', port='21', ipAddress='0.0.0.0/0')
+        status, details = ruleToggle.live_status(rule, True, live)
+        self.assertEqual(status, ruleToggle.STATUS_ACTIVE)
+        self.assertIn('"ftp" service', details['note'])

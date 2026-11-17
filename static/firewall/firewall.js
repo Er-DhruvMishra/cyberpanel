@@ -148,6 +148,7 @@ app.controller('firewallController', function ($scope, $http) {
             if (response.data.fetchStatus === 1) {
                 $scope.rules = JSON.parse(response.data.data);
                 $scope.liveState = response.data.liveState;
+                $scope.fwServices = response.data.services || [];
                 var known = {};
                 angular.forEach($scope.rules, function (rule) { known[rule.id] = true; });
                 angular.forEach(Object.keys($scope.selectedRules), function (id) {

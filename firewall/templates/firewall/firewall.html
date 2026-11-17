@@ -3,7 +3,7 @@
 {% load static %}
 {% block title %}{% trans "Firewall - IndiansCloud" %}{% endblock %}
 
-{% block module_scripts %}<script defer src="{% static 'firewall/firewall.js' %}?v={{ CP_VERSION }}-rules-20261117"></script>{% endblock %}
+{% block module_scripts %}<script defer src="{% static 'firewall/firewall.js' %}?v={{ CP_VERSION }}-rules-20261117b"></script>{% endblock %}
 
 {% block header_scripts %}
 <style>
@@ -897,6 +897,32 @@
                     </tr>
                 </tbody>
             </table>
+
+            <div ng-if="fwServices.length" style="margin-top: 1.5rem;">
+                <h4 style="margin: 0 0 .25rem; font-size: 1rem; font-weight: 600;">{% trans "Opened by firewalld services" %}</h4>
+                <p style="margin: 0 0 .75rem; font-size: .85rem; color: var(--text-secondary, #64748b);">
+                    {% trans "These ports are allowed by firewalld's built-in services rather than panel rules, so they cannot be disabled here. SSH is locked to protect your access." %}
+                </p>
+                <table class="table">
+                    <thead>
+                    <tr>
+                        <th>{% trans "Service" %}</th>
+                        <th>{% trans "Ports" %}</th>
+                        <th>{% trans "Status" %}</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr ng-repeat="svc in fwServices track by svc.service">
+                        <td>
+                            <i class="fas fa-lock" ng-if="svc.protected" title="{% trans 'Protected: removing it could lock you out' %}"></i>
+                            <strong ng-bind="svc.service"></strong>
+                        </td>
+                        <td><span ng-repeat="p in svc.ports"><code ng-bind="p"></code> </span><span ng-if="!svc.ports.length">&mdash;</span></td>
+                        <td><span class="badge badge-success" style="background: var(--success-color, #16a34a); color: #fff;">{% trans "Active" %}</span></td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
 
             <!-- Empty State -->
             <div ng-if="rules.length == 0" class="empty-state">

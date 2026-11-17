@@ -62,9 +62,11 @@ class FirewallManager:
             else:
                 return ACLManager.loadErrorJson('fetchStatus', 0)
 
-            rows, liveState, protected = ruleToggle.describe_rules(FirewallRules.objects.all().order_by('id'))
+            live = ruleToggle.read_live_state()
+            rows, liveState, protected = ruleToggle.describe_rules(FirewallRules.objects.all().order_by('id'), live=live)
             json_data = json.dumps(rows)
             final_json = json.dumps({'status': 1, 'fetchStatus': 1, 'error_message': "None", "data": json_data,
+                                     'services': ruleToggle.describe_services(live, protected),
                                      'liveState': 1 if liveState else 0,
                                      'protectedPorts': {str(k): v for k, v in sorted(protected.items())}})
             return HttpResponse(final_json)

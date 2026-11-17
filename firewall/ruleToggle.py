@@ -114,13 +114,40 @@ def _run_output(command):
     return None
 
 
+_SERVICE_NAME = re.compile(r'^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$')
+
+
+def parse_service_ports(info_text):
+    """Ports of one service from `firewall-cmd --info-service=NAME` ("  ports: 22/tcp ...")."""
+    for line in (info_text or '').splitlines():
+        line = line.strip()
+        if line.startswith('ports:'):
+            return sorted(parse_ports(line[len('ports:'):]))
+    return []
+
+
 def read_live_state():
-    """One read of zone public: {'rich': set, 'ports': set}, or None when firewalld is unavailable."""
+    """One read of zone public: {'rich': set, 'ports': set, 'services': [...]}, or None when
+    firewalld is unavailable. Services (ssh, ftp, ...) open ports without any rich rule."""
     rich = _run_output('firewall-cmd --zone=public --list-rich-rules')
     if rich is None or 'not running' in rich.lower():
         return None
     ports = _run_output('firewall-cmd --zone=public --list-ports')
-    return {'rich': parse_rich_rules(rich), 'ports': parse_ports(ports or '')}
+    services = []
+    names = [n for n in (_run_output('firewall-cmd --zone=public --list-services') or '').split()
+             if _SERVICE_NAME.match(n)][:40]
+    for name in names:
+        services.append({'service': name,
+                         'ports': parse_service_ports(_run_output('firewall-cmd --info-service=%s' % name))})
+    return {'rich': parse_rich_rules(rich), 'ports': parse_ports(ports or ''), 'services': services}
+
+
+def service_for_port(live, port, proto):
+    """Name of the firewalld service in zone public that opens port/proto, if any."""
+    for item in (live or {}).get('services', []):
+        if (str(port), str(proto).lower()) in item['ports']:
+            return item['service']
+    return None
 
 
 def expected_keys(rule):
@@ -153,6 +180,9 @@ def live_status(rule, enabled, live):
         return STATUS_ACTIVE, {'missing': [], 'note': ''}
     if via_ports:
         return STATUS_ACTIVE, {'missing': missing, 'note': 'Open through the zone port list.'}
+    service = service_for_port(live, rule.port, rule.proto) if _norm_source(rule.ipAddress) == '0.0.0.0/0' else None
+    if service:
+        return STATUS_ACTIVE, {'missing': missing, 'note': 'Open through the firewalld "%s" service.' % service}
     return STATUS_MISSING, {'missing': missing, 'note': 'Not found in firewalld: ' + ', '.join(missing) + '.'}
 
 
@@ -277,11 +307,26 @@ def load_rules(ids):
 
 # ---------------------------------------------------------------- listing
 
-def describe_rules(rules):
+_UNREAD = object()
+
+
+def describe_services(live, protected=None):
+    """Read-only rows for ports opened by firewalld services (ssh, ftp, ...), which have no panel rule."""
+    protected = protected_ports() if protected is None else protected
+    rows = []
+    for item in (live or {}).get('services', []):
+        ports = ['%s/%s' % (p, proto) for p, proto in item['ports']]
+        locked = any(proto == 'tcp' and p.isdigit() and int(p) in protected for p, proto in item['ports'])
+        rows.append({'service': item['service'], 'ports': ports, 'protected': locked})
+    return rows
+
+
+def describe_rules(rules, live=_UNREAD):
     """Rows for the rules table: the rule, its panel state, live status and protection."""
     rules = list(rules)
     states = states_for(r.id for r in rules)
-    live = read_live_state()
+    if live is _UNREAD:
+        live = read_live_state()
     protected = protected_ports()
     rows = []
     for rule in rules:
