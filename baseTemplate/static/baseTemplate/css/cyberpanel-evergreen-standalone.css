@@ -426,7 +426,9 @@ html.cp-evergreen:is(.cp-filemanager, .cp-fileeditor) #navBar {
 html.cp-evergreen:is(.cp-filemanager, .cp-fileeditor) .header-logo { padding: 0; min-width: 0; }
 html.cp-evergreen:is(.cp-filemanager, .cp-fileeditor) .header-logo a { color: var(--cp-sa-ink); min-width: 0; gap: 12px; }
 html.cp-evergreen:is(.cp-filemanager, .cp-fileeditor) .header-logo img { display: block; width: 180px; max-width: 100%; height: auto; }
-html.cp-evergreen:is(.cp-filemanager, .cp-fileeditor) .header-logo .logo-icon { width: 42px; height: 42px; background: var(--cp-sa-mint); color: var(--cp-sa-ink); border: 1px solid var(--cp-sa-line); border-radius: 4px; box-shadow: none; }
+html.cp-evergreen:is(.cp-filemanager, .cp-fileeditor) .header-logo .logo-icon { width: 42px; height: 42px; background: var(--cp-sa-mint); color: var(--cp-sa-ink); border: 1px solid var(--cp-sa-line); border-radius: 4px; box-shadow: none; display: flex; flex: 0 0 auto; align-items: center; justify-content: center; }
+html.cp-evergreen:is(.cp-filemanager, .cp-fileeditor) .header-logo a { display: flex; flex-direction: row; align-items: center; }
+html.cp-evergreen:is(.cp-filemanager, .cp-fileeditor) .header-logo .logo-icon > i { margin: 0; font-size: 20px; line-height: 1; }
 html.cp-evergreen:is(.cp-filemanager, .cp-fileeditor) .header-logo:hover .logo-icon { transform: none; box-shadow: none; }
 html.cp-evergreen:is(.cp-filemanager, .cp-fileeditor) .header-logo .logo-text .brand { color: var(--cp-sa-ink); font-size: 18px; font-weight: 600; letter-spacing: -.035em; }
 html.cp-evergreen:is(.cp-filemanager, .cp-fileeditor) .header-logo .logo-text .domain { color: var(--cp-sa-muted); font: 11px ui-monospace, SFMono-Regular, Consolas, monospace; margin-top: 5px; overflow-wrap: anywhere; }
@@ -484,6 +486,11 @@ html.cp-evergreen.cp-filemanager #tableHead { background: var(--cp-sa-mint); col
 html.cp-evergreen.cp-filemanager #tableHead th { color: var(--cp-sa-muted); border: 0; border-bottom: 1px solid var(--cp-sa-line); font-weight: 600; padding: 13px 16px; white-space: nowrap; }
 html.cp-evergreen.cp-filemanager #tableBodyFiles td { color: var(--cp-sa-ink); border-color: var(--cp-sa-line); padding: 14px 16px; vertical-align: middle; }
 html.cp-evergreen.cp-filemanager #tableBodyFiles tr:hover { background: var(--cp-sa-mint); }
+/* The file/folder icon sits in a row <th>: give it the same padding and row line as the
+   other cells and centre the icon in a fixed-width column. */
+html.cp-evergreen.cp-filemanager #tableHead th:first-child { width: 56px; padding-left: 0; padding-right: 0; }
+html.cp-evergreen.cp-filemanager #tableBodyFiles th[scope="row"] { width: 56px; padding: 14px 0; text-align: center; vertical-align: middle; border-top: 1px solid var(--cp-sa-line); font-weight: 400; line-height: 1; }
+html.cp-evergreen.cp-filemanager #tableBodyFiles th[scope="row"] > i.fa { display: inline-block; width: 1.25em; font-size: 17px; line-height: 1; text-align: center; vertical-align: middle; }
 html.cp-evergreen.cp-filemanager #tableBodyFiles a { color: inherit; }
 
 /* Bootstrap owns modal visibility, backdrop and close behavior. */
