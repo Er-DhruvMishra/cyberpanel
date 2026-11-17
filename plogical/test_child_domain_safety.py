@@ -76,3 +76,23 @@ class ChildDomainFileManager(unittest.TestCase):
             response = views.loadFileManagerHome(request, 'anuj.example.com')
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response['Location'], '/filemanager/example.com')
+
+
+class SwitchToApachePreflight(unittest.TestCase):
+
+    def test_fpm_checked_before_the_ols_config_is_removed(self):
+        source = inspect.getsource(vhu.virtualHostUtilities.switchServer)
+        self.assertLess(source.index('if not os.path.isdir(fpmPoolDir)'),
+                        source.index('os.remove(completePathToConfigFile)'))
+
+
+class Placeholder(unittest.TestCase):
+
+    def test_placeholder_is_indianscloud_with_service_links(self):
+        path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'index.html')
+        html = open(path, encoding='utf-8').read()
+        self.assertNotIn('CyberPanel', html)
+        for link in ('https://indianscloud.com/webmail-rc/', 'https://indianscloud.com/contact.php',
+                     'https://indianscloud.com:8090/', 'https://indianscloud.com/submitticket.php'):
+            self.assertIn(link, html)
+        self.assertIn('textContent', html)      # host name is inserted as text, never as HTML

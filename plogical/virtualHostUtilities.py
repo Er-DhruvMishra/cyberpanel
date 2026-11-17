@@ -1817,6 +1817,15 @@ class virtualHostUtilities:
 
             if server == virtualHostUtilities.apache:
 
+                # Check PHP-FPM before touching the site: the conversion removes the
+                # OpenLiteSpeed config first, so a missing FPM would leave the site offline.
+                fpmPoolDir = os.path.dirname(
+                    ApacheVhost.DecidePHPPath(PHPManager.getPHPString(phpVersion), virtualHostName))
+                if not os.path.isdir(fpmPoolDir):
+                    raise BaseException('%s with Apache needs PHP-FPM for that version (%s is not installed). '
+                                        'Install it first or choose another PHP version; the site was not changed.'
+                                        % (phpVersion, fpmPoolDir))
+
                 if os.path.exists(completePathToConfigFile):
                     os.remove(completePathToConfigFile)
 

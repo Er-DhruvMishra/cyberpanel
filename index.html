@@ -1,4 +1,101 @@
-<div style="margin-top: 11%;" class="server-message">
-                <h1 style="font-size: 85px;margin: 0;font-weight: 300;    line-height: 1.1;color:grey;text-align: center;">IndiansCloud Installed</h1>
-                <h2 style="margin-top: 2%;margin-bottom: 2%;font-weight: 300;    line-height: 1.1;color: #a56565;;text-align: center;">You have successfully installed IndiansCloud, please remove this page and upload your website. :)</h2>
-</div>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Website coming soon · Hosted by IndiansCloud</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-2 -2 206 206'%3E%3Cg transform='translate(0,31)'%3E%3Cg fill='%234b7fbd'%3E%3Ccircle cx='40' cy='92' r='45'/%3E%3Ccircle cx='100' cy='60' r='61'/%3E%3Ccircle cx='162' cy='100' r='40'/%3E%3Crect x='40' y='85' width='122' height='54'/%3E%3C/g%3E%3Cg fill='%23a82121'%3E%3Ccircle cx='40' cy='92' r='38'/%3E%3Ccircle cx='100' cy='60' r='54'/%3E%3Ccircle cx='162' cy='100' r='33'/%3E%3Crect x='40' y='92' width='122' height='40'/%3E%3C/g%3E%3Cg fill='%23ffffff'%3E%3Ccircle cx='58' cy='104' r='26'/%3E%3Ccircle cx='104' cy='86' r='44'/%3E%3Ccircle cx='146' cy='106' r='24'/%3E%3Crect x='58' y='104' width='88' height='26'/%3E%3C/g%3E%3Cg fill='%2321b921'%3E%3Ccircle cx='78' cy='108' r='17'/%3E%3Ccircle cx='101' cy='94' r='26'/%3E%3Ccircle cx='124' cy='110' r='13'/%3E%3Crect x='78' y='108' width='46' height='15'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E">
+<style>
+  :root {
+    --bg: #f5f7fb; --card: #ffffff; --ink: #1d2433; --muted: #5b6475; --line: #e3e7ef;
+    --blue: #4b7fbd; --red: #a82121; --green: #1f9d3a; --accent-ink: #ffffff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #0f141c; --card: #171e29; --ink: #e8edf5; --muted: #a3adbd; --line: #263142; --blue: #7fa8dc; }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; background: var(--bg); color: var(--ink);
+    font: 16px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 32px 16px;
+  }
+  main { width: 100%; max-width: 760px; }
+  .brand { display: flex; align-items: center; gap: 12px; justify-content: center; margin-bottom: 28px; }
+  .brand svg { width: 64px; height: auto; }
+  .brand span { font-size: 28px; font-weight: 700; letter-spacing: -0.5px; }
+  .brand .a { color: var(--red); } .brand .b { color: var(--blue); }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 32px; box-shadow: 0 8px 30px rgba(20, 30, 50, .06); }
+  h1 { margin: 0 0 6px; font-size: 26px; line-height: 1.25; text-align: center; }
+  .domain { display: block; color: var(--blue); word-break: break-all; }
+  .lead { margin: 10px auto 0; max-width: 560px; text-align: center; color: var(--muted); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; margin-top: 28px; }
+  a.tile {
+    display: block; padding: 16px 18px; border: 1px solid var(--line); border-radius: 12px; text-decoration: none; color: var(--ink);
+    transition: border-color .15s, transform .15s;
+  }
+  a.tile:hover, a.tile:focus-visible { border-color: var(--blue); transform: translateY(-1px); outline: none; }
+  a.tile strong { display: block; font-size: 15px; }
+  a.tile small { display: block; color: var(--muted); font-size: 13px; margin-top: 2px; }
+  a.tile.primary { background: var(--blue); border-color: var(--blue); color: var(--accent-ink); }
+  a.tile.primary small { color: rgba(255, 255, 255, .85); }
+  .owner { margin-top: 26px; padding-top: 20px; border-top: 1px solid var(--line); font-size: 14px; color: var(--muted); }
+  .owner b { color: var(--ink); }
+  code { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px; font-size: 13px; }
+  footer { margin-top: 22px; font-size: 13px; color: var(--muted); text-align: center; }
+  footer a { color: var(--blue); text-decoration: none; }
+</style>
+</head>
+<body>
+<main>
+  <div class="brand" aria-label="IndiansCloud">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="-2 -2 206 144" aria-hidden="true"><g fill="#4b7fbd"><circle cx="40" cy="92" r="45"/><circle cx="100" cy="60" r="61"/><circle cx="162" cy="100" r="40"/><rect x="40" y="85" width="122" height="54"/></g><g fill="#a82121"><circle cx="40" cy="92" r="38"/><circle cx="100" cy="60" r="54"/><circle cx="162" cy="100" r="33"/><rect x="40" y="92" width="122" height="40"/></g><g fill="#4b7fbd"><circle cx="58" cy="104" r="33"/><circle cx="104" cy="86" r="51"/><circle cx="146" cy="106" r="31"/><rect x="58" y="97" width="88" height="40"/></g><g fill="#ffffff"><circle cx="58" cy="104" r="26"/><circle cx="104" cy="86" r="44"/><circle cx="146" cy="106" r="24"/><rect x="58" y="104" width="88" height="26"/></g><g fill="#4b7fbd"><circle cx="78" cy="108" r="22"/><circle cx="101" cy="94" r="31"/><circle cx="124" cy="110" r="18"/><rect x="78" y="103" width="46" height="25"/></g><g fill="#21b921"><circle cx="78" cy="108" r="17"/><circle cx="101" cy="94" r="26"/><circle cx="124" cy="110" r="13"/><rect x="78" y="108" width="46" height="15"/></g></svg>
+    <span><span class="a">Indians</span><span class="b">Cloud</span></span>
+  </div>
+
+  <div class="card">
+    <h1>This website is being set up<span class="domain" id="domain"></span></h1>
+    <p class="lead">The domain is hosted with IndiansCloud and is ready for its content. Check back soon.</p>
+
+    <div class="grid">
+      <a class="tile primary" href="https://indianscloud.com/contact.php">
+        <strong>Request a custom development quote</strong>
+        <small>Websites, apps, eCommerce and software built for you</small>
+      </a>
+      <a class="tile" href="https://indianscloud.com/webmail-rc/">
+        <strong>Webmail</strong>
+        <small>Read and send email for this domain</small>
+      </a>
+      <a class="tile" href="https://indianscloud.com:8090/">
+        <strong>Hosting control panel</strong>
+        <small>Manage files, email, databases and SSL</small>
+      </a>
+      <a class="tile" href="https://indianscloud.com/clientarea.php">
+        <strong>Client area</strong>
+        <small>Services, invoices and billing</small>
+      </a>
+      <a class="tile" href="https://indianscloud.com/submitticket.php">
+        <strong>Get support</strong>
+        <small>Open a ticket with our team</small>
+      </a>
+      <a class="tile" href="https://indianscloud.com/cart.php">
+        <strong>Hosting plans</strong>
+        <small>Web hosting, email and more</small>
+      </a>
+    </div>
+
+    <p class="owner"><b>Is this your website?</b> Replace this page by uploading your site into the website's
+      document root (usually <code>public_html</code>) with the control panel's File Manager, FTP or Git deploy,
+      or install WordPress and other apps from the panel in one click.</p>
+  </div>
+
+  <footer>Hosted by <a href="https://indianscloud.com/">IndiansCloud</a></footer>
+</main>
+<script>
+  (function () {
+    var host = (window.location.hostname || '').replace(/^www\./, '');
+    if (host) { document.getElementById('domain').textContent = host; }
+  })();
+</script>
+</body>
+</html>
