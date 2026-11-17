@@ -455,9 +455,9 @@
                             {% else %}
                                 <input ng-model="apacheBackend" type="checkbox" id="apacheBackend" disabled>
                                 <label for="apacheBackend" class="checkbox-label">
-                                    OpenLiteSpeed + Apache (Backend) - 
+                                    OpenLiteSpeed + Apache (Backend) -
                                     <a href="{% url 'help' 'creating-websites' %}" target="_blank">
-                                        Premium Feature
+                                        {% trans "needs Apache installed" %}
                                         <i class="fas fa-external-link-alt" style="font-size: 10px;"></i>
                                     </a>
                                     <small style="display: block; color: var(--text-secondary, #8893a7); font-weight: normal; margin-top: 4px;">
@@ -468,6 +468,42 @@
                         </div>
                     </div>
                     
+                    <div class="checkbox-group">
+                        <div class="checkbox-wrapper">
+                            <input ng-model="sslCheck" ng-init="sslCheck=true" type="checkbox" id="sslCheck">
+                            <label for="sslCheck" class="checkbox-label">
+                                {% trans "Issue SSL certificate" %}
+                                <small style="display: block; color: var(--text-secondary, #8893a7); font-weight: normal; margin-top: 4px;">
+                                    {% trans "Get a free Let's Encrypt certificate once the domain points to this server (a self-signed one is used until then)." %}
+                                </small>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="checkbox-group">
+                        <div class="checkbox-wrapper">
+                            <input ng-model="dkimCheck" ng-init="dkimCheck=true" type="checkbox" id="dkimCheck">
+                            <label for="dkimCheck" class="checkbox-label">
+                                {% trans "DKIM email signing" %}
+                                <small style="display: block; color: var(--text-secondary, #8893a7); font-weight: normal; margin-top: 4px;">
+                                    {% trans "Create DKIM keys and DNS records so mail from this domain is less likely to be marked as spam." %}
+                                </small>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="checkbox-group">
+                        <div class="checkbox-wrapper">
+                            <input ng-model="openBasedir" ng-init="openBasedir=true" type="checkbox" id="openBasedir">
+                            <label for="openBasedir" class="checkbox-label">
+                                {% trans "open_basedir protection" %}
+                                <small style="display: block; color: var(--text-secondary, #8893a7); font-weight: normal; margin-top: 4px;">
+                                    {% trans "Keep this site's PHP inside its own folders, so it cannot read other sites' files. Recommended." %}
+                                </small>
+                            </label>
+                        </div>
+                    </div>
+
                     <div class="checkbox-group">
                         <div class="checkbox-wrapper">
                             <input ng-model="mailDomain" type="checkbox" id="mailDomain">

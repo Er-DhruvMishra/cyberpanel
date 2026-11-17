@@ -169,3 +169,24 @@ class AddonDomainAsksForWebsite(SimpleTestCase):
             block = js[js.index("type == 'Addon Domain'"):][:400]
             self.assertIn('$scope.webselection = false;', block, rel)
             self.assertNotIn('$scope.webselection = true;', block, rel)
+
+
+class CreateWebsiteOptions(SimpleTestCase):
+    """SSL, DKIM and open_basedir are offered on Create Website (on by default) and honoured."""
+
+    def test_checkboxes_present_and_default_on(self):
+        import os
+        html = open(os.path.join(os.path.dirname(__file__), 'templates', 'websiteFunctions', 'createWebsite.html'),
+                    encoding='utf-8').read()
+        for model in ('sslCheck', 'dkimCheck', 'openBasedir'):
+            self.assertIn('ng-model="%s" ng-init="%s=true"' % (model, model), html)
+        self.assertNotIn('Premium Feature', html)
+
+    def test_server_uses_requested_flags_with_on_defaults(self):
+        import inspect
+        from websiteFunctions.website import WebsiteManager
+        source = inspect.getsource(WebsiteManager.submitWebsiteCreation)
+        self.assertIn("data.get('ssl', 1)", source)
+        self.assertIn("data.get('dkimCheck', 1)", source)
+        self.assertIn('" --ssl " + str(sslFlag)', source)
+        self.assertNotIn('" --ssl " + str(1)', source)

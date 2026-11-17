@@ -2389,11 +2389,15 @@ Require valid-user
 
             ## Create Configurations
 
+            # SSL and DKIM default to on (API callers that omit them keep the old behaviour);
+            # the Create Website page can now turn them off.
+            sslFlag = 0 if data.get('ssl', 1) in (0, '0', False) else 1
+            dkimFlag = 0 if data.get('dkimCheck', 1) in (0, '0', False) else 1
             execPath = "/usr/local/CyberCP/bin/python " + virtualHostUtilities.cyberPanel + "/plogical/virtualHostUtilities.py"
             execPath = execPath + " createVirtualHost --virtualHostName " + domain + \
                        " --administratorEmail " + adminEmail + " --phpVersion " + shlex.quote(phpSelection) + \
-                       " --virtualHostUser " + externalApp + " --ssl " + str(1) + " --dkimCheck " \
-                       + str(1) + " --openBasedir " + str(data['openBasedir']) + \
+                       " --virtualHostUser " + externalApp + " --ssl " + str(sslFlag) + " --dkimCheck " \
+                       + str(dkimFlag) + " --openBasedir " + str(data['openBasedir']) + \
                        ' --websiteOwner ' + shlex.quote(websiteOwner) + ' --package ' + shlex.quote(packageName) + ' --tempStatusPath ' + tempStatusPath + " --apache " + apacheBackend + " --mailDomain %s" % (
                            mailDomain)
 
